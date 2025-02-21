@@ -42,7 +42,7 @@ async function bootstrap() {
   // Increase URL-encoded payload size limit to 10mb
   // app.use(urlencoded({ extended: true, limit: '10mb' }));
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3039;
   await app.listen(port, () => {
     logger.log(`Distributor Service listening at http://localhost:${port}`);
   });
