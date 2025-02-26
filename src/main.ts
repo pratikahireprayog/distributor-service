@@ -8,6 +8,8 @@ import {
   CustomHttpExceptionFilter,
   GlobalExceptionFilter,
 } from './infrastructure/exception-handlers';
+import { ActivityRegistryService } from './infrastructure/temporal/activities/activity-registry.service';
+import { DistributorService } from './services/distributor/distributor.service';
 
 declare const module: any;
 
@@ -33,6 +35,17 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Register activities with Temporal
+  const activityRegistry = app.get(ActivityRegistryService);
+  const distributorService = app.get(DistributorService);
+
+  // Register distributor service activities
+  activityRegistry.register('distributor', {
+    createOrder: distributorService.createOrder.bind(distributorService),
+    trackShipment: distributorService.trackShipment.bind(distributorService),
+    cancelOrder: distributorService.cancelOrder.bind(distributorService),
+  });
 
   // Increase JSON payload size limit to 10mb
   // app.use(json({ limit: '10mb' }));

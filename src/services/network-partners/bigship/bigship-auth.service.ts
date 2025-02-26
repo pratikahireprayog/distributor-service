@@ -2,6 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { catchError, firstValueFrom, from, map } from 'rxjs';
 import { JwtService } from '@nestjs/jwt';
+import { AuthProvider } from '../../../common/interfaces/auth-provider.interface';
 
 interface LoginPayload {
     user_name: string;
@@ -24,7 +25,7 @@ interface DecodedToken {
 }
 
 @Injectable()
-export class BigshipAuthService {
+export class BigshipAuthService implements AuthProvider {
     private token: string | null = null;
     private isTokenRefreshInProgress: Promise<string> | null = null;
     private readonly httpClient;
@@ -42,6 +43,17 @@ export class BigshipAuthService {
         });
     }
 
+    /**
+     * Gets authentication headers for API requests
+     * @returns A record of header key-value pairs
+     */
+    async getAuthHeaders(): Promise<Record<string, string>> {
+        const token = await this.getToken();
+        return {
+            'Authorization': `Bearer ${token}`
+        };
+    }
+
     private getLoginPayload(): LoginPayload {
         const { USER_NAME, PASSWORD, ACCESS_KEY } = process.env;
 
@@ -52,7 +64,7 @@ export class BigshipAuthService {
         return {
             user_name: USER_NAME,
             password: PASSWORD,
-            access_key: ACCESS_KEY,
+            access_key: ACCESS_KEY
         };
     }
 
