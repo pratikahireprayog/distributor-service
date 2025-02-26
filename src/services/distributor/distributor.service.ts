@@ -17,19 +17,19 @@ export class DistributorService {
      * @param data The order data
      * @returns The created order
      */
-    async createOrder(data: any): Promise<any> {
-        this.logger.log(`Creating order for ${data.orderId}`);
+    // async createOrder(data: any): Promise<any> {
+    //     this.logger.log(`Creating order for ${data.orderId}`);
 
-        // Determine which partner to use
-        const partnerType = this.determinePartnerType(data);
-        this.logger.debug(`Selected partner: ${partnerType}`);
+    //     // Determine which partner to use
+    //     const partnerType = this.determinePartnerType(data);
+    //     this.logger.debug(`Selected partner: ${partnerType}`);
 
-        // Get the appropriate partner implementation
-        const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    //     // Get the appropriate partner implementation
+    //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
-        // Execute the operation with the selected partner
-        return partnerActivity.createShipment(data);
-    }
+    //     // Execute the operation with the selected partner
+    //     return partnerActivity.createManifestation(data);
+    // }
 
     /**
      * Creates a manifestation with the appropriate network partner
@@ -47,7 +47,7 @@ export class DistributorService {
         const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
         // Execute the operation with the selected partner
-        return partnerActivity.createShipment(data);
+        return partnerActivity.createManifestation(data);
     }
 
     /**
@@ -55,36 +55,36 @@ export class DistributorService {
      * @param trackingId The tracking ID
      * @returns The tracking information
      */
-    async trackShipment(trackingId: string): Promise<any> {
-        this.logger.log(`Tracking shipment with ID ${trackingId}`);
+    // async trackOrder(trackingId: string): Promise<any> {
+    //     this.logger.log(`Tracking order with ID ${trackingId}`);
 
-        // Determine partner from tracking ID
-        const partnerType = await this.findPartnerForTrackingId(trackingId);
+    //     // Determine partner from tracking ID
+    //     const partnerType = await this.findPartnerForTrackingId(trackingId);
 
-        // Get the appropriate partner implementation
-        const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    //     // Get the appropriate partner implementation
+    //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
-        // Execute the operation with the selected partner
-        return partnerActivity.trackShipment(trackingId);
-    }
+    //     // Execute the operation with the selected partner
+    //     return partnerActivity.trackOrder(trackingId);
+    // }
 
     /**
      * Cancels an order with the appropriate network partner
      * @param shipmentId The shipment ID
      * @returns The cancellation result
      */
-    async cancelOrder(shipmentId: string): Promise<any> {
-        this.logger.log(`Cancelling order with ID ${shipmentId}`);
+    // async cancelOrder(shipmentId: string): Promise<any> {
+    //     this.logger.log(`Cancelling order with ID ${shipmentId}`);
 
-        // Find partner for this shipment
-        const partnerId = await this.findPartnerForShipmentId(shipmentId);
+    //     // Find partner for this shipment
+    //     const partnerId = await this.findPartnerForShipmentId(shipmentId);
 
-        // Get the appropriate partner implementation
-        const partnerActivity = this.networkPartnerFactory.getPartner(partnerId);
+    //     // Get the appropriate partner implementation
+    //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerId);
 
-        // Execute the operation with the selected partner
-        return partnerActivity.cancelShipment(shipmentId);
-    }
+    //     // Execute the operation with the selected partner
+    //     return partnerActivity.cancelOrder(shipmentId);
+    // }
 
     /**
      * Determines the partner type to use for a given order

@@ -1,5 +1,5 @@
 import { HttpModule } from '@nestjs/axios';
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { BigshipAuthService } from './bigship-auth.service';
@@ -20,12 +20,7 @@ import { BigshipService } from './bigship.service';
     providers: [
         BigshipService,
         BigshipAuthService,
-        {
-            provide: 'Logger',
-            useFactory: () => {
-                return console;
-            },
-        },
+        Logger,
     ],
     exports: [BigshipService, BigshipAuthService]
 })

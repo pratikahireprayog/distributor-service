@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { NetworkPartnerFactoryService } from './factory/network-partner-factory.service';
 import { BigshipService } from './bigship/bigship.service';
 import { PartnerType } from '../../common/enums/partner-type.enum';
+import { BigshipModule } from './bigship/bigship.module';
 
 /**
  * Module for network partners
@@ -12,10 +13,10 @@ import { PartnerType } from '../../common/enums/partner-type.enum';
     imports: [
         HttpModule,
         ConfigModule,
+        BigshipModule,
     ],
     providers: [
         NetworkPartnerFactoryService,
-        BigshipService,
         {
             provide: 'NETWORK_PARTNERS_INIT',
             useFactory: (

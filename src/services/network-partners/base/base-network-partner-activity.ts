@@ -31,19 +31,19 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
      * Creates a shipment with the network partner
      * @param data The shipment data
      */
-    async createShipment(data: any): Promise<any> {
-        this.logger.debug(`Creating shipment with partner ${this.partnerId}`);
-        const endpoint = this.getCreateShipmentEndpoint();
+    async createManifestation(data: any): Promise<any> {
+        this.logger.debug(`Creating manifestation with partner ${this.partnerId}`);
+        const endpoint = this.getCreateManifestationEndpoint();
 
         try {
-            if (!this.validateInputForOperation('createShipment', data)) {
-                throw new Error('Invalid input data for create shipment operation');
+            if (!this.validateInputForOperation('createManifestation', data)) {
+                throw new Error('Invalid input data for create manifestation operation');
             }
 
-            const response = await this.executeOperation('createShipment', data, endpoint);
-            return this.transformResponseForOperation('createShipment', response);
+            const response = await this.executeOperation('createManifestation', data, endpoint);
+            return this.transformResponseForOperation('createManifestation', response);
         } catch (error) {
-            this.handleError(error, `${this.partnerId}:createShipment`);
+            this.handleError(error, `${this.partnerId}:createManifestation`);
         }
     }
 
@@ -51,38 +51,38 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
      * Tracks a shipment using the network partner's API
      * @param trackingId The tracking ID to track
      */
-    async trackShipment(trackingId: string): Promise<any> {
-        this.logger.debug(`Tracking shipment ${trackingId} with partner ${this.partnerId}`);
-        const endpoint = this.getTrackShipmentEndpoint(trackingId);
+    // async trackOrder(trackingId: string): Promise<any> {
+    //     this.logger.debug(`Tracking order ${trackingId} with partner ${this.partnerId}`);
+    //     const endpoint = this.getTrackOrderEndpoint(trackingId);
 
-        try {
-            const response = await this.executeOperation('trackShipment', {}, endpoint);
-            return this.transformResponseForOperation('trackShipment', response);
-        } catch (error) {
-            this.handleError(error, `${this.partnerId}:trackShipment`);
-        }
-    }
+    //     try {
+    //         const response = await this.executeOperation('trackOrder', {}, endpoint);
+    //         return this.transformResponseForOperation('trackOrder', response);
+    //     } catch (error) {
+    //         this.handleError(error, `${this.partnerId}:trackOrder`);
+    //     }
+    // }
 
     /**
      * Cancels a shipment with the network partner
      * @param shipmentId The shipment ID to cancel
      */
-    async cancelShipment(shipmentId: string): Promise<any> {
-        this.logger.debug(`Cancelling shipment ${shipmentId} with partner ${this.partnerId}`);
-        const endpoint = this.getCancelShipmentEndpoint(shipmentId);
+    // async cancelOrder(orderId: string): Promise<any> {
+    //     this.logger.debug(`Cancelling order ${orderId} with partner ${this.partnerId}`);
+    //     const endpoint = this.getCancelOrderEndpoint(orderId);
 
-        try {
-            const response = await this.executeOperation('cancelShipment', {}, endpoint);
-            return this.transformResponseForOperation('cancelShipment', response);
-        } catch (error) {
-            this.handleError(error, `${this.partnerId}:cancelShipment`);
-        }
-    }
+    //     try {
+    //         const response = await this.executeOperation('cancelOrder', {}, endpoint);
+    //         return this.transformResponseForOperation('cancelOrder', response);
+    //     } catch (error) {
+    //         this.handleError(error, `${this.partnerId}:cancelOrder`);
+    //     }
+    // }
 
     // Template methods to be implemented by concrete classes
-    protected abstract getCreateShipmentEndpoint(): PartnerEndpoint;
-    protected abstract getTrackShipmentEndpoint(trackingId: string): PartnerEndpoint;
-    protected abstract getCancelShipmentEndpoint(shipmentId: string): PartnerEndpoint;
+    protected abstract getCreateManifestationEndpoint(): PartnerEndpoint;
+    protected abstract getTrackOrderEndpoint(trackingId: string): PartnerEndpoint;
+    protected abstract getCancelOrderEndpoint(orderId: string): PartnerEndpoint;
 
     // Optional methods with default implementations
     protected validateInputForOperation(operation: string, data: any): boolean {

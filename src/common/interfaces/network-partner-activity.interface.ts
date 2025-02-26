@@ -4,19 +4,19 @@
 export interface INetworkPartnerActivity {
     /**
      * Creates a shipment with the network partner
-     * @param data The shipment data
+     * @param manifestationDetails The shipment data
      */
-    createShipment(data: any): Promise<any>;
+    createManifestation(manifestationDetails: any): Promise<any>;
 
     /**
      * Tracks a shipment using the network partner's API
      * @param trackingId The tracking ID to track
      */
-    trackShipment(trackingId: string): Promise<any>;
+    // trackOrder(trackingId: string): Promise<any>;
 
     /**
      * Cancels a shipment with the network partner
      * @param shipmentId The shipment ID to cancel
      */
-    cancelShipment(shipmentId: string): Promise<any>;
+    // cancelOrder(orderId: string): Promise<any>;
 }

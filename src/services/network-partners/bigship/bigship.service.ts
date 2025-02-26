@@ -34,7 +34,7 @@ export class BigshipService extends BaseNetworkPartnerActivity {
         }
     }
 
-    async manifestOrder(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
+    async createManifestation(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
         return "Manifestation details";
     }
 
@@ -42,7 +42,7 @@ export class BigshipService extends BaseNetworkPartnerActivity {
      * Gets the endpoint for creating a shipment
      * @returns The endpoint
      */
-    protected getCreateShipmentEndpoint(): PartnerEndpoint {
+    protected getCreateManifestationEndpoint(): PartnerEndpoint {
         return {
             url: `${this.baseUrl}${BigshipEndPoints.MANIFEST_HEAVY_ENDPOINT}`,
             method: 'POST',
@@ -56,7 +56,7 @@ export class BigshipService extends BaseNetworkPartnerActivity {
      * @param trackingId The tracking ID
      * @returns The endpoint
      */
-    protected getTrackShipmentEndpoint(trackingId: string): PartnerEndpoint {
+    protected getTrackOrderEndpoint(trackingId: string): PartnerEndpoint {
         return {
             url: `${this.baseUrl}${BigshipEndPoints.TRACKING_ENDPOINT}?awbNumber=${trackingId}`,
             method: 'GET',
@@ -69,9 +69,9 @@ export class BigshipService extends BaseNetworkPartnerActivity {
      * @param shipmentId The shipment ID
      * @returns The endpoint
      */
-    protected getCancelShipmentEndpoint(shipmentId: string): PartnerEndpoint {
+    protected getCancelOrderEndpoint(orderId: string): PartnerEndpoint {
         return {
-            url: `${this.baseUrl}${BigshipEndPoints.CANCEL_ORDER_ENDPOINT}/${shipmentId}`,
+            url: `${this.baseUrl}${BigshipEndPoints.CANCEL_ORDER_ENDPOINT}/${orderId}`,
             method: 'POST',
             requiresAuth: true,
             contentType: 'application/json',
