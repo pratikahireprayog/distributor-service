@@ -1,7 +1,10 @@
-export enum ChannelTypeEnum {
-  FYNO = 'FYNO',
+export enum DELIVERY_PARTNER_ENUM {
+  SKYEAIR = "SKYEAIR",
+  TSAW = "TSAW",
+  BIGSHIP = "BIGSHIP",
 }
 
-export enum CallbackProviderTypeEnum {
-  Fyno = 'fyno',
+export enum STATUS_TRACKING_STATUS_ENUM {
+  MANIFESTED = "MANIFESTED",
+  CANCELED = "CANCELED",
 }

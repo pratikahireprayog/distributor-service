@@ -12,6 +12,6 @@ export const mpUserProvider: Provider[] = [
     provide: REPOSITORY_MODEL_PROVIDER_CONST.MP_USER_MODEL,
     useFactory: (connection: Connection) =>
       connection.model(REPOSITORY_MODEL_CONST.MP_USER_MODEL, MPUserSchema),
-    inject: [DATABASE_NAME_CONST.FULFILLMENT],
+    inject: [DATABASE_NAME_CONST.FULFILLMENT_DB],
   },
 ];

@@ -8,16 +8,14 @@ import {
   CustomHttpExceptionFilter,
   GlobalExceptionFilter,
 } from './infrastructure/exception-handlers';
-import { CallbackProviderTypeEnum } from './common/enums';
-import { json, urlencoded } from 'express';
 
 declare const module: any;
 
 async function bootstrap() {
   // Start Opentelemetry
-  startOtel('distributor-service');
+  startOtel(GlobalConst.SERVICE_NAME);
 
-  const loggerFactory = new LoggerFactory('distributor-service');
+  const loggerFactory = new LoggerFactory(GlobalConst.SERVICE_NAME);
   const logger = loggerFactory.createLogger();
 
   const app = await NestFactory.create(AppModule, {
@@ -26,7 +24,7 @@ async function bootstrap() {
   });
 
   app.enableCors();
-  app.setGlobalPrefix('distributor');
+  app.setGlobalPrefix(GlobalConst.GLOBAL_PREFIX);
 
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalFilters(new CustomHttpExceptionFilter());

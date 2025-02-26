@@ -15,6 +15,6 @@ export const deliveryAgentProvider: Provider[] = [
         REPOSITORY_MODEL_CONST.DELIVERY_AGENT_MODEL,
         DeliveryAgentSchema,
       ),
-    inject: [DATABASE_NAME_CONST.FULFILLMENT],
+    inject: [DATABASE_NAME_CONST.FULFILLMENT_DB],
   },
 ];

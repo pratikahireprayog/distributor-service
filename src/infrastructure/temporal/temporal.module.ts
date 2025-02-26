@@ -1,8 +1,11 @@
-import { Module } from '@nestjs/common';
-import { TemporalService } from './temporal.service';
+import { Module, Logger } from '@nestjs/common';
+import { TemporalWorker } from './temporal.worker';
+import { BigshipModule } from 'src/services/network-partners/bigship/bigship.module';
+import { BigshipActivity } from 'src/services/activities/bigship-activity/bigship.activity';
 
 @Module({
-    providers: [TemporalService],
-    exports: [TemporalService],
+    imports: [BigshipModule],
+    providers: [TemporalWorker, BigshipActivity, Logger],
+    exports: [TemporalWorker],
 })
 export class TemporalModule { } 
