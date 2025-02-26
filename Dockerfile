@@ -19,4 +19,8 @@ RUN npm rebuild
 
 RUN npm install && npm run build
 
+# Set environment variable to indicate worker mode
+ENV NODE_ENV=production
+ENV SERVICE_TYPE=worker
+
 CMD ["node", "dist/main"]

@@ -2,14 +2,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { startOtel, LoggerFactory } from 'src/infrastructure/telemetry';
-import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { GlobalConst } from './common';
-import {
-  CustomHttpExceptionFilter,
-  GlobalExceptionFilter,
-} from './infrastructure/exception-handlers';
-
-declare const module: any;
 
 async function bootstrap() {
   // Start Opentelemetry
@@ -18,36 +11,26 @@ async function bootstrap() {
   const loggerFactory = new LoggerFactory(GlobalConst.SERVICE_NAME);
   const logger = loggerFactory.createLogger();
 
-  const app = await NestFactory.create(AppModule, {
-    // bufferLogs: true,
+  // Create NestJS application without HTTP server
+  const app = await NestFactory.createApplicationContext(AppModule, {
     logger: logger,
   });
 
-  app.enableCors();
-  app.setGlobalPrefix(GlobalConst.GLOBAL_PREFIX);
+  // Log that the worker is running
+  logger.log(`Distributor Service Temporal Worker is running`);
 
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  app.useGlobalFilters(new CustomHttpExceptionFilter());
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-    }),
-  );
-
-  // Increase JSON payload size limit to 10mb
-  // app.use(json({ limit: '10mb' }));
-
-  // Increase URL-encoded payload size limit to 10mb
-  // app.use(urlencoded({ extended: true, limit: '10mb' }));
-
-  const port = process.env.PORT || 3039;
-  await app.listen(port, () => {
-    logger.log(`Distributor Service listening at http://localhost:${port}`);
+  // Handle shutdown signals
+  process.on('SIGINT', async () => {
+    logger.log('Received SIGINT signal, shutting down gracefully...');
+    await app.close();
+    process.exit(0);
   });
 
-  if (module.hot) {
-    module.hot.accept();
-    module.hot.dispose(() => app.close());
-  }
+  process.on('SIGTERM', async () => {
+    logger.log('Received SIGTERM signal, shutting down gracefully...');
+    await app.close();
+    process.exit(0);
+  });
 }
+
 bootstrap();

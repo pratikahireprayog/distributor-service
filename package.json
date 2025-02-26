@@ -1,7 +1,7 @@
 {
   "name": "distributor-service",
   "version": "1.0.0",
-  "description": "Service for distributing orders to partners",
+  "description": "Temporal worker service for distributing orders to partners",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
