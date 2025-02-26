@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "env": {
+        "TEMPORAL_DEBUGGER_EXTENSION_DEV_MODE": "true"
+      },
+      "outFiles": ["${workspaceFolder}/src/**/*.js"]
+    }
+  ]
+}

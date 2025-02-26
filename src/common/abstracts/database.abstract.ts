@@ -27,6 +27,15 @@ export abstract class BaseMongoRepository<T extends Document> {
     return doc?.toJSON() || null;
   }
 
+  async updateOne(
+    query: FilterQuery<T>,
+    update: UpdateQuery<T>,
+    options?: { upsert?: boolean; new?: boolean }
+  ): Promise<any> {
+    const doc = await this._model.findOneAndUpdate(query, update, options);
+    return doc?.toJSON() || null;
+  }
+
   async updateMany(
     query: FilterQuery<T>,
     update: UpdateQuery<T>,
