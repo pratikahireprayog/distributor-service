@@ -5,7 +5,7 @@ import { COLLECTION_NAME_CONST } from 'src/common/constants';
 export type NotificationLogDocument = NotificationLogModel & Document;
 
 @Schema({
-  collection: COLLECTION_NAME_CONST.NOTIFICATION_LOG,
+  // collection: COLLECTION_NAME_CONST.NOTIFICATION_LOG,
   timestamps: { createdAt: 'createdAt' },
 })
 export class NotificationLogModel {

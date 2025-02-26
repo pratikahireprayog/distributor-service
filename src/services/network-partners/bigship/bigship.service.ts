@@ -34,6 +34,10 @@ export class BigshipService extends BaseNetworkPartnerActivity {
         }
     }
 
+    async manifestOrder(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
+        return "Manifestation details";
+    }
+
     /**
      * Gets the endpoint for creating a shipment
      * @returns The endpoint

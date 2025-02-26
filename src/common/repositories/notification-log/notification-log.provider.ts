@@ -8,14 +8,14 @@ import {
   REPOSITORY_MODEL_PROVIDER_CONST,
 } from 'src/common/constants';
 
-export const notificationLogProviders: Provider[] = [
-  {
-    provide: REPOSITORY_MODEL_PROVIDER_CONST.NOTIFICATION_LOG_MODEL,
-    useFactory: (connection: Connection) =>
-      connection.model(
-        REPOSITORY_MODEL_CONST.NOTIFICATION_LOG_MODEL,
-        NotificationLogSchema,
-      ),
-    inject: [DATABASE_NAME_CONST.FULFILLMENT],
-  },
-];
+// export const notificationLogProviders: Provider[] = [
+//   {
+//     provide: REPOSITORY_MODEL_PROVIDER_CONST.NOTIFICATION_LOG_MODEL,
+//     useFactory: (connection: Connection) =>
+//       connection.model(
+//         REPOSITORY_MODEL_CONST.NOTIFICATION_LOG_MODEL,
+//         NotificationLogSchema,
+//       ),
+//     inject: [DATABASE_NAME_CONST.FULFILLMENT],
+//   },
+// ];
