@@ -6,7 +6,7 @@
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "pkill -f node && nest start",
-    "start:dev": "pkill -f node && nest start --watch",
+    "start:dev": "nest start --watch",
     "start:debug": "pkill -f node && nest start --debug --watch",
     "start:debug:safe": "nest start --debug --watch",
     "start:prod": "pkill -f node && node dist/main",

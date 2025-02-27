@@ -31,19 +31,19 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
      * Creates a shipment with the network partner
      * @param data The shipment data
      */
-    async createManifestation(data: any): Promise<any> {
+    async createManifest(data: any): Promise<any> {
         this.logger.debug(`Creating manifestation with partner ${this.partnerId}`);
         const endpoint = this.getCreateManifestationEndpoint();
 
         try {
-            if (!this.validateInputForOperation('createManifestation', data)) {
+            if (!this.validateInputForOperation('createManifest', data)) {
                 throw new Error('Invalid input data for create manifestation operation');
             }
 
-            const response = await this.executeOperation('createManifestation', data, endpoint);
-            return this.transformResponseForOperation('createManifestation', response);
+            const response = await this.executeOperation('createManifest', data, endpoint);
+            return this.transformResponseForOperation('createManifest', response);
         } catch (error) {
-            this.handleError(error, `${this.partnerId}:createManifestation`);
+            this.handleError(error, `${this.partnerId}:createManifest`);
         }
     }
 

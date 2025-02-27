@@ -19,7 +19,7 @@ export class ActivityRegistrationProvider implements OnModuleInit {
     onModuleInit() {
         // Register distributor service activities
         this.activityRegistry.register('distributor', {
-            createManifestation: this.distributorService.createManifestation.bind(this.distributorService),
+            createManifest: this.distributorService.createManifest.bind(this.distributorService),
             // trackOrder: this.distributorService.trackOrder.bind(this.distributorService),
             // cancelOrder: this.distributorService.cancelOrder.bind(this.distributorService),
         });

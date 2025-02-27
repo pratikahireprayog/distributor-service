@@ -28,7 +28,7 @@ export class DistributorService {
     //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
     //     // Execute the operation with the selected partner
-    //     return partnerActivity.createManifestation(data);
+    //     return partnerActivity.createManifest(data);
     // }
 
     /**
@@ -36,18 +36,18 @@ export class DistributorService {
      * @param data The manifestation data
      * @returns The created manifestation
      */
-    async createManifestation(data: any): Promise<any> {
+    async createManifest(data: any): Promise<any> {
         this.logger.log(`Creating manifestation for ${data.manifestationId || 'unknown'}`);
 
         // Determine which partner to use
-        const partnerType = this.determinePartnerType(data);
+        const partnerType = this.determinePartner(data);
         this.logger.debug(`Selected partner: ${partnerType}`);
 
         // Get the appropriate partner implementation
         const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
         // Execute the operation with the selected partner
-        return partnerActivity.createManifestation(data);
+        return partnerActivity.createManifest(data);
     }
 
     /**
@@ -87,77 +87,53 @@ export class DistributorService {
     // }
 
     /**
-     * Determines the partner type to use for a given order
-     * @param data The order data
-     * @returns The partner type
-     */
-    private determinePartnerType(data: any): string {
-        const pincode = data.delivery?.pincode;
+ * Determines the order type from the payload
+ * @param data The incoming payload data
+ * @returns The order type (e.g., 'CARGO', 'ECOM')
+ */
+    private determineOrderType(data: any): string {
+        const orderType = data.type?.toUpperCase();
 
-        // Example business rules for partner selection
-        if (this.isPremiumOrder(data)) {
-            return 'ekart';
-        } else if (this.isSpecialRegion(pincode)) {
-            return 'delhivery';
-        } else if (data.isAirDelivery) {
-            return 'bigship';
+        if (!orderType) {
+            this.logger.warn('Order type not specified in payload');
+            throw new Error('Order type is required');
         }
 
-        return 'ecom_express';
+        this.logger.debug(`Determined order type: ${orderType}`);
+        return orderType;
     }
 
     /**
-     * Checks if an order is a premium order
-     * @param data The order data
-     * @returns Whether the order is premium
+     * Determines the partner code from the payload
+     * @param data The incoming payload data
+     * @returns The partner code or null if not specified
      */
-    private isPremiumOrder(data: any): boolean {
-        return data.isPremium || data.totalValue > 10000;
-    }
+    private determinePartner(data: any): string | null {
+        const partnerCode = data.partnerCode;
 
-    /**
-     * Checks if a pincode is in a special region
-     * @param pincode The pincode
-     * @returns Whether the pincode is in a special region
-     */
-    private isSpecialRegion(pincode: string): boolean {
-        return ['110001', '400001', '700001'].includes(pincode);
-    }
-
-    /**
-     * Finds the partner for a tracking ID
-     * @param trackingId The tracking ID
-     * @returns The partner type
-     */
-    private async findPartnerForTrackingId(trackingId: string): Promise<string> {
-        // This would typically involve looking up the tracking ID in your database
-        // to determine which partner it belongs to
-        // For simplicity, I'm returning a default value
-        if (trackingId.startsWith('EK')) {
-            return 'ekart';
-        } else if (trackingId.startsWith('DL')) {
-            return 'delhivery';
-        } else if (trackingId.startsWith('BS')) {
-            return 'bigship';
+        if (!partnerCode) {
+            this.logger.debug('Partner code not specified in payload');
+            return null;
         }
-        return 'ecom_express';
+
+        this.logger.debug(`Determined partner: ${partnerCode}`);
+        return partnerCode;
     }
 
     /**
-     * Finds the partner for a shipment ID
-     * @param shipmentId The shipment ID
-     * @returns The partner type
+     * Determines the sub-partner code from the payload
+     * @param data The incoming payload data
+     * @returns The sub-partner code or null if not specified
      */
-    private async findPartnerForShipmentId(shipmentId: string): Promise<string> {
-        // This would typically involve looking up the shipment ID in your database
-        // For simplicity, I'm returning a default value based on prefix
-        if (shipmentId.startsWith('EK')) {
-            return 'ekart';
-        } else if (shipmentId.startsWith('DL')) {
-            return 'delhivery';
-        } else if (shipmentId.startsWith('BS')) {
-            return 'bigship';
+    private determineSubPartner(data: any): string | null {
+        const subPartnerCode = data.subPartnerCode;
+
+        if (!subPartnerCode) {
+            this.logger.debug('Sub-partner code not specified in payload');
+            return null;
         }
-        return 'ecom_express';
+
+        this.logger.debug(`Determined sub-partner: ${subPartnerCode}`);
+        return subPartnerCode;
     }
 } 

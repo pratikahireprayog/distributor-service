@@ -6,7 +6,7 @@ export interface INetworkPartnerActivity {
      * Creates a shipment with the network partner
      * @param manifestationDetails The shipment data
      */
-    createManifestation(manifestationDetails: any): Promise<any>;
+    createManifest(manifestationDetails: any): Promise<any>;
 
     /**
      * Tracks a shipment using the network partner's API

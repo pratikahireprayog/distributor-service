@@ -34,7 +34,7 @@ export class BigshipService extends BaseNetworkPartnerActivity {
         }
     }
 
-    async createManifestation(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
+    async createManifest(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
         return "Manifestation details";
     }
 

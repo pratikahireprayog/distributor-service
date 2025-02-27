@@ -12,7 +12,7 @@ export class BigshipActivity {
         this.logger.log('Bigship Order Manifestation Activity');
         try {
             this.logger.log('Manifesting order to Bigship');
-            const response = await this.bigshipService.createManifestation(manifestationDetails);
+            const response = await this.bigshipService.createManifest(manifestationDetails);
             this.logger.log('Order manifested successfully');
             return response;
         } catch (error) {
