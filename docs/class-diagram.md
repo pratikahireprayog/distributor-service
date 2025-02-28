@@ -2,7 +2,6 @@
 
 ```mermaid
 classDiagram
-
     %% Main Application Module
     class AppModule {
         +configure(consumer: MiddlewareConsumer)

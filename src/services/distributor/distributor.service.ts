@@ -51,46 +51,10 @@ export class DistributorService {
     }
 
     /**
-     * Tracks a shipment with the appropriate network partner
-     * @param trackingId The tracking ID
-     * @returns The tracking information
+     * Determines the order type from the payload
+     * @param data The incoming payload data
+     * @returns The order type (e.g., 'CARGO', 'ECOM')
      */
-    // async trackOrder(trackingId: string): Promise<any> {
-    //     this.logger.log(`Tracking order with ID ${trackingId}`);
-
-    //     // Determine partner from tracking ID
-    //     const partnerType = await this.findPartnerForTrackingId(trackingId);
-
-    //     // Get the appropriate partner implementation
-    //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
-
-    //     // Execute the operation with the selected partner
-    //     return partnerActivity.trackOrder(trackingId);
-    // }
-
-    /**
-     * Cancels an order with the appropriate network partner
-     * @param shipmentId The shipment ID
-     * @returns The cancellation result
-     */
-    // async cancelOrder(shipmentId: string): Promise<any> {
-    //     this.logger.log(`Cancelling order with ID ${shipmentId}`);
-
-    //     // Find partner for this shipment
-    //     const partnerId = await this.findPartnerForShipmentId(shipmentId);
-
-    //     // Get the appropriate partner implementation
-    //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerId);
-
-    //     // Execute the operation with the selected partner
-    //     return partnerActivity.cancelOrder(shipmentId);
-    // }
-
-    /**
- * Determines the order type from the payload
- * @param data The incoming payload data
- * @returns The order type (e.g., 'CARGO', 'ECOM')
- */
     private determineOrderType(data: any): string {
         const orderType = data.type?.toUpperCase();
 

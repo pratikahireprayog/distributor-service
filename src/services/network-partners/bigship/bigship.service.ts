@@ -1,11 +1,14 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PartnerType } from '../../../common/enums/partner-type.enum';
 import { PartnerEndpoint } from '../../../common/interfaces/partner-endpoint.interface';
 import { BaseNetworkPartnerActivity } from '../base/base-network-partner-activity';
 import { BigshipAuthService } from './bigship-auth.service';
 import { BigshipEndPoints } from './bigship.enum';
+import { STATUS_TRACKING_STATUS_ENUM } from '../../../common/enums/status-tracking.enum';
+import { StatusTrackingRepository } from '../../../common/repositories/status-tracking/status-tracking.repository';
+import { StatusTrackingLogsRepository } from '../../../common/repositories/status-tracking-logs/status-tracking-logs.repository';
 
 /**
  * Service for interacting with Bigship API
@@ -35,7 +38,145 @@ export class BigshipService extends BaseNetworkPartnerActivity {
     }
 
     async createManifest(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
-        return "Manifestation details";
+        // This will call the base class implementation which will use our concrete methods
+        const response = await super.createManifest(manifestationDetails);
+
+        // Additional post-processing specific to Bigship
+        if (response?.responseCode === 200 && response?.success === true) {
+            await this.updateOrderStatus(manifestationDetails.awbNumber, "READY_FOR_DISPATCH");
+            const shipmentData = await this.getShipmentData(1, manifestationDetails.systemOrderId.toString());
+            await this.updateStatusTracking(shipmentData.data, manifestationDetails);
+        }
+
+        return response;
+    }
+
+    private async insertStatusTracking(request: any): Promise<void> {
+        try {
+            if (!request) {
+                throw new HttpException(
+                    'Missing required data for status tracking',
+                    HttpStatus.BAD_REQUEST
+                );
+            }
+            const statusTrackingData = {
+                systemOrderId: request.systemOrderId,
+                awbNumber: request.awbNumber,
+                status: STATUS_TRACKING_STATUS_ENUM.MANIFESTED,
+                statusUpdatedDate: new Date(),
+                pushedTo: 'BIGSHIP',
+                courierId: request.courierId,
+            };
+
+            await this.statusTrackingRepository.updateOne(
+                { systemOrderId: request.systemOrderId, awbNumber: request.awbNumber },
+                { $set: statusTrackingData },
+                { upsert: true }
+            );
+            await this.statusTrackingLogsRepository.updateOne(
+                { systemOrderId: request.systemOrderId, awbNumber: request.awbNumber },
+                { $set: statusTrackingData },
+                { upsert: true }
+            );
+        } catch (error) {
+            this.logger.error('Error in insertStatusTracking:', error);
+            throw error;
+        }
+    }
+
+    private async updateOrderStatus(awbNumber: string, orderStatus: string = "READY_FOR_DISPATCH"): Promise<void> {
+        try {
+            const data = JSON.stringify({ orderStatus });
+            const config = {
+                method: 'patch',
+                maxBodyLength: Infinity,
+                url: `${this.envUrl}${fulfillmentEndPoints.ORDER_FULFILLMENT}${awbNumber}`,
+                headers: {
+                    'accept': '*/*',
+                    'Content-Type': 'application/json'
+                },
+                data: data
+            };
+
+            await axios.request(config);
+        } catch (error) {
+            this.logger.error(`Error in updateOrderStatus for AWB ${awbNumber}:`, error);
+            throw error;
+        }
+    }
+
+    private async updateStatusTracking(data: any, request: any): Promise<void> {
+        try {
+            if (!data) {
+                throw new HttpException(
+                    'Missing required data for status tracking update',
+                    HttpStatus.BAD_REQUEST
+                );
+            }
+
+            const statusTrackingData = {
+                carrierTrackingId: data.master_awb,
+                lrNumber: data?.lr_number || "",
+                courierName: data.courier_name,
+                trackingType: data?.master_awb ? "awb" : "lrn",
+            };
+
+            await this.statusTrackingRepository.updateOne(
+                { systemOrderId: request.systemOrderId, awbNumber: request.awbNumber },
+                { $set: statusTrackingData }
+            );
+            await this.statusTrackingLogsRepository.updateMany(
+                { systemOrderId: request.systemOrderId, awbNumber: request.awbNumber },
+                { $set: statusTrackingData }
+            );
+        } catch (error) {
+            this.logger.error('Error in updateStatusTracking:', error);
+            throw error;
+        }
+    }
+
+    private formatManifestResponse(responseData: any): ResponseDto {
+        return {
+            statusCode: responseData.responseCode,
+            message: responseData.message,
+            data: responseData.data
+        };
+    }
+
+    private async getShipmentData(shipmentDataId: number, systemOrderId: string): Promise<any> {
+        try {
+            if (![1, 2, 3].includes(shipmentDataId)) {
+                throw new HttpException(
+                    'Invalid shipment_data_id. Must be 1, 2, or 3',
+                    HttpStatus.BAD_REQUEST
+                );
+            }
+
+            const token = await this.getAuthToken();
+            const config = {
+                method: 'post',
+                url: `${this.baseUrl}${BigshipEndPoints.SHIPMENT_DATA_ENDPOINT}`,
+                params: {
+                    shipment_data_id: shipmentDataId,
+                    system_order_id: systemOrderId
+                },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const response = await axios.request(config);
+            return response.data;
+        } catch (error) {
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new HttpException(
+                error.response?.data || 'Failed to fetch shipment data',
+                error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
     }
 
     /**
