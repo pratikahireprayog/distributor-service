@@ -1,27 +1,34 @@
-import { Logger, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
+import { Logger, Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { BigshipService } from './bigship.service';
-import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
-import { StatusTrackingRepository } from 'src/common/repositories/status-tracking/status-tracking.repository';
+import { SchemaMapperService } from '@robinydv/schema-mapper';
 import { BigshipAuthService } from './bigship-auth.service';
-import { StatusTrackingLogsModule } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.module';
+import { BigshipService } from './bigship.service';
 import { StatusTrackingModule } from 'src/common/repositories/status-tracking/status-tracking.module';
-
+import { StatusTrackingLogsModule } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.module';
+import { EndpointConfigModule } from 'src/common/repositories/endpoint-configs/endpoint-configs.module';
+/**
+ * Module for Bigship integration
+ */
 @Module({
     imports: [
         HttpModule,
-        JwtModule.register({
-            secret: 'your-secret-key',
-        }),
-        StatusTrackingLogsModule,
+        ConfigModule,
         StatusTrackingModule,
+        StatusTrackingLogsModule,
+        EndpointConfigModule,
+        JwtModule.register({
+            secret: process.env.JWT_SECRET || 'default-secret',
+            signOptions: { expiresIn: '1h' },
+        }),
     ],
     providers: [
-        BigshipAuthService,
         BigshipService,
+        BigshipAuthService,
         Logger,
+        SchemaMapperService
     ],
-    exports: [BigshipService]
+    exports: [BigshipService, BigshipAuthService]
 })
 export class BigshipModule { } 

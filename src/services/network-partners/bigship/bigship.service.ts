@@ -1,37 +1,48 @@
-import axios from 'axios';
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { NetworkPartner } from '../network-partner.abstract';
-import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
-import { StatusTrackingRepository } from 'src/common/repositories/status-tracking/status-tracking.repository';
 import { HttpService } from '@nestjs/axios';
-import { ResponseDto } from 'src/common/dtos/global.dto';
-import { firstValueFrom, catchError } from 'rxjs';
-import { STATUS_TRACKING_STATUS_ENUM } from 'src/common/enums/global.enum';
+import axios from 'axios';
+import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { SchemaMapperService } from '@robinydv/schema-mapper';
+import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
+import { PartnerEndpoint } from 'src/common/interfaces/partner-endpoint.interface';
+import { BaseNetworkPartnerActivity } from '../base/base-network-partner-activity';
 import { BigshipAuthService } from './bigship-auth.service';
-import { BigshipEndPoints, fulfillmentEndPoints } from "./bigship.enum";
-
+import { BigshipEndPoints, FulfillmentEndPoints } from './bigship.enum';
+import { STATUS_TRACKING_STATUS_ENUM } from 'src/common/enums/global.enum';
+import { StatusTrackingRepository } from 'src/common/repositories/status-tracking/status-tracking.repository';
+import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
+import { ResponseDto } from 'src/common/dtos/global.dto';
+import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
+/**
+ * Service for interacting with Bigship API
+ */
 @Injectable()
-export class BigshipService extends NetworkPartner {
-    protected readonly baseUrl: string;
-    protected readonly envUrl: string;
-    private readonly SHIPMENT_DATA_ID = 2;
-
+export class BigshipService extends BaseNetworkPartnerActivity {
+    private readonly baseUrl: string;
+    private readonly envUrl: string;
+    /**
+     * Constructor for BigshipService
+     * @param authProvider The authentication provider
+     * @param httpService The HTTP service
+     * @param configService The configuration service
+     */
     constructor(
         private readonly bigshipAuthService: BigshipAuthService,
-        private readonly statusTrackingLogsRepository: StatusTrackingLogsRepository,
+        httpService: HttpService,
+        private readonly configService: ConfigService,
         private readonly statusTrackingRepository: StatusTrackingRepository,
-        private readonly httpService: HttpService,
-        private readonly logger: Logger,
+        private readonly statusTrackingLogsRepository: StatusTrackingLogsRepository,
+        protected readonly endpointConfigRepository: EndpointConfigRepository,
+        protected readonly schemaMapper: SchemaMapperService<any, any>,
     ) {
-        super();
-        const baseUrl = process.env.BIGSHIP_BASE_URL;
-        const envUrl = process.env.ENV_URL;
-        if (!baseUrl) {
+        super(PARTNER_CODE_ENUM.BIGSHIP, bigshipAuthService, httpService, endpointConfigRepository, schemaMapper);
+        this.baseUrl = this.configService.get<string>('BIGSHIP_BASE_URL');
+        this.envUrl = this.configService.get<string>('ENV_URL');
+
+        if (!this.baseUrl) {
             this.logger.error('BIGSHIP_BASE_URL environment variable is not set');
             throw new Error('BIGSHIP_BASE_URL environment variable is not set');
         }
-        this.baseUrl = baseUrl;
-        this.envUrl = envUrl;
     }
 
     private async getAuthToken(): Promise<string> {
@@ -45,51 +56,20 @@ export class BigshipService extends NetworkPartner {
         return token;
     }
 
-    async manifestOrder(request: any): Promise<ResponseDto> {
-        this.logger.debug(`Manifesting order for systemOrderId: ${request.systemOrderId}`);
-        const token = await this.getAuthToken();
-        const manifestResponse = await this.makeManifestOrderRequest(request, token);
-        this.logger.debug(`Manifest response received for systemOrderId: ${request.systemOrderId}`);
-        return this.formatManifestResponse(manifestResponse);
-    }
+    async createManifest(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
+        // This will call the base class implementation which will use our concrete methods
+        const response = await super.createManifest(manifestationDetails);
+        // this.logger.debug(`Manifest API response: ${JSON.stringify(response.data)}`);
+        // await this.insertStatusTracking(manifestationDetails);
 
-    private async makeManifestOrderRequest(request: any, token: string): Promise<any> {
-        try {
-            this.logger.debug(`Making manifest order request for systemOrderId: ${request.systemOrderId}`);
-            const url = `${this.baseUrl}${BigshipEndPoints.MANIFEST_HEAVY_ENDPOINT}`;
-            const headers = {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            };
-            const data = {
-                system_order_id: request.systemOrderId,
-                courier_id: request.courierId,
-                risk_type: request.riskType
-            };
-
-            const response = await firstValueFrom(
-                this.httpService.post(url, data, { headers }).pipe(
-                    catchError(async (error) => {
-                        this.logger.error(`Error in makeManifestOrderRequest: ${error.message}`, error.stack);
-                        throw error;
-                    })
-                )
-            );
-
-            this.logger.debug(`Manifest API response: ${JSON.stringify(response.data)}`);
-            await this.insertStatusTracking(request);
-
-            if (response.data?.responseCode === 200 && response.data?.success === true) {
-                await this.updateOrderStatus(request.awbNumber, "READY_FOR_DISPATCH");
-                const shipmentData = await this.getShipmentData(1, request.systemOrderId.toString());
-                await this.updateStatusTracking(shipmentData.data, request);
-            }
-
-            return response.data;
-        } catch (error) {
-            this.logger.error(`Error in makeManifestOrderRequest: ${error.message}`, error.stack);
-            throw error;
+        // Additional post-processing specific to Bigship
+        if (response?.responseCode === 200 && response?.success === true) {
+            await this.updateOrderStatus(manifestationDetails.awbNumber, "READY_FOR_DISPATCH");
+            const shipmentData = await this.getShipmentData(1, manifestationDetails.systemOrderId.toString());
+            await this.updateStatusTracking(shipmentData.data, manifestationDetails);
         }
+
+        return response;
     }
 
     private async insertStatusTracking(request: any): Promise<void> {
@@ -131,7 +111,7 @@ export class BigshipService extends NetworkPartner {
             const config = {
                 method: 'patch',
                 maxBodyLength: Infinity,
-                url: `${this.envUrl}${fulfillmentEndPoints.ORDER_FULFILLMENT}${awbNumber}`,
+                url: `${this.envUrl}${FulfillmentEndPoints.ORDER_FULFILLMENT}${awbNumber}`,
                 headers: {
                     'accept': '*/*',
                     'Content-Type': 'application/json'
@@ -218,5 +198,104 @@ export class BigshipService extends NetworkPartner {
                 error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
+    }
+
+    /**
+     * Gets the endpoint for tracking a shipment
+     * @param trackingId The tracking ID
+     * @returns The endpoint
+     */
+    protected getTrackOrderEndpoint(trackingId: string): PartnerEndpoint {
+        return {
+            url: `${this.baseUrl}${BigshipEndPoints.TRACKING_ENDPOINT}?awbNumber=${trackingId}`,
+            method: 'GET',
+            requiresAuth: true,
+        };
+    }
+
+    /**
+     * Gets the endpoint for cancelling a shipment
+     * @param shipmentId The shipment ID
+     * @returns The endpoint
+     */
+    protected getCancelOrderEndpoint(orderId: string): PartnerEndpoint {
+        return {
+            url: `${this.baseUrl}${BigshipEndPoints.CANCEL_ORDER_ENDPOINT}/${orderId}`,
+            method: 'POST',
+            requiresAuth: true,
+            contentType: 'application/json',
+        };
+    }
+
+    /**
+     * Transforms the input data for the create shipment operation
+     * @param data The input data
+     * @returns The transformed data
+     */
+    protected validateInputForOperation(operation: string, data: any): boolean {
+        if (operation === 'createShipment') {
+            // Validate required fields for shipment creation
+            if (!data.systemOrderId) {
+                this.logger.error('Missing required field: systemOrderId');
+                return false;
+            }
+
+            if (!data.delivery || !data.delivery.pincode) {
+                this.logger.error('Missing required field: delivery.pincode');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Transforms the response from the create shipment operation
+     * @param response The response from the API
+     * @returns The transformed response
+     */
+    protected transformResponseForOperation(operation: string, response: any): any {
+        if (operation === 'createShipment') {
+            return {
+                success: true,
+                trackingId: response.awbNumber,
+                partnerOrderId: response.partnerOrderId,
+                partnerName: PARTNER_CODE_ENUM.BIGSHIP,
+                message: 'Order created successfully',
+                data: response,
+            };
+        } else if (operation === 'trackShipment') {
+            return {
+                trackingId: response.awbNumber,
+                status: response.status,
+                statusDescription: response.statusDescription,
+                currentLocation: response.currentLocation,
+                events: response.events?.map(event => ({
+                    timestamp: event.timestamp,
+                    status: event.status,
+                    location: event.location,
+                    description: event.description
+                })) || [],
+            };
+        } else if (operation === 'cancelShipment') {
+            return {
+                success: true,
+                trackingId: response.awbNumber,
+                message: 'Order cancelled successfully',
+                data: response,
+            };
+        }
+
+        return response;
+    }
+
+    /**
+     * Gets additional headers for API requests
+     * @returns Additional headers
+     */
+    protected getAdditionalHeaders(): Record<string, string> {
+        return {
+            'X-Source': 'delivery-orchestrator',
+        };
     }
 } 

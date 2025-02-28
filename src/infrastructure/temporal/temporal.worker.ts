@@ -1,22 +1,32 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Worker } from '@temporalio/worker';
-import { BigshipActivity } from 'src/services/activities/bigship-activity/bigship.activity';
 import { TASK_QUEUE_CONST } from './temporal.constant';
+import { ActivityRegistryService } from './activities/activity-registry.service';
 
+/**
+ * Service for managing Temporal workers
+ */
 @Injectable()
 export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
     private worker: Worker;
     private readonly logger = new Logger(TemporalWorker.name);
 
-    constructor(private readonly bigshipActivity: BigshipActivity) { }
+    /**
+     * Constructor for TemporalWorker
+     * @param activityRegistry The activity registry service
+     */
+    constructor(
+        private readonly activityRegistry: ActivityRegistryService,
+    ) { }
 
+    /**
+     * Lifecycle hook that runs when the module is initialized
+     */
     async onModuleInit() {
         try {
             // Create and start Temporal worker
             this.worker = await Worker.create({
-                activities: {
-                    bigshipOrderManifestationActivity: this.bigshipActivity.manifestOrder.bind(this.bigshipActivity)
-                },
+                activities: this.activityRegistry.getActivities(),
                 taskQueue: TASK_QUEUE_CONST.DISTRIBUTOR_SERVICE_TASK_QUEUE,
             });
 
@@ -34,6 +44,9 @@ export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    /**
+     * Lifecycle hook that runs when the module is destroyed
+     */
     async onModuleDestroy() {
         // Shutdown the worker gracefully
         if (this.worker) {

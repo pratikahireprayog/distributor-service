@@ -58,7 +58,7 @@ export enum BigshipEndPoints {
   UPDATE_DOCUMENT_EWAYBILL_ENDPOINT = '/order/update/document?document_type=ewaybill',
 }
 
-export enum fulfillmentEndPoints {
+export enum FulfillmentEndPoints {
   ORDER_FULFILLMENT = '/fulfillment/public/seller/order/',
 }
 
