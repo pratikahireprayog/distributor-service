@@ -1,22 +1,25 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
-import { PartnerType } from '../../../common/enums/partner-type.enum';
-import { PartnerEndpoint } from '../../../common/interfaces/partner-endpoint.interface';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { SchemaMapperService } from '@robinydv/schema-mapper';
+import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
+import { PartnerEndpoint } from 'src/common/interfaces/partner-endpoint.interface';
 import { BaseNetworkPartnerActivity } from '../base/base-network-partner-activity';
 import { BigshipAuthService } from './bigship-auth.service';
-import { BigshipEndPoints } from './bigship.enum';
-import { STATUS_TRACKING_STATUS_ENUM } from '../../../common/enums/status-tracking.enum';
-import { StatusTrackingRepository } from '../../../common/repositories/status-tracking/status-tracking.repository';
-import { StatusTrackingLogsRepository } from '../../../common/repositories/status-tracking-logs/status-tracking-logs.repository';
-
+import { BigshipEndPoints, FulfillmentEndPoints } from './bigship.enum';
+import { STATUS_TRACKING_STATUS_ENUM } from 'src/common/enums/global.enum';
+import { StatusTrackingRepository } from 'src/common/repositories/status-tracking/status-tracking.repository';
+import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
+import { ResponseDto } from 'src/common/dtos/global.dto';
+import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
 /**
  * Service for interacting with Bigship API
  */
 @Injectable()
 export class BigshipService extends BaseNetworkPartnerActivity {
     private readonly baseUrl: string;
-
+    private readonly envUrl: string;
     /**
      * Constructor for BigshipService
      * @param authProvider The authentication provider
@@ -27,9 +30,14 @@ export class BigshipService extends BaseNetworkPartnerActivity {
         private readonly bigshipAuthService: BigshipAuthService,
         httpService: HttpService,
         private readonly configService: ConfigService,
+        private readonly statusTrackingRepository: StatusTrackingRepository,
+        private readonly statusTrackingLogsRepository: StatusTrackingLogsRepository,
+        protected readonly endpointConfigRepository: EndpointConfigRepository,
+        protected readonly schemaMapper: SchemaMapperService<any, any>,
     ) {
-        super(PartnerType.BIGSHIP, bigshipAuthService, httpService);
+        super(PARTNER_CODE_ENUM.BIGSHIP, bigshipAuthService, httpService, endpointConfigRepository, schemaMapper);
         this.baseUrl = this.configService.get<string>('BIGSHIP_BASE_URL');
+        this.envUrl = this.configService.get<string>('ENV_URL');
 
         if (!this.baseUrl) {
             this.logger.error('BIGSHIP_BASE_URL environment variable is not set');
@@ -37,9 +45,22 @@ export class BigshipService extends BaseNetworkPartnerActivity {
         }
     }
 
+    private async getAuthToken(): Promise<string> {
+        const token = await this.bigshipAuthService.getToken();
+        if (!token) {
+            throw new HttpException(
+                'Failed to retrieve authentication token',
+                HttpStatus.UNAUTHORIZED
+            );
+        }
+        return token;
+    }
+
     async createManifest(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
         // This will call the base class implementation which will use our concrete methods
         const response = await super.createManifest(manifestationDetails);
+        // this.logger.debug(`Manifest API response: ${JSON.stringify(response.data)}`);
+        // await this.insertStatusTracking(manifestationDetails);
 
         // Additional post-processing specific to Bigship
         if (response?.responseCode === 200 && response?.success === true) {
@@ -90,7 +111,7 @@ export class BigshipService extends BaseNetworkPartnerActivity {
             const config = {
                 method: 'patch',
                 maxBodyLength: Infinity,
-                url: `${this.envUrl}${fulfillmentEndPoints.ORDER_FULFILLMENT}${awbNumber}`,
+                url: `${this.envUrl}${FulfillmentEndPoints.ORDER_FULFILLMENT}${awbNumber}`,
                 headers: {
                     'accept': '*/*',
                     'Content-Type': 'application/json'
@@ -180,19 +201,6 @@ export class BigshipService extends BaseNetworkPartnerActivity {
     }
 
     /**
-     * Gets the endpoint for creating a shipment
-     * @returns The endpoint
-     */
-    protected getCreateManifestationEndpoint(): PartnerEndpoint {
-        return {
-            url: `${this.baseUrl}${BigshipEndPoints.MANIFEST_HEAVY_ENDPOINT}`,
-            method: 'POST',
-            requiresAuth: true,
-            contentType: 'application/json',
-        };
-    }
-
-    /**
      * Gets the endpoint for tracking a shipment
      * @param trackingId The tracking ID
      * @returns The endpoint
@@ -252,7 +260,7 @@ export class BigshipService extends BaseNetworkPartnerActivity {
                 success: true,
                 trackingId: response.awbNumber,
                 partnerOrderId: response.partnerOrderId,
-                partnerName: PartnerType.BIGSHIP,
+                partnerName: PARTNER_CODE_ENUM.BIGSHIP,
                 message: 'Order created successfully',
                 data: response,
             };

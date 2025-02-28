@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { NetworkPartnerFactoryService } from '../network-partners/factory/network-partner-factory.service';
+import { NetworkPartnerFactoryService } from 'src/services/network-partners/network-partner-factory.service';
 
 /**
  * Service for distributing operations to network partners

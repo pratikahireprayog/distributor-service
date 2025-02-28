@@ -16,7 +16,7 @@ classDiagram
     %% Network Partners Module
     class NetworkPartnersModule
     class NetworkPartnerFactoryService {
-        +registerPartner(type: PartnerType, service: any)
+        +registerPartner(type: PARTNER_CODE_ENUM, service: any)
     }
     class BigshipService
     class BigshipModule

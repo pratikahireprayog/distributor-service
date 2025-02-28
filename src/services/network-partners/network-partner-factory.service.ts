@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { INetworkPartnerActivity } from '../../../common/interfaces/network-partner-activity.interface';
+import { INetworkPartnerActivity } from 'src/common/interfaces/network-partner-activity.interface';
 
 /**
  * Factory service for creating network partner activity instances

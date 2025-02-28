@@ -1,10 +1,13 @@
 import { HttpService } from '@nestjs/axios';
 import { Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
-import { PartnerType } from '../../../common/enums/partner-type.enum';
+import { SchemaMapperService } from '@robinydv/schema-mapper';
 import { AuthProvider } from '../../../common/interfaces/auth-provider.interface';
 import { INetworkPartnerActivity } from '../../../common/interfaces/network-partner-activity.interface';
 import { PartnerEndpoint } from '../../../common/interfaces/partner-endpoint.interface';
+import { EndpointConfigModel } from 'src/common/repositories/endpoint-configs/endpoint-configs.schema';
+import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
+import { ENDPOINT_ID_ENUM, PARTNER_CODE_ENUM } from 'src/common/enums';
 
 /**
  * Base abstract class for network partner activities
@@ -15,14 +18,16 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
 
     /**
      * Constructor for BaseNetworkPartnerActivity
-     * @param partnerId The partner type
+     * @param partnerCode The partner code
      * @param authProvider The authentication provider
      * @param httpService The HTTP service for making API requests
      */
     constructor(
-        protected readonly partnerId: PartnerType,
+        protected readonly partnerCode: PARTNER_CODE_ENUM,
         protected readonly authProvider: AuthProvider,
         protected readonly httpService: HttpService,
+        protected readonly endpointConfigRepository: EndpointConfigRepository,
+        protected readonly schemaMapper: SchemaMapperService<any, any>,
     ) {
         this.logger = new Logger(this.constructor.name);
     }
@@ -32,42 +37,26 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
      * @param data The shipment data
      */
     async createManifest(data: any): Promise<any> {
-        this.logger.debug(`Creating manifestation with partner ${this.partnerId}`);
-        const endpoint = this.getCreateManifestationEndpoint();
+        this.logger.debug(`Creating manifestation with partner ${this.partnerCode}`);
+        const endpoint = await this.getEndpointConfig(ENDPOINT_ID_ENUM.CREATE_MANIFEST);
 
         try {
-            if (!this.validateInputForOperation('createManifest', data)) {
+            if (!this.validateInputForOperation(ENDPOINT_ID_ENUM.CREATE_MANIFEST, data)) {
                 throw new Error('Invalid input data for create manifestation operation');
             }
 
-            const response = await this.executeOperation('createManifest', data, endpoint);
-            return this.transformResponseForOperation('createManifest', response);
+            const response = await this.executeOperation(ENDPOINT_ID_ENUM.CREATE_MANIFEST, data, endpoint);
+            return this.transformResponseForOperation(ENDPOINT_ID_ENUM.CREATE_MANIFEST, response);
         } catch (error) {
-            this.handleError(error, `${this.partnerId}:createManifest`);
+            this.handleError(error, `${this.partnerCode}:createManifest`);
         }
     }
 
-    /**
-     * Tracks a shipment using the network partner's API
-     * @param trackingId The tracking ID to track
-     */
-    // async trackOrder(trackingId: string): Promise<any> {
-    //     this.logger.debug(`Tracking order ${trackingId} with partner ${this.partnerId}`);
-    //     const endpoint = this.getTrackOrderEndpoint(trackingId);
+    async getEndpointConfig(endpointId: string): Promise<EndpointConfigModel> {
+        const endpoint = await this.endpointConfigRepository.getOne({ partnerCode: this.partnerCode, endpointId: endpointId });
+        return endpoint;
+    }
 
-    //     try {
-    //         const response = await this.executeOperation('trackOrder', {}, endpoint);
-    //         return this.transformResponseForOperation('trackOrder', response);
-    //     } catch (error) {
-    //         this.handleError(error, `${this.partnerId}:trackOrder`);
-    //     }
-    // }
-
-    /**
-     * Cancels a shipment with the network partner
-     * @param shipmentId The shipment ID to cancel
-     */
-    // async cancelOrder(orderId: string): Promise<any> {
     //     this.logger.debug(`Cancelling order ${orderId} with partner ${this.partnerId}`);
     //     const endpoint = this.getCancelOrderEndpoint(orderId);
 
@@ -80,7 +69,6 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
     // }
 
     // Template methods to be implemented by concrete classes
-    protected abstract getCreateManifestationEndpoint(): PartnerEndpoint;
     protected abstract getTrackOrderEndpoint(trackingId: string): PartnerEndpoint;
     protected abstract getCancelOrderEndpoint(orderId: string): PartnerEndpoint;
 
@@ -106,48 +94,53 @@ export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActiv
     private async executeOperation(
         operation: string,
         data: any,
-        endpoint: PartnerEndpoint
+        endpointConfig: EndpointConfigModel
     ): Promise<any> {
         try {
-            const headers = endpoint.requiresAuth
+            const headers = endpointConfig.requiresAuth
                 ? await this.authProvider.getAuthHeaders()
                 : {};
 
             const requestHeaders = {
-                ...(endpoint.contentType ? { 'Content-Type': endpoint.contentType } : {}),
+                ...(endpointConfig.contentType ? { 'Content-Type': endpointConfig.contentType } : {}),
                 ...this.getAdditionalHeaders(),
                 ...headers,
             };
 
+            // Transform the payload if mapping config exists
+            const transformedData = endpointConfig.payloadMapperConfig
+                ? this.schemaMapper.map(data, endpointConfig.payloadMapperConfig)
+                : data;
+
             let response;
-            switch (endpoint.method.toLowerCase()) {
+            switch (endpointConfig.method.toLowerCase()) {
                 case 'get':
                     response = await firstValueFrom(
-                        this.httpService.get(endpoint.url, { headers: requestHeaders })
+                        this.httpService.get(endpointConfig.url, { headers: requestHeaders })
                     );
                     break;
                 case 'post':
                     response = await firstValueFrom(
-                        this.httpService.post(endpoint.url, data, { headers: requestHeaders })
+                        this.httpService.post(endpointConfig.url, transformedData, { headers: requestHeaders })
                     );
                     break;
                 case 'put':
                     response = await firstValueFrom(
-                        this.httpService.put(endpoint.url, data, { headers: requestHeaders })
+                        this.httpService.put(endpointConfig.url, transformedData, { headers: requestHeaders })
                     );
                     break;
                 case 'delete':
                     response = await firstValueFrom(
-                        this.httpService.delete(endpoint.url, { headers: requestHeaders })
+                        this.httpService.delete(endpointConfig.url, { headers: requestHeaders })
                     );
                     break;
                 default:
-                    throw new Error(`Unsupported HTTP method: ${endpoint.method}`);
+                    throw new Error(`Unsupported HTTP method: ${endpointConfig.method}`);
             }
 
             return response.data;
         } catch (error) {
-            this.handleError(error, `${this.partnerId}:${operation}`);
+            this.handleError(error, `executeOperation: partnerCode: ${this.partnerCode} | operation :${operation} | data: ${JSON.stringify(data)}`);
         }
     }
 } 
