@@ -24,23 +24,34 @@ export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
      */
     async onModuleInit() {
         try {
-            // Create and start Temporal worker
+            // Wait a bit for activities to be registered
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const activities = this.activityRegistry.getActivities();
+            if (Object.keys(activities).length === 0) {
+                this.logger.warn('No activities registered. Worker will not be started.');
+                return;
+            }
+
+            // Create and start Temporal worker with registered activities
             this.worker = await Worker.create({
-                activities: this.activityRegistry.getActivities(),
+                activities,
                 taskQueue: TASK_QUEUE_CONST.DISTRIBUTOR_SERVICE_TASK_QUEUE,
             });
 
             // Start the worker
-            this.logger.log('Starting Temporal worker...');
+            this.logger.log(`Starting Temporal worker with activities: ${Object.keys(activities).join(', ')}`);
 
-            // Run the worker in the background
+            // Run the worker
             this.worker.run().catch((error) => {
                 this.logger.error('Temporal worker failed:', error);
+                throw error;
             });
 
             this.logger.log('Temporal worker started successfully');
         } catch (error) {
-            this.logger.warn('Failed to start Temporal worker. Is the Temporal server running?', error);
+            this.logger.error('Failed to start Temporal worker:', error);
+            throw error;
         }
     }
 
@@ -55,4 +66,4 @@ export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
             this.logger.log('Temporal worker shut down successfully');
         }
     }
-} 
+}

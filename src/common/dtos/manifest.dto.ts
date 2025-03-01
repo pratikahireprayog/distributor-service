@@ -1,6 +1,5 @@
 export interface BaseManifestDto {
     awbNumber: string;
-    systemOrderId: number;
     partnerCode: string;
 }
 
@@ -11,6 +10,7 @@ export interface BaseManifestResponse {
 
 // Partner-specific DTOs extend the base
 export interface BigshipManifestDto extends BaseManifestDto {
+    systemOrderId: number;
     courierId: number;
     riskType: string;
     type: string;

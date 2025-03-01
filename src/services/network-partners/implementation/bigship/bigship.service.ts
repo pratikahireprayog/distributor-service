@@ -63,11 +63,12 @@ export class BigshipService extends BaseNetworkPartner {
 
         // Additional post-processing specific to Bigship
         // Type assertion for BigShip-specific response properties
+        const manifestationData = manifestationDetails as unknown as BigshipManifestDto;
         const bigshipResponse = response as unknown as BigshipManifestResponse;
         if (bigshipResponse?.responseCode === 200 && bigshipResponse?.success === true) {
             await this.updateOrderStatus(manifestationDetails.awbNumber, "READY_FOR_DISPATCH");
-            const shipmentData = await this.getShipmentData(1, manifestationDetails.systemOrderId.toString());
-            await this.updateStatusTracking(shipmentData.data, manifestationDetails);
+            const shipmentData = await this.getShipmentData(1, manifestationData.systemOrderId.toString());
+            await this.updateStatusTracking(shipmentData.data, manifestationData);
         }
 
         return response;

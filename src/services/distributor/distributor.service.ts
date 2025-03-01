@@ -39,7 +39,7 @@ export class DistributorService {
      * @returns The created manifestation
      */
     async createManifest<T extends BaseManifestDto = BaseManifestDto, R extends BaseManifestResponse = BaseManifestResponse>(data: T): Promise<R> {
-        this.logger.log(`Creating manifestation for ${data.systemOrderId || 'unknown'}`);
+        this.logger.log(`Creating manifestation for ${data.awbNumber || 'unknown'}`);
 
         // Determine which partner to use
         const partnerType = this.determinePartner(data);
