@@ -11,6 +11,7 @@ import { STATUS_TRACKING_STATUS_ENUM } from 'src/common/enums/global.enum';
 import { StatusTrackingRepository } from 'src/common/repositories/status-tracking/status-tracking.repository';
 import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
 import { ResponseDto } from 'src/common/dtos/global.dto';
+import { BaseManifestDto, BaseManifestResponse, BigshipManifestDto, BigshipManifestResponse } from 'src/common/dtos/manifest.dto';
 import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
 import { BaseNetworkPartner } from '../../base/base-network-partner.abstract';
 /**
@@ -56,14 +57,14 @@ export class BigshipService extends BaseNetworkPartner {
         return token;
     }
 
-    async createManifest(manifestationDetails: BigshipOrderManifestationDetails): Promise<any> {
+    async createManifest<T extends BaseManifestDto, R extends BaseManifestResponse>(manifestationDetails: T): Promise<R> {
         // This will call the base class implementation which will use our concrete methods
-        const response = await super.createManifest(manifestationDetails);
-        // this.logger.debug(`Manifest API response: ${JSON.stringify(response.data)}`);
-        // await this.insertStatusTracking(manifestationDetails);
+        const response = await super.createManifest<T, R>(manifestationDetails);
 
         // Additional post-processing specific to Bigship
-        if (response?.responseCode === 200 && response?.success === true) {
+        // Type assertion for BigShip-specific response properties
+        const bigshipResponse = response as unknown as BigshipManifestResponse;
+        if (bigshipResponse?.responseCode === 200 && bigshipResponse?.success === true) {
             await this.updateOrderStatus(manifestationDetails.awbNumber, "READY_FOR_DISPATCH");
             const shipmentData = await this.getShipmentData(1, manifestationDetails.systemOrderId.toString());
             await this.updateStatusTracking(shipmentData.data, manifestationDetails);

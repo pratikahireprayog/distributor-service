@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { AppService } from './app.service';
 import { DistributorService } from './services/distributor/distributor.service';
+import { BaseManifestDto, BaseManifestResponse } from './common/dtos/manifest.dto';
 import { CreateManifestDto } from './common/dtos/global.dto';
 
 @Controller()
@@ -21,7 +22,7 @@ export class AppController {
   }
 
   @Post('create-manifest')
-  async createManifest(@Body() manifestData: CreateManifestDto): Promise<any> {
+  async createManifest(@Body() manifestData: CreateManifestDto): Promise<BaseManifestResponse> {
     return this.distributorService.createManifest(manifestData);
   }
 }

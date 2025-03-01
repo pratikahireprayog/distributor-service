@@ -1,15 +1,10 @@
+import { BaseManifestDto, BigshipManifestDto } from './manifest.dto';
+
 export class ResponseDto {
     statusCode: number;
     message: string;
     data?: any;
 }
 
-export interface CreateManifestDto {
-    awbNumber: string;
-    systemOrderId: number;
-    courierId: number;
-    riskType: string;
-    type: string;
-    partnerCode: string;
-    subPartnerCode: string;
-} 
+// For backward compatibility
+export type CreateManifestDto = BigshipManifestDto; 
