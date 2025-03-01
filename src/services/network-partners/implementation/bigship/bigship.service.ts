@@ -4,8 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { SchemaMapperService } from '@robinydv/schema-mapper';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
-import { PartnerEndpoint } from 'src/common/interfaces/partner-endpoint.interface';
-import { BaseNetworkPartnerActivity } from '../base/base-network-partner-activity';
+import { PartnerEndpoint } from 'src/services/network-partners/interfaces/partner-endpoint.interface';
 import { BigshipAuthService } from './bigship-auth.service';
 import { BigshipEndPoints, FulfillmentEndPoints } from './bigship.enum';
 import { STATUS_TRACKING_STATUS_ENUM } from 'src/common/enums/global.enum';
@@ -13,11 +12,12 @@ import { StatusTrackingRepository } from 'src/common/repositories/status-trackin
 import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
 import { ResponseDto } from 'src/common/dtos/global.dto';
 import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
+import { BaseNetworkPartner } from '../../base/base-network-partner.abstract';
 /**
  * Service for interacting with Bigship API
  */
 @Injectable()
-export class BigshipService extends BaseNetworkPartnerActivity {
+export class BigshipService extends BaseNetworkPartner {
     private readonly baseUrl: string;
     private readonly envUrl: string;
     /**

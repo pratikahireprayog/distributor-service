@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { INetworkPartnerActivity } from 'src/common/interfaces/network-partner-activity.interface';
+import { INetworkPartner } from 'src/services/network-partners/interfaces/network-partner.interface';
 
 /**
  * Factory service for creating network partner activity instances
  */
 @Injectable()
 export class NetworkPartnerFactoryService {
-    private partnersMap: Map<string, INetworkPartnerActivity> = new Map();
+    private partnersMap: Map<string, INetworkPartner> = new Map();
 
     constructor() { }
 
@@ -15,7 +15,7 @@ export class NetworkPartnerFactoryService {
      * @param type The partner type identifier
      * @param partner The partner activity implementation
      */
-    registerPartner(type: string, partner: INetworkPartnerActivity): void {
+    registerPartner(type: string, partner: INetworkPartner): void {
         if (this.partnersMap.has(type)) {
             throw new Error(`Partner with type ${type} is already registered`);
         }
@@ -27,7 +27,7 @@ export class NetworkPartnerFactoryService {
      * @param type The partner type identifier
      * @returns The partner activity implementation
      */
-    getPartner(type: string): INetworkPartnerActivity {
+    getPartner(type: string): INetworkPartner {
         const partner = this.partnersMap.get(type);
         if (!partner) {
             throw new Error(`Network partner not found for type: ${type}`);

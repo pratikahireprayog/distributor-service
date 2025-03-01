@@ -2,9 +2,9 @@ import { HttpService } from '@nestjs/axios';
 import { Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { SchemaMapperService } from '@robinydv/schema-mapper';
-import { AuthProvider } from '../../../common/interfaces/auth-provider.interface';
-import { INetworkPartnerActivity } from '../../../common/interfaces/network-partner-activity.interface';
-import { PartnerEndpoint } from '../../../common/interfaces/partner-endpoint.interface';
+import { AuthProvider } from '../interfaces/auth-provider.interface';
+import { INetworkPartner } from '../interfaces/network-partner.interface';
+import { PartnerEndpoint } from '../interfaces/partner-endpoint.interface';
 import { EndpointConfigModel } from 'src/common/repositories/endpoint-configs/endpoint-configs.schema';
 import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
 import { ENDPOINT_ID_ENUM, PARTNER_CODE_ENUM } from 'src/common/enums';
@@ -13,7 +13,7 @@ import { ENDPOINT_ID_ENUM, PARTNER_CODE_ENUM } from 'src/common/enums';
  * Base abstract class for network partner activities
  * Implements common functionality for all network partners
  */
-export abstract class BaseNetworkPartnerActivity implements INetworkPartnerActivity {
+export abstract class BaseNetworkPartner implements INetworkPartner {
     protected readonly logger: Logger;
 
     /**

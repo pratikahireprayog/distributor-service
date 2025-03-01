@@ -1,7 +1,7 @@
 /**
  * Interface defining the operations that can be performed by a network partner
  */
-export interface INetworkPartnerActivity {
+export interface INetworkPartner {
     /**
      * Creates a shipment with the network partner
      * @param manifestationDetails The shipment data

@@ -1,5 +1,5 @@
 import { Logger, Injectable } from "@nestjs/common";
-import { BigshipService } from "src/services/network-partners/bigship/bigship.service";
+import { BigshipService } from "src/services/network-partners/implementation/bigship/bigship.service";
 
 @Injectable()
 export class BigshipActivity {
