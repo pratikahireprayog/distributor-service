@@ -7,6 +7,9 @@ import { ENV_TYPE_CONST } from '../telemetry/telemetry.constant';
 /**
  * Service for managing Temporal workers
  */
+/**
+ * Service for managing Temporal workers
+ */
 @Injectable()
 export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
     private worker: Worker;
@@ -111,6 +114,9 @@ export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    /**
+     * Lifecycle hook that runs when the module is destroyed
+     */
     /**
      * Lifecycle hook that runs when the module is destroyed
      */

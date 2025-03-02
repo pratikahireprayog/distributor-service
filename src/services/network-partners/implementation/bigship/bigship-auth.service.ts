@@ -26,6 +26,7 @@ interface DecodedToken {
 
 @Injectable()
 export class BigshipAuthService implements AuthProvider {
+export class BigshipAuthService implements AuthProvider {
     private token: string | null = null;
     private isTokenRefreshInProgress: Promise<string> | null = null;
     private readonly httpClient;
@@ -54,6 +55,17 @@ export class BigshipAuthService implements AuthProvider {
         };
     }
 
+    /**
+     * Gets authentication headers for API requests
+     * @returns A record of header key-value pairs
+     */
+    async getAuthHeaders(): Promise<Record<string, string>> {
+        const token = await this.getToken();
+        return {
+            'Authorization': `Bearer ${token}`
+        };
+    }
+
     private getLoginPayload(): LoginPayload {
         const { USER_NAME, PASSWORD, ACCESS_KEY } = process.env;
 
@@ -64,6 +76,7 @@ export class BigshipAuthService implements AuthProvider {
         return {
             user_name: USER_NAME,
             password: PASSWORD,
+            access_key: ACCESS_KEY
             access_key: ACCESS_KEY
         };
     }
