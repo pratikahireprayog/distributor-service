@@ -34,18 +34,18 @@ To add a new partner, follow these steps:
 
 ### 1. Define Partner-specific DTOs
 
-Create interfaces for the partner's request and response DTOs in `src/common/dtos/manifest.dto.ts`:
+Create interfaces for the partner's request and response DTOs in `src/common/dtos/base.dto.ts`:
 
 ```typescript
 // Request DTO
-export interface NewPartnerManifestDto extends BaseManifestDto {
+export interface NewPartnerManifestDto extends BaseManifestReqDto {
   // Partner-specific fields
   specialField1: string;
   specialField2: number;
 }
 
 // Response DTO
-export interface NewPartnerManifestResponse extends BaseManifestResponse {
+export interface NewPartnerManifestResponse extends BaseManifestResDto {
   // Partner-specific response fields
   statusCode: number;
   partnerData: any;
@@ -59,7 +59,8 @@ Create a new service that extends `BaseNetworkPartner`:
 ```typescript
 @Injectable()
 export class NewPartnerService extends BaseNetworkPartner {
-  constructor() { // Inject dependencies
+  constructor() {
+    // Inject dependencies
     super(
       PARTNER_CODE_ENUM.NEW_PARTNER,
       authProvider,
@@ -70,8 +71,8 @@ export class NewPartnerService extends BaseNetworkPartner {
   }
 
   async createManifest<
-    T extends BaseManifestDto,
-    R extends BaseManifestResponse,
+    T extends BaseManifestReqDto,
+    R extends BaseManifestResDto,
   >(manifestationDetails: T): Promise<R> {
     // Call the base implementation
     const response = await super.createManifest<T, R>(manifestationDetails);

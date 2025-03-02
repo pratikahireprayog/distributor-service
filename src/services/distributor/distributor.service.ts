@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NetworkPartnerFactoryService } from 'src/services/network-partners/factory/network-partner-factory.service';
-import { BaseManifestDto, BaseManifestResponse } from 'src/common/dtos/manifest.dto';
+import { BaseManifestReqDto, BaseManifestResDto } from 'src/common/dtos/base.dto';
 
 /**
  * Service for distributing operations to network partners
@@ -34,11 +34,11 @@ export class DistributorService {
 
     /**
      * Creates a manifestation with the appropriate network partner
-     * Generic method that can handle any partner-specific DTO that extends BaseManifestDto
+     * Generic method that can handle any partner-specific DTO that extends BaseManifestReqDto
      * @param data The manifestation data
      * @returns The created manifestation
      */
-    async createManifest<T extends BaseManifestDto = BaseManifestDto, R extends BaseManifestResponse = BaseManifestResponse>(data: T): Promise<R> {
+    async createManifest<T extends BaseManifestReqDto = BaseManifestReqDto, R extends BaseManifestResDto = BaseManifestResDto>(data: T): Promise<R> {
         this.logger.log(`Creating manifestation for ${data.awbNumber || 'unknown'}`);
 
         // Determine which partner to use

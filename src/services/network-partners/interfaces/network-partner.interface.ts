@@ -1,4 +1,4 @@
-import { BaseManifestDto, BaseManifestResponse } from 'src/common/dtos/manifest.dto';
+import { BaseManifestReqDto, BaseManifestResDto } from 'src/common/dtos/base.dto';
 
 /**
  * Interface defining the operations that can be performed by a network partner
@@ -8,7 +8,7 @@ export interface INetworkPartner {
      * Creates a shipment with the network partner
      * @param manifestationDetails The shipment data
      */
-    createManifest<T extends BaseManifestDto, R extends BaseManifestResponse>(manifestationDetails: T): Promise<R>;
+    createManifest<T extends BaseManifestReqDto, R extends BaseManifestResDto>(manifestationDetails: T): Promise<R>;
 
     /**
      * Tracks a shipment using the network partner's API

@@ -1,7 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, UnprocessableEntityException } from '@nestjs/common';
 import { SchemaMapperService } from '@robinydv/schema-mapper';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
 import { PartnerEndpoint } from 'src/services/network-partners/interfaces/partner-endpoint.interface';
@@ -10,8 +10,8 @@ import { BigshipEndPoints, FulfillmentEndPoints } from './bigship.enum';
 import { STATUS_TRACKING_STATUS_ENUM } from 'src/common/enums/global.enum';
 import { StatusTrackingRepository } from 'src/common/repositories/status-tracking/status-tracking.repository';
 import { StatusTrackingLogsRepository } from 'src/common/repositories/status-tracking-logs/status-tracking-logs.repository';
-import { ResponseDto } from 'src/common/dtos/global.dto';
-import { BaseManifestDto, BaseManifestResponse, BigshipManifestDto, BigshipManifestResponse } from 'src/common/dtos/manifest.dto';
+import { BaseManifestReqDto, BaseManifestResDto } from 'src/common/dtos/base.dto';
+import { BigshipManifestReqDto, BigshipManifestResDto, ShipmentDataResDto } from './bigship.dto';
 import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
 import { BaseNetworkPartner } from '../../base/base-network-partner.abstract';
 /**
@@ -57,21 +57,48 @@ export class BigshipService extends BaseNetworkPartner {
         return token;
     }
 
-    async createManifest<T extends BaseManifestDto, R extends BaseManifestResponse>(manifestationDetails: T): Promise<R> {
-        // This will call the base class implementation which will use our concrete methods
-        const response = await super.createManifest<T, R>(manifestationDetails);
+    async createManifest<T extends BaseManifestReqDto, R extends BaseManifestResDto>(manifestationDetails: T): Promise<R> {
+        try {
+            // This will call the base class implementation which will use our concrete methods
+            const response = await super.createManifest<T, R>(manifestationDetails);
 
-        // Additional post-processing specific to Bigship
-        // Type assertion for BigShip-specific response properties
-        const manifestationData = manifestationDetails as unknown as BigshipManifestDto;
-        const bigshipResponse = response as unknown as BigshipManifestResponse;
-        if (bigshipResponse?.responseCode === 200 && bigshipResponse?.success === true) {
-            await this.updateOrderStatus(manifestationDetails.awbNumber, "READY_FOR_DISPATCH");
-            const shipmentData = await this.getShipmentData(1, manifestationData.systemOrderId.toString());
-            await this.updateStatusTracking(shipmentData.data, manifestationData);
+            // Additional post-processing specific to Bigship
+            // Type assertion for BigShip-specific response properties
+            const manifestationData = manifestationDetails as unknown as BigshipManifestReqDto;
+            const bigshipResponse = response as unknown as BigshipManifestResDto;
+
+            this.logger.debug(`Manifest API response: ${JSON.stringify(bigshipResponse)}`);
+            await this.insertStatusTracking(manifestationData);
+
+            if (bigshipResponse && bigshipResponse.responseCode === 200 && bigshipResponse.success === true) {
+                try {
+                    await this.updateOrderStatus(manifestationData.awbNumber, "READY_FOR_DISPATCH");
+                } catch (error) {
+                    this.logger.error(`Error updating order status: ${error.message}`);
+                }
+                const shipmentData = await this.getShipmentData(1, manifestationData.systemOrderId.toString());
+                await this.updateStatusTracking(shipmentData.data, manifestationData);
+                return this.formatManifestResponse(bigshipResponse) as R;
+            } else if (bigshipResponse && bigshipResponse.responseCode === 200 && bigshipResponse.success === false) {
+                return this.formatManifestResponse(bigshipResponse) as R;
+            } else if (bigshipResponse && bigshipResponse.responseCode === 0) {
+                this.handleManifestError(response);
+            } else {
+                // Handle case where bigshipResponse is null or undefined
+                this.logger.error('Received null or invalid response from Bigship API');
+                return this.formatManifestResponse(null) as R;
+            }
+
+            // Default fallback response if none of the conditions above return
+            return this.formatManifestResponse({
+                responseCode: 500,
+                success: false,
+                message: 'Failed to get valid response from Bigship API'
+            }) as R;
+        } catch (error) {
+            this.logger.error(`Error in createManifest: ${error.message}`, error.stack);
+            throw error; // Let the error propagate to be handled by the caller
         }
-
-        return response;
     }
 
     private async insertStatusTracking(request: any): Promise<void> {
@@ -158,15 +185,70 @@ export class BigshipService extends BaseNetworkPartner {
         }
     }
 
-    private formatManifestResponse(responseData: any): ResponseDto {
-        return {
-            statusCode: responseData.responseCode,
-            message: responseData.message,
-            data: responseData.data
+    private async handleManifestError(error: any): Promise<void> {
+        // Create a safe error object without circular references
+        const safeError = {
+            errorType: error?.constructor?.name,
+            message: error?.message,
+            responseCode: error?.responseCode,
+            responseData: error?.response?.data,
+            status: error?.response?.status,
+            lineNumber: error?.stack?.split('\n')[1]?.match(/\d+/)?.[0],
+            methodName: error?.stack?.split('\n')[1]?.match(/at\s+(\w+)/)?.[1]
         };
+
+        // Log the safe error object
+        this.logger.error('Manifest Error Details:', safeError);
+
+        // Handle specific error cases
+        if (error instanceof HttpException) {
+            throw error;
+        }
+
+        const errorResponse = {
+            data: null,
+            success: false,
+            message: error?.message || 'Failed to manifest order',
+            statusCode: 422
+        };
+
+        if (error?.responseCode === 0) {
+            this.logger.debug('Response code 0 detected');
+            throw new HttpException(errorResponse, HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+
+        // Handle null or undefined responseCode
+        if (error?.responseCode === null || error?.responseCode === undefined) {
+            this.logger.debug('Null or undefined response code detected');
+            throw new HttpException(errorResponse, HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+
+        // Default error handling
+        throw new HttpException(
+            errorResponse,
+            error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
+        );
     }
 
-    private async getShipmentData(shipmentDataId: number, systemOrderId: string): Promise<any> {
+    private formatManifestResponse(responseData: any): BaseManifestResDto {
+        // Handle null or undefined responseData
+        if (!responseData) {
+            return {
+                statusCode: false,
+                message: 'Failed to get valid response from Bigship API',
+                data: null
+            } as BaseManifestResDto;
+        }
+
+        // Convert the Bigship response format to the base response format
+        return {
+            statusCode: responseData.responseCode === 200 && responseData.success === true,
+            message: responseData.message || 'No message provided',
+            data: responseData.data || responseData
+        } as BaseManifestResDto;
+    }
+
+    private async getShipmentData(shipmentDataId: number, systemOrderId: string): Promise<ShipmentDataResDto> {
         try {
             if (![1, 2, 3].includes(shipmentDataId)) {
                 throw new HttpException(
@@ -190,7 +272,7 @@ export class BigshipService extends BaseNetworkPartner {
             };
 
             const response = await axios.request(config);
-            return response.data;
+            return response.data as ShipmentDataResDto;
         } catch (error) {
             if (error instanceof HttpException) {
                 throw error;

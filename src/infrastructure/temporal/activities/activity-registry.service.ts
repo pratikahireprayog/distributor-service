@@ -21,9 +21,6 @@ export class ActivityRegistryService {
                 // Ensure the function is properly bound to its original context
                 const boundFn = fn as (...args: any[]) => Promise<any>;
 
-                // Register with capitalized first letter (original behavior)
-                activities[`${key}${method.charAt(0).toUpperCase() + method.slice(1)}`] = boundFn;
-
                 // Also register with the exact original method name for case-sensitive matching
                 activities[`${key}${method}`] = boundFn;
             });

@@ -45,6 +45,19 @@ async function bootstrap() {
     logger.log(`Distributor Service listening at http://localhost:${port}`);
   });
 
+  // Add graceful shutdown handlers
+  process.on('SIGTERM', async () => {
+    logger.log('SIGTERM signal received: closing HTTP server');
+    await app.close();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    logger.log('SIGINT signal received: closing HTTP server');
+    await app.close();
+    process.exit(0);
+  });
+
   if (module.hot) {
     module.hot.accept();
     module.hot.dispose(() => app.close());

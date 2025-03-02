@@ -8,7 +8,7 @@ import { PartnerEndpoint } from '../interfaces/partner-endpoint.interface';
 import { EndpointConfigModel } from 'src/common/repositories/endpoint-configs/endpoint-configs.schema';
 import { EndpointConfigRepository } from 'src/common/repositories/endpoint-configs/endpoint-configs.repository';
 import { ENDPOINT_ID_ENUM, PARTNER_CODE_ENUM } from 'src/common/enums';
-import { BaseManifestDto, BaseManifestResponse } from 'src/common/dtos/manifest.dto';
+import { BaseManifestReqDto, BaseManifestResDto } from 'src/common/dtos/base.dto';
 
 /**
  * Base abstract class for network partner activities
@@ -37,7 +37,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
      * Creates a shipment with the network partner
      * @param data The shipment data
      */
-    async createManifest<T extends BaseManifestDto, R extends BaseManifestResponse>(data: T): Promise<R> {
+    async createManifest<T extends BaseManifestReqDto, R extends BaseManifestResDto>(data: T): Promise<R> {
         this.logger.debug(`Creating manifestation with partner ${this.partnerCode}`);
         const endpoint = await this.getEndpointConfig(ENDPOINT_ID_ENUM.CREATE_MANIFEST);
 
