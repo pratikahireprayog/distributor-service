@@ -16,12 +16,14 @@ export class ActivityRegistrationProvider implements OnModuleInit {
     /**
      * Register all activities when the module initializes
      */
-    onModuleInit() {
+    async onModuleInit() {
         // Register distributor service activities
-        this.activityRegistry.register('distributor', {
-            createManifest: this.distributorService.createManifest.bind(this.distributorService),
-            // trackOrder: this.distributorService.trackOrder.bind(this.distributorService),
-            // cancelOrder: this.distributorService.cancelOrder.bind(this.distributorService),
+        await Promise.resolve().then(() => {
+            this.activityRegistry.register('', {
+                createManifest: this.distributorService.createManifest.bind(this.distributorService),
+                // distributorTrackOrder: this.distributorService.trackOrder.bind(this.distributorService),
+                // distributorCancelOrder: this.distributorService.cancelOrder.bind(this.distributorService),
+            });
         });
     }
-} 
+}

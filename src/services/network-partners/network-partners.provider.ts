@@ -1,8 +1,8 @@
 import { Provider } from '@nestjs/common';
-import { NetworkPartnerFactoryService } from './network-partner-factory.service';
-import { BigshipService } from './bigship/bigship.service';
+import { NetworkPartnerFactoryService } from './factory/network-partner-factory.service';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
 import { NETWORK_PARTNER_PROVIDER_CONST } from './network-partners.constant';
+import { BigshipService } from './implementation/bigship/bigship.service';
 
 export const networkPartnersProviders: Provider[] = [
     // Individual partner providers

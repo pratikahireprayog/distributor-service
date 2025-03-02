@@ -1,7 +1,7 @@
 import { Model } from 'mongoose';
 import { Injectable, Inject } from '@nestjs/common';
 import { StatusTrackingLogsDocument } from './status-tracking-logs.schema';
-import { BaseMongoRepository } from 'src/common/abstracts/database.abstract';
+import { BaseMongoRepository } from 'src/common/repositories/base/database.abstract';
 import { REPOSITORY_MODEL_PROVIDER_CONST } from 'src/common/constants';
 
 @Injectable()

@@ -7,9 +7,9 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:debug": "pkill -f node && nest start --debug --watch",
+    "start:debug": "node && nest start --debug --watch",
     "start:debug:safe": "nest start --debug --watch",
-    "start:prod": "pkill -f node && node dist/main",
+    "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "debug:test": "ts-node src/debug-test.ts",
     "debug:simple": "ts-node src/debug-test-direct.ts"
