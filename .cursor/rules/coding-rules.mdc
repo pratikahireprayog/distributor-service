@@ -1,0 +1,14 @@
+---
+description: coding-rules
+globs: 
+alwaysApply: false
+---
+# Coding Rules and Best Practices
+
+- solid-principles
+- clean-code-guidelines
+- use-design-patterns
+- maintaine-project-structure
+- proper-naming-conventions
+- error-handling
+- security

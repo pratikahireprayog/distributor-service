@@ -1,105 +1,122 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { NetworkPartnerFactoryService } from 'src/services/network-partners/factory/network-partner-factory.service';
-import { BaseManifestReqDto, BaseManifestResDto } from 'src/common/dtos/base.dto';
+import { Injectable, Logger } from "@nestjs/common";
+import { NetworkPartnerFactoryService } from "src/services/network-partners/factory/network-partner-factory.service";
+import {
+  BaseCancelOrderDto,
+  BaseOrderReqDto,
+  BaseOrderResDto,
+  BaseReqDto,
+  BaseResDto,
+} from "src/common/dtos/base.dto";
 
 /**
  * Service for distributing operations to network partners
  */
 @Injectable()
 export class DistributorService {
-    private readonly logger = new Logger(DistributorService.name);
+  private readonly logger = new Logger(DistributorService.name);
 
-    constructor(
-        private readonly networkPartnerFactory: NetworkPartnerFactoryService,
-    ) { }
+  constructor(
+    private readonly networkPartnerFactory: NetworkPartnerFactoryService
+  ) {}
 
-    /**
-     * Creates an order with the appropriate network partner
-     * @param data The order data
-     * @returns The created order
-     */
-    // async createOrder(data: any): Promise<any> {
-    //     this.logger.log(`Creating order for ${data.orderId}`);
+  async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
+    orderData: T
+  ): Promise<R> {
+    this.logger.log(`Creating Order for ${orderData.awbNumber || "unknown"}`);
 
-    //     // Determine which partner to use
-    //     const partnerType = this.determinePartnerType(data);
-    //     this.logger.debug(`Selected partner: ${partnerType}`);
+    // Determine which partner to use
+    const partnerType = this.determinePartner(orderData);
+    this.logger.debug(`Selected partner: ${partnerType}`);
 
-    //     // Get the appropriate partner implementation
-    //     const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
-    //     // Execute the operation with the selected partner
-    //     return partnerActivity.createManifest(data);
-    // }
+    // Execute the operation with the selected partner
+    return partnerActivity.createOrder<T, R>(orderData);
+  }
 
-    /**
-     * Creates a manifestation with the appropriate network partner
-     * Generic method that can handle any partner-specific DTO that extends BaseManifestReqDto
-     * @param data The manifestation data
-     * @returns The created manifestation
-     */
-    async createManifest<T extends BaseManifestReqDto = BaseManifestReqDto, R extends BaseManifestResDto = BaseManifestResDto>(data: T): Promise<R> {
-        this.logger.log(`Creating manifestation for ${data.awbNumber || 'unknown'}`);
+  async createManifest<
+    T extends BaseReqDto = BaseReqDto,
+    R extends BaseResDto = BaseResDto,
+  >(data: T): Promise<R> {
+    this.logger.log(
+      `Creating Manifestation for ${data.awbNumber || "unknown"}`
+    );
 
-        // Determine which partner to use
-        const partnerType = this.determinePartner(data);
-        this.logger.debug(`Selected partner: ${partnerType}`);
+    // Determine which partner to use
+    const partnerType = this.determinePartner(data);
+    this.logger.debug(`Selected partner: ${partnerType}`);
 
-        // Get the appropriate partner implementation
-        const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
 
-        // Execute the operation with the selected partner
-        return partnerActivity.createManifest<T, R>(data);
+    // Execute the operation with the selected partner
+    return partnerActivity.createManifest<T, R>(data);
+  }
+
+  async getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
+    params: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Getting Order Details for ${params.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerType = this.determinePartner(params);
+    this.logger.debug(`Selected partner: ${partnerType}`);
+    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+
+    // Execute the operation with the selected partner
+    return partnerActivity.getOrderDetails<T, R>(params);
+  }
+
+  async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(`Cancelling Order for ${data.awbNumber || "unknown"}`);
+
+    // Get the appropriate partner implementation
+    const partnerType = this.determinePartner(data);
+    this.logger.debug(`Selected partner: ${partnerType}`);
+    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+
+    // Execute the operation with the selected partner
+    return partnerActivity.cancelOrder<T, R>(data);
+  }
+
+  private determineOrderType(data: any): string {
+    const orderType = data.type?.toUpperCase();
+
+    if (!orderType) {
+      this.logger.warn("Order type not specified in payload");
+      throw new Error("Order type is required");
     }
 
-    /**
-     * Determines the order type from the payload
-     * @param data The incoming payload data
-     * @returns The order type (e.g., 'CARGO', 'ECOM')
-     */
-    private determineOrderType(data: any): string {
-        const orderType = data.type?.toUpperCase();
+    this.logger.debug(`Determined order type: ${orderType}`);
+    return orderType;
+  }
 
-        if (!orderType) {
-            this.logger.warn('Order type not specified in payload');
-            throw new Error('Order type is required');
-        }
+  private determinePartner(data: any): string | null {
+    const partnerCode = data.partnerCode;
 
-        this.logger.debug(`Determined order type: ${orderType}`);
-        return orderType;
+    if (!partnerCode) {
+      this.logger.debug("Partner code not specified in payload");
+      return null;
     }
 
-    /**
-     * Determines the partner code from the payload
-     * @param data The incoming payload data
-     * @returns The partner code or null if not specified
-     */
-    private determinePartner(data: any): string | null {
-        const partnerCode = data.partnerCode;
+    this.logger.debug(`Determined partner: ${partnerCode}`);
+    return partnerCode;
+  }
 
-        if (!partnerCode) {
-            this.logger.debug('Partner code not specified in payload');
-            return null;
-        }
+  private determineSubPartner(data: any): string | null {
+    const subPartnerCode = data.subPartnerCode;
 
-        this.logger.debug(`Determined partner: ${partnerCode}`);
-        return partnerCode;
+    if (!subPartnerCode) {
+      this.logger.debug("Sub-partner code not specified in payload");
+      return null;
     }
 
-    /**
-     * Determines the sub-partner code from the payload
-     * @param data The incoming payload data
-     * @returns The sub-partner code or null if not specified
-     */
-    private determineSubPartner(data: any): string | null {
-        const subPartnerCode = data.subPartnerCode;
-
-        if (!subPartnerCode) {
-            this.logger.debug('Sub-partner code not specified in payload');
-            return null;
-        }
-
-        this.logger.debug(`Determined sub-partner: ${subPartnerCode}`);
-        return subPartnerCode;
-    }
-} 
+    this.logger.debug(`Determined sub-partner: ${subPartnerCode}`);
+    return subPartnerCode;
+  }
+}

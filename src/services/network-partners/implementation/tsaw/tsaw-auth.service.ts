@@ -1,0 +1,20 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { AuthProvider } from 'src/services/network-partners/interfaces/auth-provider.interface';
+
+@Injectable()
+export class TsawAuthService implements AuthProvider {
+    constructor(private readonly logger: Logger) { }
+
+    async getAuthHeaders(): Promise<Record<string, string>> {
+        const accessToken = process.env.TSAW_ACCESS_TOKEN;
+
+        if (!accessToken) {
+            this.logger.error('TSAW_ACCESS_TOKEN environment variable is not set');
+            throw new Error('TSAW_ACCESS_TOKEN environment variable is not set');
+        }
+
+        return {
+            'x-access-token': accessToken
+        };
+    }
+} 

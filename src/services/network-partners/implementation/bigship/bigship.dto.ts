@@ -1,5 +1,5 @@
 import { IsString } from "class-validator";
-import { BaseManifestReqDto, BaseManifestResDto } from "src/common/dtos/base.dto";
+import { BaseReqDto, BaseResDto } from "src/common/dtos/base.dto";
 
 export class AwbNumberResDto {
     @IsString()
@@ -23,7 +23,7 @@ export class ShipmentDataResDto {
 }
 
 
-export interface BigshipManifestReqDto extends BaseManifestReqDto {
+export interface BigshipManifestReqDto extends BaseReqDto {
     systemOrderId: number;
     courierId: number;
     riskType: string;
@@ -31,7 +31,7 @@ export interface BigshipManifestReqDto extends BaseManifestReqDto {
     subPartnerCode: string;
 }
 
-export interface BigshipManifestResDto extends BaseManifestResDto {
+export interface BigshipManifestResDto extends BaseResDto {
     responseCode: number;
     success: boolean
     data: {

@@ -38,14 +38,14 @@ Create interfaces for the partner's request and response DTOs in `src/common/dto
 
 ```typescript
 // Request DTO
-export interface NewPartnerManifestDto extends BaseManifestReqDto {
+export interface NewPartnerManifestDto extends BaseReqDto {
   // Partner-specific fields
   specialField1: string;
   specialField2: number;
 }
 
 // Response DTO
-export interface NewPartnerManifestResponse extends BaseManifestResDto {
+export interface NewPartnerManifestResponse extends BaseResDto {
   // Partner-specific response fields
   statusCode: number;
   partnerData: any;
@@ -70,10 +70,9 @@ export class NewPartnerService extends BaseNetworkPartner {
     );
   }
 
-  async createManifest<
-    T extends BaseManifestReqDto,
-    R extends BaseManifestResDto,
-  >(manifestationDetails: T): Promise<R> {
+  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+    manifestationDetails: T
+  ): Promise<R> {
     // Call the base implementation
     const response = await super.createManifest<T, R>(manifestationDetails);
 

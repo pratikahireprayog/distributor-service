@@ -1,14 +1,12 @@
-import { JwtModule } from '@nestjs/jwt';
 import { HttpModule } from '@nestjs/axios';
 import { Logger, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { SchemaMapperService } from 'src/infrastructure/schema-mapper';
-import { BigshipAuthService } from './bigship-auth.service';
-import { BigshipService } from './bigship.service';
+import { TsawAuthService } from './tsaw-auth.service';
+import { TsawService } from './tsaw.service';
 import { EndpointConfigModule } from 'src/common/repositories/endpoint-configs/endpoint-configs.module';
-/**
- * Module for Bigship integration
- */
+
 @Module({
     imports: [
         HttpModule,
@@ -20,11 +18,11 @@ import { EndpointConfigModule } from 'src/common/repositories/endpoint-configs/e
         }),
     ],
     providers: [
-        BigshipService,
-        BigshipAuthService,
+        TsawService,
+        TsawAuthService,
         Logger,
         SchemaMapperService
     ],
-    exports: [BigshipService, BigshipAuthService]
+    exports: [TsawService, TsawAuthService]
 })
-export class BigshipModule { } 
+export class TsawModule { } 
