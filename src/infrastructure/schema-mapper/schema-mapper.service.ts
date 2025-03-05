@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ISchemaMapper } from './schema-mapper.interface';
-import { MappingConfig } from './schema-mapper.config.interface';
+import {
+  MappingField,
+  SchemaMappingConfig,
+} from './schema-mapper.config.interface';
 
 @Injectable()
 export class SchemaMapperService<TSource, TTarget>
@@ -8,32 +11,37 @@ export class SchemaMapperService<TSource, TTarget>
 {
   constructor() {}
 
-  map(sourceData: any, mappingConfig: MappingConfig): any {
+  map(sourceData: any, mappingConfig: SchemaMappingConfig): any {
     const destinationData: any = {};
 
     for (const field of mappingConfig.fields) {
-      const value = this.getValueFromSources(sourceData, field.sources);
-
-      if (field.isNestedArray && Array.isArray(value)) {
-        this.setNestedArrayValue(
-          destinationData,
-          field.destination,
-          value,
-          field.nestedMappingConfig,
-        );
-      } else if (field.isNestedObject && typeof value === 'object') {
-        this.setNestedObjectValue(
-          destinationData,
-          field.destination,
-          value,
-          field.nestedMappingConfig,
-        );
-      } else {
-        this.setFieldValue(
-          destinationData,
-          field.destination,
-          field.transform ? field.transform(value) : value,
-        );
+      const value = this.getValueFromSources(sourceData, field);
+      if (
+        (value !== undefined && value !== null) ||
+        field.defaultValue ||
+        field.transform
+      ) {
+        if (field.isNestedArray && Array.isArray(value)) {
+          this.setNestedArrayValue(
+            destinationData,
+            value,
+            field,
+            field.nestedMappingConfig,
+          );
+        } else if (field.isNestedObject && typeof value === 'object') {
+          this.setNestedObjectValue(
+            destinationData,
+            value,
+            field,
+            field.nestedMappingConfig,
+          );
+        } else {
+          this.setFieldValue(
+            destinationData,
+            field.transform ? field.transform(value) : value,
+            field,
+          );
+        }
       }
     }
 
@@ -49,33 +57,38 @@ export class SchemaMapperService<TSource, TTarget>
 
   private setNestedObjectValue(
     data: any,
-    fieldPath: string,
     objectData: any,
-    nestedMappingConfig: MappingConfig,
+    field: MappingField,
+    nestedMappingConfig: SchemaMappingConfig,
   ): void {
     const mappedObject = this.map(objectData, nestedMappingConfig);
-    this.setFieldValue(data, fieldPath, mappedObject);
+    this.setFieldValue(data, mappedObject, field);
   }
 
   private setNestedArrayValue(
     data: any,
-    fieldPath: string,
     arrayData: any[],
-    nestedMappingConfig: MappingConfig,
+    field: MappingField,
+    nestedMappingConfig: SchemaMappingConfig,
   ): void {
     const mappedArray = arrayData.map((item) =>
       this.map(item, nestedMappingConfig),
     );
-    this.setFieldValue(data, fieldPath, mappedArray);
+    this.setFieldValue(data, mappedArray, field);
   }
+  // field.destination,
+  // field.transform ? field.transform(value) : value,
+  // field.defaultValue,
+  // field?.isArrayInDestination
 
-  private setFieldValue(data: any, fieldPath: string, value: any): void {
-    const pathSegments = fieldPath.split('.');
+  private setFieldValue(data: any, value: any, field: MappingField): void {
+    const pathSegments = field.destination.split('.');
     const lastIndex = pathSegments.length - 1;
 
     pathSegments.reduce((obj, key, index) => {
       if (index === lastIndex) {
-        obj[key] = value;
+        obj[key] =
+          value !== undefined && value !== null ? value : field?.defaultValue;
       } else {
         obj[key] = obj[key] || {};
         return obj[key];
@@ -107,16 +120,19 @@ export class SchemaMapperService<TSource, TTarget>
   //   }, data);
   // }
 
-  private getValueFromSources(data: any, sources: string | string[]): any {
-    if (Array.isArray(sources)) {
-      for (const source of sources) {
+  private getValueFromSources(data: any, field: MappingField): any {
+    if (Array.isArray(field.sources)) {
+      const values = [];
+      for (const source of field.sources) {
         const value = this.getFieldValue(data, source);
-        if (value !== undefined && value !== null) {
-          return value;
-        }
+        values.push({ [source]: value });
       }
+      return values;
     } else {
-      const value = this.getFieldValue(data, sources);
+      if (!field.sources && field.isArrayInDestination) {
+        return [data];
+      }
+      const value = this.getFieldValue(data, field.sources);
       if (value !== undefined && value !== null) {
         return value;
       }

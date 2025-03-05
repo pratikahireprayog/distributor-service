@@ -4,11 +4,11 @@ export interface MappingField {
   isArrayInDestination?: boolean;
   isNestedArray?: boolean;
   isNestedObject?: boolean;
-  nestedMappingConfig?: MappingConfig;
+  nestedMappingConfig?: SchemaMappingConfig;
   transform?: (value: any) => any;
   defaultValue?: any;
 }
 
-export interface MappingConfig {
+export interface SchemaMappingConfig {
   fields: MappingField[];
 }
