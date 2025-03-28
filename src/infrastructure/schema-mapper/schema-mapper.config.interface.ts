@@ -5,7 +5,7 @@ export interface MappingField {
   isNestedArray?: boolean;
   isNestedObject?: boolean;
   nestedMappingConfig?: SchemaMappingConfig;
-  transform?: (value: any) => any;
+  transform?:  string | ((value: any) => any);
   defaultValue?: any;
 }
 

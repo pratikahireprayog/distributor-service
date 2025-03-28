@@ -1,15 +1,38 @@
-import { Injectable } from '@nestjs/common';
-import { ISchemaMapper } from './schema-mapper.interface';
+import { Injectable } from "@nestjs/common";
+import { ISchemaMapper } from "./schema-mapper.interface";
 import {
   MappingField,
   SchemaMappingConfig,
-} from './schema-mapper.config.interface';
+} from "./schema-mapper.config.interface";
 
 @Injectable()
 export class SchemaMapperService<TSource, TTarget>
   implements ISchemaMapper<TSource, TTarget>
 {
   constructor() {}
+
+  private convertTransformToFunction(
+    transform: string | ((value: any) => any)
+  ): (value: any) => any {
+    if (typeof transform === "function") {
+      return transform;
+    }
+
+    // Check if the transform is an arrow function
+    if (transform.includes("=>")) {
+      // Extract the parameter and body parts
+      const arrowMatch = transform.match(/\(([^)]*)\)\s*=>\s*(.*)/);
+      if (arrowMatch) {
+        const [, params, body] = arrowMatch;
+        // Create a function with the extracted parameters and body
+        // Use type assertion to tell TypeScript this is the correct type
+        return new Function(params, `return ${body}`) as (value: any) => any;
+      }
+    }
+
+    // Default case: treat as a direct expression
+    return new Function("value", `return ${transform}`) as (value: any) => any;
+  }
 
   map(sourceData: any, mappingConfig: SchemaMappingConfig): any {
     const destinationData: any = {};
@@ -26,20 +49,23 @@ export class SchemaMapperService<TSource, TTarget>
             destinationData,
             value,
             field,
-            field.nestedMappingConfig,
+            field.nestedMappingConfig
           );
-        } else if (field.isNestedObject && typeof value === 'object') {
+        } else if (field.isNestedObject && typeof value === "object") {
           this.setNestedObjectValue(
             destinationData,
             value,
             field,
-            field.nestedMappingConfig,
+            field.nestedMappingConfig
           );
         } else {
+          const transformFn = field.transform
+            ? this.convertTransformToFunction(field.transform)
+            : null;
           this.setFieldValue(
             destinationData,
-            field.transform ? field.transform(value) : value,
-            field,
+            transformFn ? transformFn(value) : value,
+            field
           );
         }
       }
@@ -59,7 +85,7 @@ export class SchemaMapperService<TSource, TTarget>
     data: any,
     objectData: any,
     field: MappingField,
-    nestedMappingConfig: SchemaMappingConfig,
+    nestedMappingConfig: SchemaMappingConfig
   ): void {
     const mappedObject = this.map(objectData, nestedMappingConfig);
     this.setFieldValue(data, mappedObject, field);
@@ -69,10 +95,10 @@ export class SchemaMapperService<TSource, TTarget>
     data: any,
     arrayData: any[],
     field: MappingField,
-    nestedMappingConfig: SchemaMappingConfig,
+    nestedMappingConfig: SchemaMappingConfig
   ): void {
     const mappedArray = arrayData.map((item) =>
-      this.map(item, nestedMappingConfig),
+      this.map(item, nestedMappingConfig)
     );
     this.setFieldValue(data, mappedArray, field);
   }
@@ -82,7 +108,7 @@ export class SchemaMapperService<TSource, TTarget>
   // field?.isArrayInDestination
 
   private setFieldValue(data: any, value: any, field: MappingField): void {
-    const pathSegments = field.destination.split('.');
+    const pathSegments = field.destination.split(".");
     const lastIndex = pathSegments.length - 1;
 
     pathSegments.reduce((obj, key, index) => {
@@ -132,6 +158,9 @@ export class SchemaMapperService<TSource, TTarget>
       if (!field.sources && field.isArrayInDestination) {
         return [data];
       }
+      if (!field.sources && field.isNestedObject) {
+        return data;
+      }
       const value = this.getFieldValue(data, field.sources);
       if (value !== undefined && value !== null) {
         return value;
@@ -143,10 +172,10 @@ export class SchemaMapperService<TSource, TTarget>
   private getFieldValue(data: any, fieldPath: string): any {
     if (!data) return undefined;
 
-    const pathSegments = fieldPath.split('.');
+    const pathSegments = fieldPath.split(".");
     return pathSegments.reduce(
-      (obj, key) => (obj && obj[key] !== 'undefined' ? obj[key] : undefined),
-      data,
+      (obj, key) => (obj && obj[key] !== "undefined" ? obj[key] : undefined),
+      data
     );
   }
 }
