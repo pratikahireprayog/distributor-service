@@ -21,6 +21,7 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         await Promise.resolve().then(() => {
             this.activityRegistry.register('', {
                 createManifest: this.distributorService.createManifest.bind(this.distributorService),
+                createOrder: this.distributorService.createOrder.bind(this.distributorService),
                 // distributorTrackOrder: this.distributorService.trackOrder.bind(this.distributorService),
                 // distributorCancelOrder: this.distributorService.cancelOrder.bind(this.distributorService),
             });

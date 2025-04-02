@@ -163,6 +163,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   }
 
   // TODO: Create response mapper object for specific partner
+  // TODO: Log response message in a proper format
   // Private method for executing HTTP operations
   private async executeOperation(
     operation: string,
