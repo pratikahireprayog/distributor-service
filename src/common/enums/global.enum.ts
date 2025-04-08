@@ -29,6 +29,7 @@ export enum TRAVEL_TYPE_ENUM {
 export enum PARTNER_CODE_ENUM {
   BIGSHIP = "BIGSHIP",
   TSAW = "TSAW",
+  DEFAULT = "DEFAULT",
 }
 
 export enum ENDPOINT_ID_ENUM {

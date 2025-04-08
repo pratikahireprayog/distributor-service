@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { NetworkPartnerFactoryService } from "src/services/network-partners/factory/network-partner-factory.service";
+import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
 import {
   BaseCancelOrderDto,
   BaseOrderReqDto,
@@ -96,12 +97,18 @@ export class DistributorService {
     return orderType;
   }
 
-  private determinePartner(data: any): string | null {
+  /**
+   * Determines which partner to use for the operation.
+   * If no partner code is specified, returns the DEFAULT partner code.
+   * @param data The operation data
+   * @returns The partner code to use
+   */
+  private determinePartner(data: any): string {
     const partnerCode = data.partnerCode;
 
     if (!partnerCode) {
-      this.logger.debug("Partner code not specified in payload");
-      return null;
+      this.logger.debug("Partner code not specified in payload, using default partner");
+      return PARTNER_CODE_ENUM.DEFAULT;
     }
 
     this.logger.debug(`Determined partner: ${partnerCode}`);
