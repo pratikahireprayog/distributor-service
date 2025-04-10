@@ -5,6 +5,7 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
 } from "src/common/dtos/base.dto";
+import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
 /**
  * Interface defining the operations that can be performed by a network partner
@@ -15,7 +16,8 @@ export interface INetworkPartner {
   ): Promise<R>;
 
   createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
-    orderDetails: T
+    orderDetails: T,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R>;
 
   getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(

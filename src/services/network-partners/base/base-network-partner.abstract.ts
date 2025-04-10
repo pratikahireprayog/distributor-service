@@ -18,6 +18,8 @@ import {
   BaseCancelOrderDto,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
+import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
+import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
 /**
  * Base abstract class for network partner activities
@@ -31,20 +33,51 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     protected readonly authProvider: AuthProvider,
     protected readonly httpService: HttpService,
     protected readonly endpointConfigRepository: EndpointConfigRepository,
-    protected readonly schemaMapper: SchemaMapperService<any, any>
+    protected readonly schemaMapper: SchemaMapperService<any, any>,
+    protected readonly partnerHelper?: BaseNetworkPartnerHelper
   ) {
     this.logger = new Logger(this.constructor.name);
   }
 
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
-    orderData: T
+    orderData: T,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
-    const endpointConfig = await this.getEndpointConfig(
-      ENDPOINT_ID_ENUM.CREATE_ORDER
-    );
+    let existingPartners: any;
+    let attemptNumber = 1;
+    let partnerType: PARTNER_CODE_ENUM = this.partnerCode;
+    const startTime = Date.now();
 
     try {
+      // Use the helper if available to handle partner tracking and selection
+      if (this.partnerHelper) {
+        // Step 1: Load or store partner data
+        existingPartners = await this.partnerHelper.loadOrStorePartners(
+          orderData.awbNumber,
+          eligiblePartners
+        );
+
+        // Step 2: Determine which partner to use
+        partnerType = await this.partnerHelper.determinePartnerWithEligibility(
+          orderData,
+          eligiblePartners
+        );
+
+        // Make sure partnerCode in orderData matches the selected partner
+        orderData.partnerCode = partnerType;
+
+        // Step 3: Get current attempt number
+        attemptNumber = this.partnerHelper.getAttemptNumber(
+          existingPartners,
+          partnerType
+        );
+      }
+
+      const endpointConfig = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CREATE_ORDER
+      );
+
       if (
         !this.validateInputForOperation(
           ENDPOINT_ID_ENUM.CREATE_ORDER,
@@ -59,11 +92,46 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         orderData,
         endpointConfig
       );
-      return this.transformResponseForOperation(
+
+      const result = this.transformResponseForOperation(
         ENDPOINT_ID_ENUM.CREATE_ORDER,
         response
       ) as R;
+
+      // Calculate response time
+      const responseTimeMs = Date.now() - startTime;
+
+      // Record successful attempt if helper is available
+      if (this.partnerHelper) {
+        await this.partnerHelper.recordSuccessfulAttempt(
+          orderData.awbNumber,
+          partnerType,
+          existingPartners,
+          eligiblePartners,
+          attemptNumber,
+          result,
+          responseTimeMs,
+          orderData
+        );
+      }
+
+      return result;
     } catch (error) {
+      // Calculate response time for error tracking
+      error.responseTimeMs = Date.now() - startTime;
+
+      // Record failed attempt if helper is available
+      if (this.partnerHelper) {
+        await this.partnerHelper.recordFailedAttempt(
+          error,
+          orderData,
+          partnerType,
+          existingPartners,
+          eligiblePartners,
+          attemptNumber
+        );
+      }
+
       throw error;
     }
   }
@@ -74,11 +142,13 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     this.logger.debug(
       `Creating manifestation with partner ${this.partnerCode}`
     );
-    const endpoint = await this.getEndpointConfig(
-      ENDPOINT_ID_ENUM.CREATE_MANIFEST
-    );
+    const startTime = Date.now();
 
     try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CREATE_MANIFEST
+      );
+
       if (
         !this.validateInputForOperation(ENDPOINT_ID_ENUM.CREATE_MANIFEST, data)
       ) {
@@ -92,11 +162,20 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         data,
         endpoint
       );
-      return this.transformResponseForOperation(
+
+      const result = this.transformResponseForOperation(
         ENDPOINT_ID_ENUM.CREATE_MANIFEST,
         response
       ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(`Manifest created successfully in ${responseTimeMs}ms`);
+
+      return result;
     } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
       throw error;
     }
   }
@@ -105,11 +184,13 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     params: T
   ): Promise<R> {
     this.logger.debug(`Getting order details with partner ${this.partnerCode}`);
-    const endpoint = await this.getEndpointConfig(
-      ENDPOINT_ID_ENUM.GET_ORDER_DETAILS
-    );
+    const startTime = Date.now();
 
     try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.GET_ORDER_DETAILS
+      );
+
       if (
         !this.validateInputForOperation(
           ENDPOINT_ID_ENUM.GET_ORDER_DETAILS,
@@ -124,11 +205,22 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         params,
         endpoint
       );
-      return this.transformResponseForOperation(
+
+      const result = this.transformResponseForOperation(
         ENDPOINT_ID_ENUM.GET_ORDER_DETAILS,
         response
       ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order details retrieved successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
     } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
       throw error;
     }
   }
@@ -137,11 +229,13 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     data: T
   ): Promise<R> {
     this.logger.debug(`Cancelling order with partner ${this.partnerCode}`);
-    const endpoint = await this.getEndpointConfig(
-      ENDPOINT_ID_ENUM.CANCEL_ORDER
-    );
+    const startTime = Date.now();
 
     try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CANCEL_ORDER
+      );
+
       if (
         !this.validateInputForOperation(ENDPOINT_ID_ENUM.CANCEL_ORDER, data)
       ) {
@@ -153,11 +247,20 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         data,
         endpoint
       );
-      return this.transformResponseForOperation(
+
+      const result = this.transformResponseForOperation(
         ENDPOINT_ID_ENUM.CANCEL_ORDER,
         response
       ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(`Order cancelled successfully in ${responseTimeMs}ms`);
+
+      return result;
     } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
       throw error;
     }
   }

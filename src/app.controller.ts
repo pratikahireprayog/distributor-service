@@ -8,6 +8,14 @@ import {
   BaseOrderResDto,
   BaseCancelOrderDto,
 } from "./common/dtos/base.dto";
+import { EligiblePartnersData } from "./common/dtos/global.dto";
+
+// TODO: Move to dto
+// DTO for create order endpoint
+class CreateOrderDto {
+  orderData: BaseOrderReqDto;
+  eligiblePartners?: EligiblePartnersData;
+}
 
 @Controller()
 export class AppController {
@@ -28,9 +36,12 @@ export class AppController {
 
   @Post("create-order")
   async createOrder(
-    @Body() orderData: BaseOrderReqDto
+    @Body() createOrderDto: CreateOrderDto
   ): Promise<BaseOrderResDto> {
-    return this.distributorService.createOrder(orderData);
+    return this.distributorService.createOrder(
+      createOrderDto.orderData,
+      createOrderDto.eligiblePartners
+    );
   }
 
   @Post("create-manifest")

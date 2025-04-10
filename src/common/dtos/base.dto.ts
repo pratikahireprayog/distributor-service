@@ -14,7 +14,7 @@ export class BaseReqDto {
   @IsString({ message: "AWB number must be a string" })
   awbNumber: string;
 
-  @IsNotEmpty({ message: "Partner code is required" })
+  @IsOptional()
   @IsString({ message: "Partner code must be a string" })
   partnerCode: string;
 }

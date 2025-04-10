@@ -1,4 +1,4 @@
-import { Model, UpdateQuery, FilterQuery, Document } from 'mongoose';
+import { Model, UpdateQuery, FilterQuery, Document } from "mongoose";
 
 export abstract class BaseMongoRepository<T extends Document> {
   protected readonly _model: Model<T>;
@@ -13,17 +13,21 @@ export abstract class BaseMongoRepository<T extends Document> {
   }
 
   async save(item: T & { _id: any }): Promise<any> {
-    const doc = await this._model.findByIdAndUpdate(item._id, item as any, { new: true });
+    const doc = await this._model.findByIdAndUpdate(item._id, item as any, {
+      new: true,
+    });
     return doc?.toJSON() || null;
   }
 
   async insertMany(items: Partial<T>[]): Promise<any[]> {
     const docs = await this._model.insertMany(items);
-    return docs.map(doc => doc.toJSON());
+    return docs.map((doc) => doc.toJSON());
   }
 
   async update(id: string, item: Partial<T>): Promise<any> {
-    const doc = await this._model.findByIdAndUpdate(id, item as any, { new: true });
+    const doc = await this._model.findByIdAndUpdate(id, item as any, {
+      new: true,
+    });
     return doc?.toJSON() || null;
   }
 
@@ -38,14 +42,29 @@ export abstract class BaseMongoRepository<T extends Document> {
 
   async updateMany(
     query: FilterQuery<T>,
-    update: UpdateQuery<T>,
+    update: UpdateQuery<T>
   ): Promise<any> {
     return this._model.updateMany(query, update);
   }
 
-  async getAll(query: FilterQuery<T>, projection?: any): Promise<any[]> {
-    const docs = await this._model.find(query, projection);
-    return docs.map(doc => doc.toJSON());
+  async getAll(
+    query: FilterQuery<T>,
+    projection?: any,
+    sort?: Record<string, 1 | -1>,
+    limit?: number
+  ): Promise<any[]> {
+    let findQuery = this._model.find(query, projection);
+
+    if (sort) {
+      findQuery = findQuery.sort(sort);
+    }
+
+    if (limit && limit > 0) {
+      findQuery = findQuery.limit(limit);
+    }
+
+    const docs = await findQuery;
+    return docs.map((doc) => doc.toJSON());
   }
 
   async getOne(query: FilterQuery<T>, projection?: any): Promise<any> {

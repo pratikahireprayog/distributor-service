@@ -12,6 +12,7 @@ import {
   BaseReqDto,
   BaseResDto,
 } from "src/common/dtos/base.dto";
+import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
 @Injectable()
 export class TsawService extends BaseNetworkPartner {
@@ -31,9 +32,10 @@ export class TsawService extends BaseNetworkPartner {
   }
 
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
-    orderDetails: T
+    orderDetails: T,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
-    return await super.createOrder<T, R>(orderDetails);
+    return await super.createOrder<T, R>(orderDetails, eligiblePartners);
   }
 
   async getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
