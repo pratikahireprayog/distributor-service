@@ -47,6 +47,10 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         cancelOrder: this.distributorService.cancelOrder.bind(
           this.distributorService
         ),
+
+        createDRS: this.distributorService.createDRS.bind(
+          this.distributorService
+        ),
       });
     });
   }

@@ -7,6 +7,7 @@ import {
   BaseOrderResDto,
   BaseReqDto,
   BaseResDto,
+  DRSPayloadDTO,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
@@ -112,5 +113,24 @@ export class DistributorService {
 
     // Execute the operation with the selected partner
     return partnerActivity.cancelOrder<T, R>(data);
+  }
+
+  /**
+   * Create DRS payload for an order
+   */
+  async createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
+    orderData: T
+  ): Promise<R> {
+    this.logger.log(
+      `Creating DRS payload for ${orderData.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      orderData.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.createDRS<T, R>(orderData);
   }
 }

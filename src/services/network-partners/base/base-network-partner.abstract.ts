@@ -16,6 +16,7 @@ import {
   BaseOrderResDto,
   BaseResDto,
   BaseCancelOrderDto,
+  DRSPayloadDTO,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
@@ -265,6 +266,59 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
+  /**
+   * Create DRS payload for an order
+   * @param orderData Order data for DRS payload creation
+   * @returns DRS payload data
+   */
+  async createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
+    orderData: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Creating DRS payload for ${orderData.awbNumber || "unknown"}`
+    );
+    const startTime = Date.now();
+    // throw new Error("Not implemented");
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CREATE_DRS
+      );
+
+      if (
+        !this.validateInputForOperation(ENDPOINT_ID_ENUM.CREATE_DRS, orderData)
+      ) {
+        throw new Error("Invalid input data for create DRS operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.CREATE_DRS,
+        orderData,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.CREATE_DRS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `DRS payload created successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      this.logger.error(
+        `Error creating DRS payload: ${error.message}`,
+        error.stack
+      );
+      throw error;
+    }
+  }
+
   // TODO: Create response mapper object for specific partner
   // TODO: Log response message in a proper format
   // Private method for executing HTTP operations
@@ -396,6 +450,12 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   private async getEndpointConfig(
     endpointId: string
   ): Promise<EndpointConfigModel> {
+    if (endpointId === ENDPOINT_ID_ENUM.CREATE_DRS) {
+      return this.endpointConfigRepository.getOne({
+        partnerCode: "SMILE_DRS",
+        endpointId: endpointId,
+      });
+    }
     const endpoint = await this.endpointConfigRepository.getOne({
       partnerCode: this.partnerCode,
       endpointId: endpointId,

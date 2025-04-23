@@ -7,6 +7,7 @@ import {
   BaseOrderReqDto,
   BaseOrderResDto,
   BaseCancelOrderDto,
+  DRSPayloadDTO,
 } from "./common/dtos/base.dto";
 import { EligiblePartnersData } from "./common/dtos/global.dto";
 
@@ -57,5 +58,12 @@ export class AppController {
   @Post("cancel-order")
   async cancelOrder(@Body() data: BaseCancelOrderDto): Promise<BaseResDto> {
     return this.distributorService.cancelOrder(data);
+  }
+
+  @Post("create-drs")
+  async createDRS(
+    @Body() createOrderDto: CreateOrderDto
+  ): Promise<DRSPayloadDTO> {
+    return this.distributorService.createDRS(createOrderDto.orderData);
   }
 }
