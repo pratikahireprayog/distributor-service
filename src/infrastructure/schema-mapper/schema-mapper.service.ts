@@ -71,6 +71,16 @@ export class SchemaMapperService<TSource, TTarget>
       }
     }
 
+    // Check if we should return the result as a plain array
+    if (mappingConfig.returnAsPlainArray) {
+      // Find the first array in the destinationData
+      for (const key in destinationData) {
+        if (Array.isArray(destinationData[key])) {
+          return destinationData[key];
+        }
+      }
+    }
+
     // Validate the mapped data using class-validator
     // const validationErrors = validateSync(destinationData);
     // if (validationErrors.length > 0) {

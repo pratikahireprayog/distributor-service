@@ -1,15 +1,19 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { NetworkPartnerFactoryService } from "src/services/network-partners/factory/network-partner-factory.service";
+import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
 import {
   BaseCancelOrderDto,
   BaseOrderReqDto,
   BaseOrderResDto,
   BaseReqDto,
   BaseResDto,
+  DRSPayloadDTO,
 } from "src/common/dtos/base.dto";
+import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
 /**
  * Service for distributing operations to network partners
+ * Acts as a facade that routes operations to the appropriate network partner
  */
 @Injectable()
 export class DistributorService {
@@ -19,22 +23,45 @@ export class DistributorService {
     private readonly networkPartnerFactory: NetworkPartnerFactoryService
   ) {}
 
+  /**
+   * Main method to create an order with a network partner
+   */
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
-    orderData: T
+    orderData: T,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     this.logger.log(`Creating Order for ${orderData.awbNumber || "unknown"}`);
 
-    // Determine which partner to use
-    const partnerType = this.determinePartner(orderData);
-    this.logger.debug(`Selected partner: ${partnerType}`);
-
     // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      orderData.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
 
-    // Execute the operation with the selected partner
+    // Execute the operation with the selected partner, passing eligiblePartners
+    return partnerActivity.createOrder<T, R>(orderData, eligiblePartners);
+  }
+
+  /**
+   * Retry creating an order with the next available partner
+   */
+  async retryCreateOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
+    orderData: T
+  ): Promise<R> {
+    this.logger.log(`Retrying order creation for ${orderData.awbNumber}`);
+
+    // Get the default partner
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the default partner
+    // This will use the partner helper to determine the next partner to try
     return partnerActivity.createOrder<T, R>(orderData);
   }
 
+  /**
+   * Create a manifest with a network partner
+   */
   async createManifest<
     T extends BaseReqDto = BaseReqDto,
     R extends BaseResDto = BaseResDto,
@@ -43,17 +70,18 @@ export class DistributorService {
       `Creating Manifestation for ${data.awbNumber || "unknown"}`
     );
 
-    // Determine which partner to use
-    const partnerType = this.determinePartner(data);
-    this.logger.debug(`Selected partner: ${partnerType}`);
-
     // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
 
     // Execute the operation with the selected partner
     return partnerActivity.createManifest<T, R>(data);
   }
 
+  /**
+   * Get order details from a network partner
+   */
   async getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
     params: T
   ): Promise<R> {
@@ -62,61 +90,47 @@ export class DistributorService {
     );
 
     // Get the appropriate partner implementation
-    const partnerType = this.determinePartner(params);
-    this.logger.debug(`Selected partner: ${partnerType}`);
-    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      params.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
 
     // Execute the operation with the selected partner
     return partnerActivity.getOrderDetails<T, R>(params);
   }
 
+  /**
+   * Cancel an order with a network partner
+   */
   async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.debug(`Cancelling Order for ${data.awbNumber || "unknown"}`);
 
     // Get the appropriate partner implementation
-    const partnerType = this.determinePartner(data);
-    this.logger.debug(`Selected partner: ${partnerType}`);
-    const partnerActivity = this.networkPartnerFactory.getPartner(partnerType);
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
 
     // Execute the operation with the selected partner
     return partnerActivity.cancelOrder<T, R>(data);
   }
 
-  private determineOrderType(data: any): string {
-    const orderType = data.type?.toUpperCase();
+  /**
+   * Create DRS payload for an order
+   */
+  async createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
+    orderData: T
+  ): Promise<R> {
+    this.logger.log(
+      `Creating DRS payload for ${orderData.awbNumber || "unknown"}`
+    );
 
-    if (!orderType) {
-      this.logger.warn("Order type not specified in payload");
-      throw new Error("Order type is required");
-    }
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      orderData.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
 
-    this.logger.debug(`Determined order type: ${orderType}`);
-    return orderType;
-  }
-
-  private determinePartner(data: any): string | null {
-    const partnerCode = data.partnerCode;
-
-    if (!partnerCode) {
-      this.logger.debug("Partner code not specified in payload");
-      return null;
-    }
-
-    this.logger.debug(`Determined partner: ${partnerCode}`);
-    return partnerCode;
-  }
-
-  private determineSubPartner(data: any): string | null {
-    const subPartnerCode = data.subPartnerCode;
-
-    if (!subPartnerCode) {
-      this.logger.debug("Sub-partner code not specified in payload");
-      return null;
-    }
-
-    this.logger.debug(`Determined sub-partner: ${subPartnerCode}`);
-    return subPartnerCode;
+    // Execute the operation with the selected partner
+    return partnerActivity.createDRS<T, R>(orderData);
   }
 }

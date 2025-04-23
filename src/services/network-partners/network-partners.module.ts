@@ -7,6 +7,7 @@ import { networkPartnersProviders } from './network-partners.provider';
 import { BigshipModule } from './implementation/bigship/bigship.module';
 import { TsawModule } from './implementation/tsaw/tsaw.module';
 import { SchemaMapperService } from 'src/infrastructure/schema-mapper';
+import { DefaultNetworkPartnerModule } from './implementation/default/default-network-partner.module';
 /**
  * Module for network partners
  */
@@ -16,6 +17,7 @@ import { SchemaMapperService } from 'src/infrastructure/schema-mapper';
         ConfigModule,
         BigshipModule,
         TsawModule,
+        DefaultNetworkPartnerModule,
         EndpointConfigModule
     ],
     providers: [

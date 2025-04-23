@@ -11,4 +11,5 @@ export interface MappingField {
 
 export interface SchemaMappingConfig {
   fields: MappingField[];
+  returnAsPlainArray?: boolean;
 }
