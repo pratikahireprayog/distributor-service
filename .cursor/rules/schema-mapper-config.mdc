@@ -1,0 +1,249 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Schema Mapper JSON Configuration Guide
+
+The schema mapper is a utility for transforming data between different schemas. This guide explains how to create JSON configuration files for the schema mapper.
+
+## Basic Structure
+
+Schema mapper configuration should be stored as a JSON file with the following structure:
+
+```json
+{
+  "fields": [
+    {
+      "sources": "sourceField",
+      "destination": "destinationField"
+    },
+    {
+      "sources": ["sourceField1", "sourceField2"],
+      "destination": "destinationField",
+      "transform": "value ? value.toString() : ''"
+    }
+  ],
+  "returnAsPlainArray": false
+}
+```
+
+## Field Properties
+
+Each mapping field can have the following properties:
+
+- `sources`: String or array of strings representing the source field(s) to map from, can be `null` for manually created values
+- `destination`: String representing the destination field to map to
+- `isArrayInDestination`: Boolean indicating if the destination field is an array (optional)
+- `isNestedArray`: Boolean indicating if the value is a nested array (optional)
+- `isNestedObject`: Boolean indicating if the value is a nested object (optional)
+- `nestedMappingConfig`: Object containing a nested mapping configuration (optional)
+- `transform`: String containing JavaScript code to transform the value (optional)
+- `defaultValue`: Default value to use if source value is undefined or null (optional)
+
+## Transform Functions
+
+Transform functions are defined as strings with JavaScript expressions. The variable `value` represents the source value:
+
+```json
+{
+  "sources": "price",
+  "destination": "formattedPrice",
+  "transform": "value ? '$' + value.toFixed(2) : 'N/A'"
+}
+```
+
+### Common Transform Patterns
+
+```json
+// Converting to numbers with fallback
+"transform": "parseInt(value) || value"
+"transform": "parseFloat(value) || 0"
+
+// Conditional values
+"transform": "value === true ? 'cod' : 'prepaid'"
+
+// Empty values
+"transform": "''"
+"transform": "0"
+
+// Combining multiple fields (when sources is an array)
+"transform": "(values) => values[0].latitude + ',' + values[1].longitude"
+
+// String concatenation
+"transform": "(value) => `${value.address1}, ${value.address2 || ''}, ${value.city}, ${value.state}, ${value.zip}`"
+```
+
+## Example: Simple Field Mapping
+
+A simple mapping that transforms from camelCase to snake_case:
+
+```json
+{
+  "fields": [
+    { "sources": "systemOrderId", "destination": "system_order_id" },
+    { "sources": "courierId", "destination": "courier_id" },
+    { "sources": "riskType", "destination": "risk_type" }
+  ]
+}
+```
+
+## Example: Deeply Nested Data
+
+This example shows how to handle deeply nested objects and combine fields:
+
+```json
+{
+  "fields": [
+    {
+      "sources": null,
+      "destination": "orders",
+      "isArrayInDestination": true,
+      "isNestedArray": true,
+      "nestedMappingConfig": {
+        "fields": [
+          { "sources": "awbNumber", "destination": "assignedAWBNumbers" },
+          {
+            "sources": "shippingAddress",
+            "destination": "consigneeDetails",
+            "isNestedObject": true,
+            "nestedMappingConfig": {
+              "fields": [
+                { "sources": "name", "destination": "name" },
+                { "sources": "mobile", "destination": "mobile", "transform": "parseInt(value) || 0" },
+                {
+                  "sources": "",
+                  "destination": "address",
+                  "isNestedObject": true,
+                  "nestedMappingConfig": {
+                    "fields": [
+                      { "sources": "city", "destination": "city" },
+                      { "sources": "state", "destination": "state" },
+                      { "sources": "address1", "destination": "addressLine" },
+                      { "sources": "zip", "destination": "zipCode", "transform": "parseInt(value) || value" },
+                      {
+                        "sources": ["latitude", "longitude"],
+                        "destination": "position",
+                        "transform": "(values) => values[0].latitude + ',' + values[1].longitude"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sources": "dimensions",
+            "destination": "shipmentDetails.dimension",
+            "isNestedObject": true,
+            "nestedMappingConfig": {
+              "fields": [
+                { "sources": "breadth", "destination": "width", "transform": "parseFloat(value) || 0" },
+                { "sources": "height", "destination": "height", "transform": "parseFloat(value) || 0" },
+                { "sources": "length", "destination": "length", "transform": "parseFloat(value) || 0" }
+              ]
+            }
+          },
+          { "sources": "dimensions.weight", "destination": "shipmentDetails.weight", "transform": "parseFloat(value) || 0" },
+          { "sources": "paymentDetails.amount", "destination": "amount", "transform": "parseFloat(value) || 0" },
+          { "sources": "paymentDetails.isCOD", "destination": "paymentMode", "transform": "value === true ? 'cod' : 'prepaid'" }
+        ]
+      }
+    }
+  ]
+}
+```
+
+## Example: Dotted Path Notation
+
+You can use dot notation to access nested properties without using isNestedObject:
+
+```json
+{
+  "fields": [
+    { "sources": "dimensions.weight", "destination": "shipmentDetails.weight", "transform": "parseFloat(value) || 0" }
+  ]
+}
+```
+
+## Example: Default Values
+
+Use empty sources and defaultValue or transform to set default values:
+
+```json
+{
+  "fields": [
+    { "sources": "", "destination": "DRS_No", "defaultValue": null },
+    { "sources": "", "destination": "shipmentStatus", "defaultValue": "NEW" },
+    { "sources": "", "destination": "deliveryTypeOptions", "defaultValue": "image" },
+    { "sources": "", "destination": "source", "defaultValue": "ODS" }
+  ]
+}
+```
+
+## Example: Conditional Default Values
+
+To use a default value only when source data is not present, but keep the destination field empty when source data exists but evaluates to a falsy value (like `null`, `undefined`, `""`, `0`, etc.), use a transform function:
+
+```json
+{
+  "fields": [
+    { 
+      "sources": "statusCode", 
+      "destination": "status",
+      "transform": "value === undefined || value === null ? 'PENDING' : value"
+    },
+    {
+      "sources": "notes",
+      "destination": "comments",
+      "transform": "value === undefined || value === null ? 'No comments provided' : value || ''"
+    }
+  ]
+}
+```
+
+The second example above demonstrates how to:
+1. Apply a default value 'No comments provided' when the source field is undefined or null
+2. Keep the value empty (empty string) when the source exists but is falsy (e.g., empty string)
+3. Use the source value when it exists and is truthy
+
+This approach gives you fine-grained control over when default values are applied, allowing you to handle all three scenarios:
+- Source field doesn't exist: Apply default value
+- Source field exists but is falsy: Keep empty or use source value
+- Source field exists and has value: Use source value
+
+## Example: Return Plain Array
+
+Setting returnAsPlainArray to true will return the result as an array:
+
+```json
+{
+  "fields": [
+    {
+      "sources": "",
+      "destination": "result",
+      "isArrayInDestination": true,
+      "isNestedArray": true,
+      "nestedMappingConfig": {
+        "fields": [
+          { "sources": "awbNumber", "destination": "awbNumber", "transform": "parseInt(value) || value" },
+          { "sources": "orderStatus", "destination": "bookingStatus" }
+          // ... more fields
+        ]
+      }
+    }
+  ],
+  "returnAsPlainArray": true
+}
+```
+
+## Usage Examples
+
+Schema mapper configurations are used with the `SchemaMapperService`:
+
+```typescript
+const mappingConfig = require('./mapping-config.json');
+const result = schemaMapperService.map(sourceData, mappingConfig);
+```
+
+For more details, see [schema-mapper.service.ts](mdc:src/infrastructure/schema-mapper/schema-mapper.service.ts) and [schema-mapper.config.interface.ts](mdc:src/infrastructure/schema-mapper/schema-mapper.config.interface.ts).

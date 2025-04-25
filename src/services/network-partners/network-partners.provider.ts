@@ -5,6 +5,7 @@ import { NETWORK_PARTNER_PROVIDER_CONST } from "./network-partners.constant";
 import { BigshipService } from "./implementation/bigship/bigship.service";
 import { TsawService } from "./implementation/tsaw/tsaw.service";
 import { DefaultNetworkPartner } from "./implementation/default/default-network-partner.service";
+import { ShipyaariService } from "./implementation/shipyaari/shipyaari.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -12,10 +13,14 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.BIGSHIP,
     useClass: BigshipService,
   },
-  // {
-  //     provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
-  //     useClass: TsawService,
-  // },
+  {
+      provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
+      useClass: TsawService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
+    useClass: ShipyaariService,
+  },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     useClass: DefaultNetworkPartner,
@@ -26,12 +31,14 @@ export const networkPartnersProviders: Provider[] = [
     useFactory: (
       factory: NetworkPartnerFactoryService,
       bigshipService: BigshipService,
-      // tsawService: TsawService,
+      tsawService: TsawService,
+      shipyaariService: ShipyaariService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
-      // factory.registerPartner(PARTNER_CODE_ENUM.TSAW, tsawService);
+      factory.registerPartner(PARTNER_CODE_ENUM.TSAW, tsawService);
+      factory.registerPartner(PARTNER_CODE_ENUM.SHIPYAARI, shipyaariService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -41,7 +48,8 @@ export const networkPartnersProviders: Provider[] = [
     inject: [
       NetworkPartnerFactoryService,
       NETWORK_PARTNER_PROVIDER_CONST.BIGSHIP,
-      // NETWORK_PARTNER_PROVIDER_CONST.TSAW,
+      NETWORK_PARTNER_PROVIDER_CONST.TSAW,
+      NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     ],
   },
