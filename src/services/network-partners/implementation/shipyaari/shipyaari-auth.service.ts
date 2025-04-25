@@ -75,22 +75,28 @@ export class ShipyaariAuthService implements AuthProvider {
         endpointId: "AUTH_TOKEN",
       });
 
-      if (!endpointConfig) {
+      if (!endpointConfig || !endpointConfig.config) {
         throw new Error("Auth endpoint configuration not found for Shipyaari");
       }
 
-      const email = this.configService.get<string>(SHIPYAARI_ENV_VARS.USERNAME);
-      const password = this.configService.get<string>(
-        SHIPYAARI_ENV_VARS.PASSWORD
-      );
+      // Get credentials from endpoint config instead of env variables
+      const email = endpointConfig.config.email;
+      const password = endpointConfig.config.password;
 
       if (!email || !password) {
-        throw new Error("Shipyaari authentication credentials are missing");
+        throw new Error(
+          "Shipyaari authentication credentials are missing in endpoint configuration"
+        );
       }
 
       const authDto = new ShipyaariAuthReqDto();
       authDto.email = email;
       authDto.password = password;
+
+      // Add client_id if available in config
+      if (endpointConfig.config.client_id) {
+        authDto.client_id = endpointConfig.config.client_id;
+      }
 
       // Use the URL from the endpoint configuration
       const url = endpointConfig.url;

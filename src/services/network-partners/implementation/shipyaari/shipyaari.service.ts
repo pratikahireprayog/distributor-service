@@ -23,7 +23,6 @@ import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 @Injectable()
 export class ShipyaariService extends BaseNetworkPartner {
   protected readonly logger = new Logger(ShipyaariService.name);
-  private readonly clientId: string;
 
   constructor(
     private readonly authService: ShipyaariAuthService,
@@ -39,14 +38,6 @@ export class ShipyaariService extends BaseNetworkPartner {
       endpointConfigRepository,
       schemaMapper
     );
-
-    this.clientId = this.configService.get<string>(
-      SHIPYAARI_ENV_VARS.CLIENT_ID
-    );
-
-    if (!this.clientId) {
-      throw new Error("Shipyaari client ID is not configured");
-    }
   }
 
   /**

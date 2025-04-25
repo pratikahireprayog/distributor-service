@@ -5,6 +5,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ShipyaariService } from "./shipyaari.service";
 import { ShipyaariAuthService } from "./shipyaari-auth.service";
 import { EndpointConfigModule } from "src/common/repositories/endpoint-configs/endpoint-configs.module";
+import { SchemaMapperModule } from "src/infrastructure/schema-mapper/schema-mapper.module";
 
 @Module({
   imports: [
@@ -14,8 +15,9 @@ import { EndpointConfigModule } from "src/common/repositories/endpoint-configs/e
     }),
     ConfigModule,
     EndpointConfigModule,
+    SchemaMapperModule,
   ],
   providers: [ShipyaariService, ShipyaariAuthService],
-  exports: [ShipyaariService],
+  exports: [ShipyaariService, ShipyaariAuthService],
 })
 export class ShipyaariModule {}
