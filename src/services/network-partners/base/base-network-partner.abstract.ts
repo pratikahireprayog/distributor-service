@@ -52,28 +52,28 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       // Use the helper if available to handle partner tracking and selection
-      if (this.partnerHelper) {
-        // Step 1: Load or store partner data
-        existingPartners = await this.partnerHelper.loadOrStorePartners(
-          orderData.awbNumber,
-          eligiblePartners
-        );
+      // if (this.partnerHelper) {
+      //   // Step 1: Load or store partner data
+      //   existingPartners = await this.partnerHelper.loadOrStorePartners(
+      //     orderData.awbNumber,
+      //     eligiblePartners
+      //   );
 
-        // Step 2: Determine which partner to use
-        partnerType = await this.partnerHelper.determinePartnerWithEligibility(
-          orderData,
-          eligiblePartners
-        );
+      //   // Step 2: Determine which partner to use
+      //   partnerType = await this.partnerHelper.determinePartnerWithEligibility(
+      //     orderData,
+      //     eligiblePartners
+      //   );
 
-        // Make sure partnerCode in orderData matches the selected partner
-        orderData.partnerCode = partnerType;
+      //   // Make sure partnerCode in orderData matches the selected partner
+      //   orderData.partnerCode = partnerType;
 
-        // Step 3: Get current attempt number
-        attemptNumber = this.partnerHelper.getAttemptNumber(
-          existingPartners,
-          partnerType
-        );
-      }
+      //   // Step 3: Get current attempt number
+      //   attemptNumber = this.partnerHelper.getAttemptNumber(
+      //     existingPartners,
+      //     partnerType
+      //   );
+      // }
 
       const endpointConfig = await this.getEndpointConfig(
         ENDPOINT_ID_ENUM.CREATE_ORDER

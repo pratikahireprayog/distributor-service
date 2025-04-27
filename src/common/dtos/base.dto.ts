@@ -25,6 +25,7 @@ export class BaseReqDto {
 export class BaseResDto {
   statusCode: number;
   message: string;
+  partnerCode?: string;
   data?: any;
   trace?: any;
 }

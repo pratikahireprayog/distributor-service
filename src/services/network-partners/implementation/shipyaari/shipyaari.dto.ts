@@ -22,9 +22,16 @@ export class ShipyaariAuthReqDto {
  * DTO for Shipyaari authentication response
  */
 export class ShipyaariAuthResDto {
-  token: string;
-  status: boolean;
+  success: boolean;
+  statusCode: number;
   message: string;
+  data: Array<{
+    token: string;
+    jwt: string;
+    sellerId: number;
+    companyId: string;
+    // Other fields exist but we only care about the token
+  }>;
 }
 
 /**
