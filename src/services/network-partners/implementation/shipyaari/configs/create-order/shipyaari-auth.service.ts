@@ -7,8 +7,11 @@ import {
   ENDPOINT_ID_ENUM,
 } from "src/common/enums/global.enum";
 import { EndpointConfigRepository } from "src/common/repositories/endpoint-configs/endpoint-configs.repository";
-import { NetworkPartnerHttpClient } from "../../../../base/network-partner-http-client";
-import { NetworkPartnerRequestBuilder } from "../../../../base/network-partner-request-builder";
+import {
+  NetworkPartnerRequestBuilder,
+  NetworkPartnerRequest,
+} from "src/services/network-partners/base/network-partner-request-builder";
+import { lastValueFrom } from "rxjs";
 
 interface TokenData {
   token: string;
@@ -26,7 +29,6 @@ export class ShipyaariAuthService implements AuthProvider {
   private readonly logger = new Logger(ShipyaariAuthService.name);
   private tokenData: TokenData | null = null;
   private isTokenRefreshInProgress: Promise<TokenData> | null = null;
-  private readonly httpClient: NetworkPartnerHttpClient;
   private readonly requestBuilder: NetworkPartnerRequestBuilder;
 
   // Token validity buffer (5 minutes before actual expiry)
@@ -37,7 +39,6 @@ export class ShipyaariAuthService implements AuthProvider {
     private readonly httpService: HttpService,
     private readonly endpointConfigRepository: EndpointConfigRepository
   ) {
-    this.httpClient = new NetworkPartnerHttpClient(httpService);
     this.requestBuilder = new NetworkPartnerRequestBuilder();
   }
 
@@ -133,13 +134,13 @@ export class ShipyaariAuthService implements AuthProvider {
         })
         .build();
 
-      // Execute request using the HTTP client
-      const response =
-        await this.httpClient.execute<ShipyaariAuthResponse>(request);
+      // Execute request using the NestJS HttpService directly
+      const { data } =
+        await this.executeRequest<ShipyaariAuthResponse>(request);
 
-      if (!response.status || !response.token) {
+      if (!data.status || !data.token) {
         throw new Error(
-          `Token refresh failed: ${response.message || "Unknown error"}`
+          `Token refresh failed: ${data.message || "Unknown error"}`
         );
       }
 
@@ -147,7 +148,7 @@ export class ShipyaariAuthService implements AuthProvider {
       const expiresAt = Date.now() + 23 * 60 * 60 * 1000;
 
       const tokenData: TokenData = {
-        token: response.token,
+        token: data.token,
         expiresAt,
       };
 
@@ -160,6 +161,27 @@ export class ShipyaariAuthService implements AuthProvider {
       );
       throw error;
     }
+  }
+
+  /**
+   * Execute an HTTP request using NestJS HttpService
+   * @param request The request configuration
+   * @returns The response data
+   */
+  private async executeRequest<T>(
+    request: NetworkPartnerRequest
+  ): Promise<{ data: T }> {
+    const { url, method, headers, data, params } = request;
+
+    const observable = this.httpService.request({
+      url,
+      method,
+      headers,
+      data,
+      params,
+    });
+
+    return await lastValueFrom(observable);
   }
 
   /**
