@@ -5,11 +5,11 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
-import * as path from 'path';
-import { CustomHttpException } from './exception-handler.exception';
-import { BaseResDto } from 'src/common/dtos/base.dto';
+} from "@nestjs/common";
+import { Request, Response } from "express";
+import * as path from "path";
+import { CustomHttpException } from "./exception-handler.exception";
+import { BaseResDto } from "src/common/dtos/base.dto";
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -21,13 +21,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal Server Error';
+    let message = "Internal Server Error";
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
       message =
-        typeof exceptionResponse === 'string'
+        typeof exceptionResponse === "string"
           ? exceptionResponse
           : (exceptionResponse as any).message || message;
     } else if (exception instanceof Error) {
@@ -39,7 +39,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.error(
         `Error occurred: ${exception.message}`,
         JSON.stringify(exception),
-        'GlobalExceptionFilter',
+        "GlobalExceptionFilter"
       );
       return response.status(status).json(exception);
     }
@@ -59,16 +59,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       // error: exception instanceof HttpException ? exception.name : 'Internal Server Error',
       // stack: exception instanceof Error ? exception.stack : '',
       // Include the original response data if available
-      responseData: exception['response']?.data || exception['response'] || null,
+      responseData:
+        exception["response"]?.data || exception["response"] || null,
       // Include any additional context that might have been added
-      context: exception['context'] || null
+      context: exception["context"] || null,
     };
 
     // Log the detailed error
     this.logger.error(
       `Error occurred: ${message}`,
       JSON.stringify(errorResponse),
-      'GlobalExceptionFilter',
+      "GlobalExceptionFilter"
     );
 
     // Send response to client
@@ -81,25 +82,21 @@ export class CustomHttpExceptionFilter implements ExceptionFilter {
   catch(exception: CustomHttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    // const request = ctx.getRequest();
     const status = exception.getStatus();
     const message = exception.message;
+    const data = exception.getData;
     const trace = exception.getTrace;
+    const partnerCode = exception.getPartnerCode;
 
-    // Create a standardized error response in BaseResDto format
-    const errorResponse = new BaseResDto();
-    errorResponse.statusCode = status;
-    errorResponse.message = message;
-    errorResponse.data = null;
-
-    // Use the provided trace or create a comprehensive one
-    errorResponse.trace = trace || {
-      timestamp: new Date().toISOString(),
-      // path: request.url,
-      // method: request.method,
-      // statusCode: status,
-      responseData: exception['response']?.data || null,
-      context: exception['context'] || null
+    // Create a standardized error response
+    const errorResponse = {
+      statusCode: status,
+      message: message,
+      partnerCode: partnerCode,
+      data: data,
+      trace: trace || {
+        timestamp: new Date().toISOString(),
+      },
     };
 
     response.status(status).json(errorResponse);

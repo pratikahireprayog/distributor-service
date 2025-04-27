@@ -10,13 +10,16 @@ import { BaseOrderResDto } from "src/common/dtos/base.dto";
  */
 export class ShipyaariErrorHelper {
   private readonly logger = new Logger(ShipyaariErrorHelper.name);
+  private partnerCode: PARTNER_CODE_ENUM;
 
-  constructor(private readonly partnerCode: PARTNER_CODE_ENUM) {}
+  constructor(partnerCode: PARTNER_CODE_ENUM) {
+    this.partnerCode = partnerCode;
+  }
 
   /**
    * Handle API errors by throwing appropriate CustomHttpException
    * @param response API response with error
-   * @param awbNumber Tracking number
+   * @param awbNumber Tracking number(s) - can be comma-separated string
    * @param operation API operation name
    */
   public handleApiError(
@@ -32,24 +35,35 @@ export class ShipyaariErrorHelper {
       `[Shipyaari ${operation}] API Error for AWB: ${awbNumber} - Status: ${statusCode} - Message: ${errorMessage}`
     );
 
-    const errorResponse = {
+    // Convert comma-separated awbNumber string to array
+    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
+
+    // Create error data structure
+    const errorData = {
       success: false,
-      awbNumber: awbNumber,
+      awbNumbers: awbNumbers,
       message: errorMessage,
-      errorDetails: response,
+    };
+
+    // Create trace information
+    const traceData = {
+      timestamp: new Date().toISOString(),
+      operation: operation,
     };
 
     throw new CustomHttpException(
       statusCode,
       `Shipyaari ${operation} API error`,
-      errorResponse
+      errorData,
+      traceData,
+      this.partnerCode
     );
   }
 
   /**
    * Handle HTTP errors from axios
    * @param error Error from axios
-   * @param awbNumber Tracking number
+   * @param awbNumber Tracking number(s) - can be comma-separated string
    * @param operation API operation name
    */
   public handleHttpError(
@@ -68,62 +82,41 @@ export class ShipyaariErrorHelper {
       throw error;
     }
 
-    // Common standardized response format
-    const createErrorResponse = (
-      statusCode: number,
-      message: string,
-      details: any = {}
-    ) => {
-      return {
-        success: false,
-        awbNumber: awbNumber,
-        message: message,
-        errorDetails: details,
-      };
+    // Convert comma-separated awbNumber string to array
+    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
+
+    // Determine the appropriate status code
+    const statusCode =
+      error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+    const errorMessage =
+      error.response?.data?.message || error.message || "HTTP request failed";
+
+    // Create error data structure
+    const errorData = {
+      success: false,
+      awbNumbers: awbNumbers,
+      message: errorMessage,
     };
 
-    // If we have response data with a status code
-    if (error.response?.data?.statusCode) {
-      const errorMessage = error.response.data.message || "API error";
-      throw new CustomHttpException(
-        error.response.data.statusCode,
-        `Shipyaari ${operation} API error`,
-        createErrorResponse(
-          error.response.data.statusCode,
-          errorMessage,
-          error.response.data
-        )
-      );
-    }
+    // Create trace information
+    const traceData = {
+      timestamp: new Date().toISOString(),
+      operation: operation,
+    };
 
-    // For other Axios errors with response
-    if (error.response) {
-      const errorMessage =
-        error.response.data?.message || error.message || "HTTP request failed";
-      throw new CustomHttpException(
-        error.response.status,
-        `Shipyaari ${operation} API error`,
-        createErrorResponse(
-          error.response.status,
-          errorMessage,
-          error.response.data
-        )
-      );
-    }
-
-    // Generic error (network error, timeout, etc.)
-    const errorMessage = error.message || "Unknown error occurred";
     throw new CustomHttpException(
-      HttpStatus.INTERNAL_SERVER_ERROR,
+      statusCode,
       `Shipyaari ${operation} API error`,
-      createErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, errorMessage)
+      errorData,
+      traceData,
+      this.partnerCode
     );
   }
 
   /**
    * Helper for validation errors
    * @param message Error message
-   * @param awbNumber Tracking number
+   * @param awbNumber Tracking number(s) - can be comma-separated string
    * @param operation API operation name
    */
   public throwValidationError(
@@ -131,16 +124,28 @@ export class ShipyaariErrorHelper {
     awbNumber: string,
     operation: string
   ): never {
+    // Convert comma-separated awbNumber string to array
+    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
+
+    // Create error data structure
+    const errorData = {
+      success: false,
+      awbNumbers: awbNumbers,
+      message: message,
+    };
+
+    // Create trace information
+    const traceData = {
+      timestamp: new Date().toISOString(),
+      operation: operation,
+    };
+
     throw new CustomHttpException(
       HttpStatus.BAD_REQUEST,
       `Shipyaari ${operation} validation error`,
-      {
-        success: false,
-        awbNumber,
-        message,
-        partnerCode: this.partnerCode,
-        operation,
-      }
+      errorData,
+      traceData,
+      this.partnerCode
     );
   }
 }

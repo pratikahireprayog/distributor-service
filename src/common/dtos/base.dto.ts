@@ -469,10 +469,27 @@ export class BaseOrderResDto extends BaseResDto {
   referenceNumber?: string;
 }
 
-export class BaseCancelOrderDto extends BaseReqDto {
+export class BaseCancelOrderDto {
   @IsString()
   @IsNotEmpty()
   cancelReason: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ message: "C-AWB numbers are required" })
+  cAwbNumbers: string[];
+
+  @IsOptional()
+  @IsString()
+  partnerCode?: string;
+
+  /**
+   * Optional AWB number. Primarily for potential internal use or backward compatibility scenarios.
+   * The main field for cancellation is cAwbNumbers.
+   */
+  @IsOptional()
+  @IsString({ message: "AWB number must be a string" })
+  awbNumber?: string;
 }
 
 export class DeliveryDetailsDto {
@@ -566,4 +583,22 @@ export class NetworkPartnerResponseDto {
    * Timestamp of the response
    */
   timestamp: string;
+}
+
+/**
+ * DTO for manifest creation requests
+ * Extends the base request DTO with support for multiple AWB numbers
+ * Used primarily for batch manifest operations with delivery partners
+ */
+export class ManifestReqDto {
+  /**
+   * List of AWB numbers to include in the manifest
+   */
+  @IsArray()
+  @IsString({ each: true })
+  awbNumbers: string[];
+
+  @IsOptional()
+  @IsString({ message: "Partner code must be a string" })
+  partnerCode: string;
 }

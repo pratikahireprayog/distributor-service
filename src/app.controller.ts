@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query } from "@nestjs/common";
 import { AppService } from "./app.service";
-import { DistributorService } from "./services/distributor/distributor.service";
+import { DistributorService, PushOrdersToPrsDto } from "./services/distributor/distributor.service";
 import {
   BaseReqDto,
   BaseResDto,
@@ -8,6 +8,7 @@ import {
   BaseOrderResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
+  ManifestReqDto,
 } from "./common/dtos/base.dto";
 import { EligiblePartnersData } from "./common/dtos/global.dto";
 
@@ -46,7 +47,9 @@ export class AppController {
   }
 
   @Post("create-manifest")
-  async createManifest(@Body() manifestData: BaseReqDto): Promise<BaseResDto> {
+  async createManifest(
+    @Body() manifestData: ManifestReqDto
+  ): Promise<BaseResDto> {
     return this.distributorService.createManifest(manifestData);
   }
 
@@ -65,5 +68,10 @@ export class AppController {
     @Body() createOrderDto: CreateOrderDto
   ): Promise<DRSPayloadDTO> {
     return this.distributorService.createDRS(createOrderDto.orderData);
+  }
+
+  @Post("push-orders-to-prs")
+  async pushOrdersToPrs(@Body() data: PushOrdersToPrsDto): Promise<BaseResDto> {
+    return this.distributorService.pushOrdersToPrs(data);
   }
 }

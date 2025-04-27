@@ -94,10 +94,10 @@ export class BigshipService extends BaseNetworkPartner {
     return await super.cancelOrder<T, R>(data);
   }
 
-  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
-    manifestationDetails: T
-  ): Promise<R> {
-    // This will call the base class implementation which will use our concrete methods
-    return await super.createManifest<T, R>(manifestationDetails);
-  }
+  // async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  //   manifestationDetails: T
+  // ): Promise<R> {
+  //   // This will call the base class implementation which will use our concrete methods
+  //   return await super.createManifest<T, R>(manifestationDetails);
+  // }
 }

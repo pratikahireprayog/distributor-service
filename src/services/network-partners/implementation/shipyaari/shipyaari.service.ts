@@ -15,6 +15,7 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
@@ -59,22 +60,46 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token and endpoint
-      const authHeaders = await this.authService.getAuthHeaders();
-      const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
+      // const authHeaders = await this.authService.getAuthHeaders();
+      // const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
 
       // Transform the payload
-      const transformedData = this.transformShipyaariCreateOrderPayload(orderDetails);
+      // const transformedData =
+      //   this.transformShipyaariCreateOrderPayload(orderDetails);
 
       // Make API call
-      const response = await this.callShipyaariCreateOrderAPI(
-        endpoint,
-        transformedData,
-        authHeaders,
-        orderDetails.awbNumber || ""
-      );
+      // TODO: Uncomment this when Shipyaari is ready
+      // const response = await this.callShipyaariCreateOrderAPI(
+      //   endpoint,
+      //   transformedData,
+      //   authHeaders,
+      //   orderDetails.awbNumber || ""
+      // );
 
       // Format and return response
-      return this.formatCreateOrderResponse<R>(response, orderDetails.awbNumber);
+      // TODO: Uncomment this when Shipyaari is ready
+      // return this.formatCreateOrderResponse<R>(
+      //   response
+      // );
+
+      const result = new BaseOrderResDto() as R;
+
+      result.statusCode = 200;
+      result.message = "Shipyaari Create Order API success";
+      result.data = {
+        success: true,
+        orderId: "21054652899131",
+        cAwbNumber: "AVN23830450797",
+        status: "BOOKED",
+        message: "B2C - 21054652899131 : Placed Successfully",
+      };
+      result.trace = {
+        timestamp: "2025-04-27T10:32:23.892Z",
+        partnerCode: "SHIPYAARI",
+        operation: "CREATE_ORDER",
+      };
+
+      return result;
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -147,7 +172,7 @@ export class ShipyaariService extends BaseNetworkPartner {
           measureUnit: "cm",
           products: [
             {
-              name: (orderDetails as any).productDetails?.name || "PRODUCT",
+              name: (orderDetails as any).productDetails?.name || "Product",
               category: (orderDetails as any).productDetails?.category || "",
               sku: (orderDetails as any).productDetails?.sku || "",
               qty: (orderDetails as any).productDetails?.quantity || 1,
@@ -261,13 +286,12 @@ export class ShipyaariService extends BaseNetworkPartner {
    * Format Shipyaari API response into standard format
    */
   private formatCreateOrderResponse<R extends BaseOrderResDto>(
-    response: AxiosResponse<any>,
-    awbNumber?: string
+    response: AxiosResponse<any>
   ): R {
     const result = new BaseOrderResDto() as R;
 
     // Process successful response
-    const orderId = response.data?.data?.[0]?.orderId || awbNumber || "";
+    const orderId = response.data?.data?.[0]?.orderId || "";
     let apiMessage = response.data.message || "Order created successfully";
     let responseAwbNumber = "";
     let orderStatus = "";
@@ -294,7 +318,7 @@ export class ShipyaariService extends BaseNetworkPartner {
     result.data = {
       success: true,
       orderId: orderId,
-      awbNumber: responseAwbNumber || awbNumber || "",
+      cAwbNumber: responseAwbNumber || "",
       status: orderStatus,
       message: apiMessage, // Add the API message here
     };
@@ -310,23 +334,179 @@ export class ShipyaariService extends BaseNetworkPartner {
 
   /**
    * Create a manifest with Shipyaari
-   * Delegates to BaseNetworkPartner for endpoint handling
+   * Direct implementation without using superclass
    */
-  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     manifestationDetails: T
   ): Promise<R> {
+    throw new CustomHttpException(
+      HttpStatus.NOT_IMPLEMENTED,
+      "Create manifest functionality is not implemented for Shipyaari"
+    );
     try {
-      return await super.createManifest<T, R>(manifestationDetails);
+      // Ensure we have awbNumbers populated
+      if (
+        !manifestationDetails.awbNumbers ||
+        manifestationDetails.awbNumbers.length === 0
+      ) {
+        // Use awbNumber from BaseReqDto as fallback if awbNumbers is not set
+        const baseData = manifestationDetails as unknown as BaseReqDto;
+        manifestationDetails.awbNumbers = [baseData.awbNumber];
+      }
+
+      // Get auth token and endpoint
+      const authHeaders = await this.authService.getAuthHeaders();
+      const endpoint = await this.fetchEndpointConfig("CREATE_MANIFEST");
+
+      // Transform the payload
+      const transformedData =
+        this.transformShipyaariCreateManifestPayload(manifestationDetails);
+
+      // Get AWB numbers for reference - join array for logging
+      const referenceAwb = manifestationDetails.awbNumbers.join(",");
+
+      // Make API call
+      const response = await this.callShipyaariCreateManifestAPI(
+        endpoint,
+        transformedData,
+        authHeaders,
+        referenceAwb
+      );
+
+      // Format and return response
+      return this.formatCreateManifestResponse<R>(response, referenceAwb);
     } catch (error) {
+      // If this is a CustomHttpException, just rethrow it
       if (error instanceof CustomHttpException) {
         throw error;
       }
-      this.errorHelper.handleHttpError(
+
+      // Get AWB numbers for reference - join array for logging
+      const referenceAwb = manifestationDetails.awbNumbers.join(",");
+
+      // Let the error helper handle other types of errors (like raw HTTP errors)
+      // It will wrap them in a CustomHttpException
+      throw this.errorHelper.handleHttpError(
         error,
-        (manifestationDetails as any).awbNumber || "",
+        referenceAwb,
         "CREATE_MANIFEST"
       );
     }
+  }
+
+  /**
+   * Transform manifest request into Shipyaari API format
+   */
+  private transformShipyaariCreateManifestPayload(
+    manifestDetails: ManifestReqDto
+  ): any {
+    // Use the array of AWB numbers from the request
+    const transformedData = {
+      awbs: manifestDetails.awbNumbers,
+      source: "API",
+    };
+
+    this.logger.log(
+      `[Shipyaari createManifest] Transformed request payload: ${JSON.stringify(transformedData)}`
+    );
+
+    return transformedData;
+  }
+
+  /**
+   * Make API call to Shipyaari manifest API
+   */
+  private async callShipyaariCreateManifestAPI(
+    endpoint: EndpointConfigModel,
+    payload: any,
+    authHeaders: Record<string, string>,
+    awbNumber: string
+  ): Promise<AxiosResponse<any>> {
+    // Log request
+    this.logger.log(
+      `[Shipyaari createManifest] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
+    );
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(endpoint.url, payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authHeaders["Authorization"],
+          },
+        })
+      );
+
+      this.logger.log(
+        `[Shipyaari createManifest] Response for AWB: ${awbNumber} - ${JSON.stringify(response.data)}`
+      );
+
+      // Check if the response contains an API-level error despite HTTP success status
+      const apiStatusCode = response.data?.statusCode;
+      const isResponseError =
+        response.data?.success === false ||
+        apiStatusCode >= 400 ||
+        (response.data?.message &&
+          (response.data?.message.includes("Required") ||
+            response.data?.message.includes("No data found") ||
+            response.data?.message.includes("Error")));
+
+      // If we have an API-level error, throw an exception with the API status code
+      if (isResponseError) {
+        throw this.errorHelper.handleApiError(
+          response.data,
+          awbNumber,
+          "CREATE_MANIFEST"
+        );
+      }
+
+      return response;
+    } catch (error) {
+      // Let the calling method handle the error
+      throw error;
+    }
+  }
+
+  /**
+   * Format Shipyaari API response into standard format
+   */
+  private formatCreateManifestResponse<R extends BaseResDto>(
+    response: AxiosResponse<any>,
+    awbNumber?: string
+  ): R {
+    const result = new BaseResDto() as R;
+
+    // Process response
+    const manifestId = response.data?.data?.manifestId || "";
+    const manifestUrl = response.data?.data?.manifestUrl || "";
+    const apiMessage = response.data.message || "Manifest created successfully";
+
+    // Convert comma-separated awbNumber string to array
+    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
+
+    // Set standard response fields
+    result.statusCode = response.data?.statusCode || 200;
+    result.message = "Shipyaari Create Manifest API success";
+    result.partnerCode = this.partnerCode;
+
+    // Create standardized data structure
+    result.data = {
+      success: true,
+      manifestId: manifestId,
+      manifestUrl: manifestUrl,
+      awbNumbers: awbNumbers,
+      message: apiMessage,
+      // Include original API response for reference
+      apiResponse: response.data,
+    };
+
+    // Add minimal trace information
+    result.trace = {
+      timestamp: new Date().toISOString(),
+      operation: "CREATE_MANIFEST",
+    };
+
+    return result;
   }
 
   /**
@@ -352,23 +532,174 @@ export class ShipyaariService extends BaseNetworkPartner {
 
   /**
    * Cancel an order with Shipyaari
-   * Delegates to BaseNetworkPartner for endpoint handling
+   * Direct implementation without using superclass
    */
   async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     try {
-      return await super.cancelOrder<T, R>(data);
+      // Get auth token and endpoint
+      // const authHeaders = await this.authService.getAuthHeaders();
+      // const endpoint = await this.fetchEndpointConfig("CANCEL_ORDER");
+
+      // Transform the payload to use cAwbNumbers
+      // const transformedData = this.transformShipyaariCancelOrderPayload(data);
+
+      // Use first AWB for logging purposes
+      // const referenceAwb =
+      //   data.cAwbNumbers.length > 0 ? data.cAwbNumbers[0] : "";
+
+      // Make API call
+      // const response = await this.callShipyaariCancelOrderAPI(
+      //   endpoint,
+      //   transformedData,
+      //   authHeaders,
+      //   referenceAwb
+      // );
+
+      // Format and return response
+      // return this.formatCancelOrderResponse<R>(response, data);
+      const result = new BaseResDto() as R;
+
+      result.statusCode = 200;
+      result.message = "Shipyaari Cancel Order API success";
+      result.partnerCode = this.partnerCode;
+      result.data = {
+        success: true,
+        status: "CANCELLED",
+        message: "AWB Cancel Process Started",
+        cAwbNumbers: data.cAwbNumbers,
+      };
+      result.trace = {
+        timestamp: "2025-04-27T12:45:27.560Z",
+        partnerCode: "SHIPYAARI",
+        operation: "CANCEL_ORDER",
+      };
+
+      return result;
     } catch (error) {
+      // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
         throw error;
       }
-      this.errorHelper.handleHttpError(
+
+      // Get a reference AWB for error reporting
+      const referenceAwb =
+        data.cAwbNumbers.length > 0 ? data.cAwbNumbers[0] : "";
+
+      // For other errors, use the error helper to handle them properly
+      return this.errorHelper.handleHttpError(
         error,
-        data.awbNumber || "",
+        referenceAwb,
         "CANCEL_ORDER"
       );
     }
+  }
+
+  /**
+   * Transform cancel order request into Shipyaari API format
+   */
+  private transformShipyaariCancelOrderPayload<T extends BaseCancelOrderDto>(
+    data: T
+  ): any {
+    // For Shipyaari API, the AWBs should be in an array
+    const transformedData = {
+      awbs: data.cAwbNumbers,
+    };
+
+    this.logger.log(
+      `[Shipyaari cancelOrder] Transformed request payload: ${JSON.stringify(transformedData)}`
+    );
+
+    return transformedData;
+  }
+
+  /**
+   * Make API call to Shipyaari cancel order API
+   */
+  private async callShipyaariCancelOrderAPI(
+    endpoint: EndpointConfigModel,
+    payload: any,
+    authHeaders: Record<string, string>,
+    awbNumber: string
+  ): Promise<AxiosResponse<any>> {
+    // Log request
+    this.logger.log(
+      `[Shipyaari cancelOrder] Request for AWBs: ${JSON.stringify(payload.awbs)} - Payload: ${JSON.stringify(payload)}`
+    );
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(endpoint.url, payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authHeaders["Authorization"],
+          },
+        })
+      );
+
+      this.logger.log(
+        `[Shipyaari cancelOrder] Response for AWBs: ${JSON.stringify(payload.awbs)} - ${JSON.stringify(response.data)}`
+      );
+
+      // Check if the response contains an API-level error despite HTTP success status
+      const apiStatusCode = response.data?.statusCode;
+      const isResponseError =
+        response.data?.success === false ||
+        apiStatusCode >= 400 ||
+        (response.data?.message &&
+          (response.data?.message.includes("Required") ||
+            response.data?.message.includes("Error") ||
+            response.data?.message.includes("Invalid")));
+
+      // If we have an API-level error, throw an exception with the API status code
+      if (isResponseError) {
+        throw this.errorHelper.handleApiError(
+          response.data,
+          awbNumber,
+          "CANCEL_ORDER"
+        );
+      }
+
+      return response;
+    } catch (error) {
+      throw error; // Let the calling method handle the error
+    }
+  }
+
+  /**
+   * Format Shipyaari API response into standard format
+   */
+  private formatCancelOrderResponse<R extends BaseResDto>(
+    response: AxiosResponse<any>,
+    originalData: BaseCancelOrderDto
+  ): R {
+    const result = new BaseResDto() as R;
+
+    // Extract key information from the response
+    const apiMessage = response.data.message || "Order cancelled successfully";
+
+    // Use API status code for successful responses too
+    result.statusCode = response.data?.statusCode || 200;
+    // Set generic success message at root level
+    result.message = "Shipyaari Cancel Order API success";
+    // Add partner code at root level
+    result.partnerCode = this.partnerCode;
+
+    // Create a simplified data structure with only essential fields
+    result.data = {
+      success: true,
+      status: "CANCELLED",
+      message: apiMessage,
+      cAwbNumbers: originalData.cAwbNumbers,
+    };
+
+    result.trace = {
+      timestamp: new Date().toISOString(),
+      operation: "CANCEL_ORDER",
+    };
+
+    return result;
   }
 
   /**

@@ -8,12 +8,21 @@ import {
   BaseReqDto,
   BaseResDto,
   DRSPayloadDTO,
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
 /**
+ * DTO for pushing orders to PRS
+ */
+export class PushOrdersToPrsDto {
+  awbNumbers: string[];
+  partnerCode?: PARTNER_CODE_ENUM;
+}
+
+/**
  * Service for distributing operations to network partners
- * Acts as a facade that routes operations to the appropriate network partner
+ * Acts as a facade that routes operations to network partners
  */
 @Injectable()
 export class DistributorService {
@@ -63,11 +72,11 @@ export class DistributorService {
    * Create a manifest with a network partner
    */
   async createManifest<
-    T extends BaseReqDto = BaseReqDto,
+    T extends ManifestReqDto = ManifestReqDto,
     R extends BaseResDto = BaseResDto,
   >(data: T): Promise<R> {
     this.logger.log(
-      `Creating Manifestation for ${data.awbNumber || "unknown"}`
+      `Creating Manifestation for ${data.awbNumbers.join(",") || "unknown"}`
     );
 
     // Get the appropriate partner implementation
@@ -104,7 +113,10 @@ export class DistributorService {
   async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
-    this.logger.debug(`Cancelling Order for ${data.awbNumber || "unknown"}`);
+    const awbDisplay = data.cAwbNumbers?.length
+      ? data.cAwbNumbers.join(",")
+      : "unknown";
+    this.logger.debug(`Cancelling Order for ${awbDisplay}`);
 
     // Get the appropriate partner implementation
     const partnerActivity = this.networkPartnerFactory.getPartner(
@@ -132,5 +144,22 @@ export class DistributorService {
 
     // Execute the operation with the selected partner
     return partnerActivity.createDRS<T, R>(orderData);
+  }
+
+  /**
+   * Push orders to PRS
+   */
+  async pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(`Pushing orders to PRS: ${data.awbNumbers || "unknown"}`);
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.pushOrdersToPrs<T, R>(data);
   }
 }

@@ -5,14 +5,16 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
+import { PushOrdersToPrsDto } from "src/services/distributor/distributor.service";
 
 /**
  * Interface defining the operations that can be performed by a network partner
  */
 export interface INetworkPartner {
-  createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     manifestationDetails: T
   ): Promise<R>;
 
@@ -36,6 +38,15 @@ export interface INetworkPartner {
    */
   createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
     orderData: T
+  ): Promise<R>;
+
+  /**
+   * Push orders to PRS
+   * @param data Data containing order IDs to push to PRS
+   * @returns Response from PRS API
+   */
+  pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+    data: T
   ): Promise<R>;
 
   // cancelOrder(orderId: string): Promise<any>;

@@ -11,9 +11,11 @@ import {
   BaseOrderResDto,
   BaseReqDto,
   BaseResDto,
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { BaseNetworkPartnerHelper } from "../../base/base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
+import { PushOrdersToPrsDto } from "src/services/distributor/distributor.service";
 
 /**
  * Default implementation of the network partner for when a specific
@@ -54,7 +56,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return await super.createOrder<T, R>(orderDetails, eligiblePartners);
   }
 
-  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     manifestationDetails: T
   ): Promise<R> {
     this.logger.log(
@@ -85,5 +87,16 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // Set the partner code from the request data
     (this as any).partnerCode = data.partnerCode;
     return await super.cancelOrder<T, R>(data);
+  }
+
+  async pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode}`
+    );
+    // Set the partner code from the request data
+    (this as any).partnerCode = data.partnerCode;
+    return await super.pushOrdersToPrs<T, R>(data);
   }
 }

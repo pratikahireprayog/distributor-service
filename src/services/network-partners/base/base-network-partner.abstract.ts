@@ -17,10 +17,12 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
+import { PushOrdersToPrsDto } from "src/services/distributor/distributor.service";
 
 /**
  * Base abstract class for network partner activities
@@ -137,7 +139,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
-  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.debug(
@@ -319,6 +321,60 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
+  /**
+   * Push orders to PRS
+   * @param data Data containing order IDs to push to PRS
+   * @returns Response from PRS API
+   */
+  async pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(`Pushing orders to PRS: ${data.awbNumbers || "unknown"}`);
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for push orders to PRS operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+        data,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Orders pushed to PRS successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      this.logger.error(
+        `Error pushing orders to PRS: ${error.message}`,
+        error.stack
+      );
+      throw error;
+    }
+  }
+
   // TODO: Create response mapper object for specific partner
   // TODO: Log response message in a proper format
   // Private method for executing HTTP operations
@@ -470,6 +526,16 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   }
 
   protected validateInputForOperation(operation: string, data: any): boolean {
+    // Special validation for cancel orders - check for cAwbNumbers array instead of awbNumber
+    if (operation === ENDPOINT_ID_ENUM.CANCEL_ORDER && data) {
+      return (
+        data.cAwbNumbers &&
+        Array.isArray(data.cAwbNumbers) &&
+        data.cAwbNumbers.length > 0
+      );
+    }
+
+    // Default validation for all other operations
     return true;
   }
 
