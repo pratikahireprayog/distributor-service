@@ -71,10 +71,22 @@ class ResponseMapping {
   successPath?: string; // JSON path to success indicator (e.g., "status" or "result.success")
 
   @Prop({ required: false })
-  dataPath?: string; // JSON path to extract data (e.g., "data" or "result.data")
+  statusCodePath?: string; // JSON path to status code
+
+  @Prop({ required: false })
+  messagePath?: string; // JSON path to message (e.g., "message" or "result.message")
 
   @Prop({ required: false })
   errorPath?: string; // JSON path to error message (e.g., "error" or "result.message")
+
+  @Prop({ required: false })
+  dataPath?: string; // JSON path to extract data (e.g., "data" or "result.data")
+
+  @Prop({ required: false })
+  tokenPath?: string; // JSON path to auth token (e.g., "token" or "data.token")
+
+  @Prop({ required: false })
+  referenceIdPath?: string; // JSON path to reference ID (e.g., "referenceId" or "data.id")
 }
 
 @Schema({
@@ -138,7 +150,7 @@ export class EndpointConfigModel {
 
   // Partner-specific configuration data (auth credentials, API keys, etc.)
   @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
-  config?: Record<string, any>;
+  credentials?: Record<string, any>;
 
   @Prop({ type: Date })
   createdAt?: Date;

@@ -1,7 +1,7 @@
 ---
-description: coding-rules
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Coding Rules and Best Practices
 
@@ -12,3 +12,23 @@ alwaysApply: false
 - proper-naming-conventions
 - error-handling
 - security
+
+# Strict Instruction Following
+
+When working with this codebase, adhere to these critical rules:
+
+1. **Follow all user instructions precisely** - Implement exactly what is requested without deviation.
+
+2. **Maintain existing code patterns** - When modifying code, maintain the same style, naming conventions, and architecture.
+
+3. **Prioritize explicit requirements** - User requirements always take precedence over general best practices.
+
+4. **Ask for clarification** - If instructions seem ambiguous, ask specific questions rather than making assumptions.
+
+5. **Verify implementation** - After completing a task, verify that all requirements have been satisfied exactly as specified.
+
+6. **Respect architectural decisions** - Don't introduce new libraries, patterns or approaches unless explicitly instructed.
+
+7. **Be minimal in changes** - Only modify what's necessary to fulfill the requirements.
+
+8. **Follow project conventions** - Observe existing code organization, formatting, and documentation styles.

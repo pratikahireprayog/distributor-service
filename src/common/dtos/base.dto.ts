@@ -410,6 +410,11 @@ export class BaseOrderReqDto extends BaseReqDto {
   @Type(() => AddressDto)
   pickupAddress: AddressDto;
 
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  fmHubAddress?: AddressDto;
+
   @IsNotEmpty({ message: "Delivery details are required" })
   @ValidateNested()
   @Type(() => AddressDto)
@@ -504,4 +509,60 @@ export class DRSPayloadDTO {
   shipmentStatus: string;
   source: string;
   serviceType: ServiceTypeDto;
+}
+
+/**
+ * Standardized Network Partner Response DTO
+ * All network partner responses will be transformed to this format
+ */
+export class NetworkPartnerResponseDto {
+  /**
+   * Whether the API request was successful
+   */
+  success: boolean;
+
+  /**
+   * Status code from the network partner
+   */
+  statusCode: number;
+
+  /**
+   * Message from the network partner
+   */
+  message: string;
+
+  /**
+   * Error details if any
+   */
+  error?: any;
+
+  /**
+   * Reference ID from the network partner
+   */
+  referenceId?: string;
+
+  /**
+   * Authentication token if applicable
+   */
+  token?: string;
+
+  /**
+   * Network partner code
+   */
+  partnerCode: string;
+
+  /**
+   * Response data from the network partner
+   */
+  data?: any;
+
+  /**
+   * Raw response from the network partner for debugging
+   */
+  rawResponse?: any;
+
+  /**
+   * Timestamp of the response
+   */
+  timestamp: string;
 }
