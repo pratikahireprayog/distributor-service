@@ -1,0 +1,38 @@
+{
+  "name": "SHIPYAARI Authentication",
+  "method": "POST",
+  "partnerCode": "SHIPYAARI",
+  "url": "https://api-seller.shipyaari.com/api/v1/seller/signIn",
+  "payloadMapperConfig": {
+    "fields": [
+      {
+        "sources": "credentials.email",
+        "destination": "email"
+      },
+      {
+        "sources": "credentials.password",
+        "destination": "password"
+      }
+    ]
+  },
+  "endpointId": "AUTH_TOKEN",
+  "contentType": "application/json",
+  "requiresAuth": false,
+  "partnerId": "SHIPYAARI",
+  "credentials": {
+    "email": "",
+    "password": ""
+  },
+  "responseMapping": {
+    "tokenPath": "data[0].token",
+    "successPath": "success",
+    "messagePath": "message",
+    "resultPath": "data"
+  },
+  "headerMapping": [
+    {
+      "key": "Content-Type",
+      "value": "application/json"
+    }
+  ]
+}

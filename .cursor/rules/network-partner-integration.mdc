@@ -1,0 +1,137 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Network Partner Integration Guidelines
+
+## Architecture Overview
+
+The Network Partner integration is built on a modular architecture with the following key components:
+
+- **Interfaces**: Define contracts for network partners and authentication
+- **Base Classes**: Provide common functionality for all network partner implementations
+- **Implementations**: Partner-specific implementations
+- **Factory**: Creates appropriate partner instance based on partner type
+
+## File Structure
+
+- Core interfaces: @network-partner.interface.ts, @auth-provider.interface.ts
+- Base implementation: @base-network-partner.abstract.ts
+- Module configuration: @network-partners.module.ts
+- Partner factory: @network-partner-factory.service.ts
+
+## Adding a New Network Partner
+
+1. Create a new directory under `src/services/network-partners/implementation/` with your partner name
+2. Create the following files:
+   - `{partner-name}.module.ts` - Module definition
+   - `{partner-name}.service.ts` - Main service implementing `INetworkPartner`
+   - `{partner-name}-auth.service.ts` - Authentication service implementing `AuthProvider`
+   - `{partner-name}.dto.ts` - Partner-specific DTOs
+   - `{partner-name}.enum.ts` - Partner-specific enums and constants
+
+3. Update the partner mapping in @np-to-class-map.config.ts
+4. Register the new partner module in @network-partners.module.ts
+
+## Authentication Integration
+
+1. Implement the `AuthProvider` interface in your auth service
+2. The `getAuthHeaders()` method must return headers needed for API requests
+3. Implement token caching and refresh logic as needed
+4. Use environment variables for sensitive configuration
+
+Example implementation pattern:
+
+```typescript
+@Injectable()
+export class YourPartnerAuthService implements AuthProvider {
+  // Cache the token
+  private token: string | null = null;
+  
+  // Prevent multiple concurrent token requests
+  private isTokenRefreshInProgress: Promise<string> | null = null;
+
+  async getAuthHeaders(): Promise<Record<string, string>> {
+    const token = await this.getToken();
+    return {
+      'Authorization': `Bearer ${token}`
+      // Add other required headers
+    };
+  }
+
+  private async getToken(): Promise<string> {
+    // Implement token retrieval, caching, and refresh logic
+  }
+}
+```
+
+## API Calls Integration
+
+1. Extend the `BaseNetworkPartner` abstract class
+2. Implement all required methods from `INetworkPartner` interface
+3. Use the auth service for authentication
+4. Leverage HTTP interceptors for common request/response handling
+5. Use DTOs for request/response mapping
+
+Example implementation pattern:
+
+```typescript
+@Injectable()
+export class YourPartner extends BaseNetworkPartner {
+  constructor(
+    private readonly yourAuthService: YourAuthService,
+    httpService: HttpService,
+    protected readonly endpointConfigRepository: EndpointConfigRepository,
+    protected readonly schemaMapper: SchemaMapperService<any, any>
+  ) {
+    super(
+      PARTNER_CODE_ENUM.TSAW,
+      yourAuthService,
+      httpService,
+      endpointConfigRepository,
+      schemaMapper
+    );
+  }
+
+  async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
+    orderDetails: T,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    return await super.createOrder<T, R>(orderDetails, eligiblePartners);
+  }
+
+  async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    return await super.cancelOrder<T, R>(data);
+  }
+
+  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+    manifestationDetails: T
+  ): Promise<R> {
+    return await super.createManifest<T, R>(manifestationDetails);
+  }
+}
+
+```
+
+## Error Handling
+
+1. Use specific exception types from `@nestjs/common`
+2. Log errors with appropriate severity
+3. Include relevant context in error messages
+4. Implement retry logic for transient failures
+
+## Testing
+
+1. Create unit tests for each partner service
+2. Mock external API calls
+3. Test error handling scenarios
+4. Validate response transformations
+
+## Environment Configuration
+
+1. Store partner-specific configuration in environment variables
+2. Use the format `PARTNERNAME_CONFIG_KEY`
+3. Validate required environment variables on service initialization

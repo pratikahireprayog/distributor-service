@@ -17,10 +17,15 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
+import {
+  pushOrdersToPRSDto,
+  StandardRequestDto,
+} from "src/services/distributor/distributor.service";
 
 /**
  * Base abstract class for network partner activities
@@ -42,41 +47,43 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderData: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
     let existingPartners: any;
     let attemptNumber = 1;
-    let partnerType: PARTNER_CODE_ENUM = this.partnerCode;
+    let partnerType = partnerCode;
     const startTime = Date.now();
 
     try {
       // Use the helper if available to handle partner tracking and selection
-      if (this.partnerHelper) {
-        // Step 1: Load or store partner data
-        existingPartners = await this.partnerHelper.loadOrStorePartners(
-          orderData.awbNumber,
-          eligiblePartners
-        );
+      // if (this.partnerHelper) {
+      //   // Step 1: Load or store partner data
+      //   existingPartners = await this.partnerHelper.loadOrStorePartners(
+      //     orderData.awbNumber,
+      //     eligiblePartners
+      //   );
 
-        // Step 2: Determine which partner to use
-        partnerType = await this.partnerHelper.determinePartnerWithEligibility(
-          orderData,
-          eligiblePartners
-        );
+      //   // Step 2: Determine which partner to use
+      //   partnerType = await this.partnerHelper.determinePartnerWithEligibility(
+      //     orderData,
+      //     eligiblePartners
+      //   );
 
-        // Make sure partnerCode in orderData matches the selected partner
-        orderData.partnerCode = partnerType;
+      //   // Make sure partnerCode in orderData matches the selected partner
+      //   orderData.partnerCode = partnerType;
 
-        // Step 3: Get current attempt number
-        attemptNumber = this.partnerHelper.getAttemptNumber(
-          existingPartners,
-          partnerType
-        );
-      }
+      //   // Step 3: Get current attempt number
+      //   attemptNumber = this.partnerHelper.getAttemptNumber(
+      //     existingPartners,
+      //     partnerType
+      //   );
+      // }
 
       const endpointConfig = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_ORDER
+        ENDPOINT_ID_ENUM.CREATE_ORDER,
+        partnerCode
       );
 
       if (
@@ -91,6 +98,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CREATE_ORDER,
         orderData,
+        partnerCode,
         endpointConfig
       );
 
@@ -137,7 +145,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
-  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.debug(
@@ -147,7 +155,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_MANIFEST
+        ENDPOINT_ID_ENUM.CREATE_MANIFEST,
+        data.partnerCode
       );
 
       if (
@@ -161,6 +170,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CREATE_MANIFEST,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -189,7 +199,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.GET_ORDER_DETAILS
+        ENDPOINT_ID_ENUM.GET_ORDER_DETAILS,
+        params.partnerCode
       );
 
       if (
@@ -204,6 +215,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.GET_ORDER_DETAILS,
         params,
+        params.partnerCode,
         endpoint
       );
 
@@ -234,7 +246,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CANCEL_ORDER
+        ENDPOINT_ID_ENUM.CANCEL_ORDER,
+        data.partnerCode
       );
 
       if (
@@ -246,6 +259,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CANCEL_ORDER,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -281,7 +295,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     // throw new Error("Not implemented");
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_DRS
+        ENDPOINT_ID_ENUM.CREATE_DRS,
+        orderData.partnerCode
       );
 
       if (
@@ -293,6 +308,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CREATE_DRS,
         orderData,
+        orderData.partnerCode,
         endpoint
       );
 
@@ -319,14 +335,177 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
+  /**
+   * Push orders to PRS
+   * @param data Data containing order IDs to push to PRS
+   * @returns Response from PRS API
+   */
+  async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(`Pushing orders to PRS: ${data.awbNumbers || "unknown"}`);
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+        data.partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for push orders to PRS operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+        data,
+        data.partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Orders pushed to PRS successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      this.logger.error(
+        `Error pushing orders to PRS: ${error.message}`,
+        error.stack
+      );
+      throw error;
+    }
+  }
+
+  async pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Pushing order to tracking with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+        data.partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for push order to tracking operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+        data,
+        data.partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order pushed to tracking successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  async manifestOrderToTracking<
+    T extends BaseOrderReqDto,
+    R extends BaseResDto,
+  >(data: T): Promise<R> {
+    this.logger.debug(
+      `Manifesting order to tracking with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+        data.partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for manifest order to tracking operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+        data,
+        data.partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order manifested to tracking successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
   // TODO: Create response mapper object for specific partner
   // TODO: Log response message in a proper format
   // Private method for executing HTTP operations
   private async executeOperation(
     operation: string,
     data: any,
+    partnerCode: string,
     endpointConfig: EndpointConfigModel
   ): Promise<any> {
+    // Transform request body if needed
+    let transformedData = data;
+
     try {
       // Get authentication headers
       const authHeaders = endpointConfig.requiresAuth
@@ -377,7 +556,6 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       }
 
       // Transform request body if needed
-      let transformedData = data;
       if (endpointConfig.payloadMapperConfig) {
         const mappingConfig =
           endpointConfig.payloadMapperConfig as unknown as SchemaMappingConfig;
@@ -435,41 +613,135 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
       return response.data;
     } catch (error) {
-      // Error handling logic
+      // Enhanced error handling logic
       if (error.isAxiosError) {
-        error.context = {
-          operation,
-          partnerCode: this.partnerCode,
-          // requestData: data
-        };
+        // Extract as much information as possible from the error
+        const errorResponse = error.response || {};
+        const errorData = errorResponse.data || {};
+        const errorStatus = errorResponse.status || error.status || 500;
+        let errorMessage = "Unknown error occurred";
+
+        // Try to extract a meaningful error message from various possible locations
+        if (typeof errorData === "string") {
+          errorMessage = errorData;
+        } else if (
+          errorData.message ||
+          errorData.error ||
+          errorData.description
+        ) {
+          errorMessage =
+            errorData.message || errorData.error || errorData.description;
+        } else if (
+          errorData.errors &&
+          Array.isArray(errorData.errors) &&
+          errorData.errors.length > 0
+        ) {
+          errorMessage = errorData.errors.map((e) => e.message || e).join(", ");
+        } else if (Object.keys(errorData).length > 0) {
+          errorMessage = JSON.stringify(errorData);
+        } else {
+          errorMessage = error.message || "Request failed";
+        }
+
+        // Log detailed error information with clear formatting for easy identification
+        this.logger.error(`API ERROR DETAILS:`);
+        this.logger.error(`Status: [${errorStatus}]`);
+        this.logger.error(`Message: ${errorMessage}`);
+        this.logger.error(`Operation: ${operation}`);
+        this.logger.error(`Partner: ${partnerCode}`);
+        this.logger.error(`URL: ${error.config?.url}`);
+        this.logger.error(`Method: ${error.config?.method}`);
+        this.logger.error(
+          `Request Data: ${JSON.stringify(transformedData, null, 2)}`
+        );
+        this.logger.error(
+          `Response Data: ${JSON.stringify(errorData, null, 2)}`
+        );
+
+        // Throw a more informative custom exception with clearer error message
+        throw new CustomHttpException(
+          errorStatus,
+          `API Error [${operation}]: ${errorMessage}`,
+          errorData,
+          {
+            timestamp: new Date().toISOString(),
+            operation,
+            partnerCode: partnerCode,
+            requestUrl: error.config?.url,
+            requestMethod: error.config?.method,
+            requestData: transformedData,
+          },
+          partnerCode
+        );
       }
-      throw error;
+
+      // For non-Axios errors, improve logging and error message
+      this.logger.error(
+        `Non-Axios error in ${operation}: ${error.message}`,
+        error.stack
+      );
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `Error during ${operation} operation: ${error.message}`,
+        error,
+        {
+          timestamp: new Date().toISOString(),
+          operation,
+          partnerCode: partnerCode,
+        },
+        partnerCode
+      );
     }
   }
 
   private async getEndpointConfig(
-    endpointId: string
+    endpointId: string,
+    partnerCode: string
   ): Promise<EndpointConfigModel> {
     if (endpointId === ENDPOINT_ID_ENUM.CREATE_DRS) {
       return this.endpointConfigRepository.getOne({
-        partnerCode: "SMILE_DRS",
+        partnerCode: partnerCode,
         endpointId: endpointId,
       });
     }
     const endpoint = await this.endpointConfigRepository.getOne({
-      partnerCode: this.partnerCode,
+      partnerCode: partnerCode,
       endpointId: endpointId,
     });
     if (!endpoint) {
       throw new CustomHttpException(
         HttpStatus.NOT_FOUND,
-        `Endpoint configuration not found for ${this.partnerCode} - ${endpointId}`
+        `Endpoint configuration not found for ${partnerCode} - ${endpointId}`
       );
     }
     return endpoint;
   }
 
   protected validateInputForOperation(operation: string, data: any): boolean {
+    // Special validation for cancel orders - check for cAwbNumbers array instead of awbNumber
+    if (operation === ENDPOINT_ID_ENUM.CANCEL_ORDER && data) {
+      return (
+        data.cAwbNumbers &&
+        Array.isArray(data.cAwbNumbers) &&
+        data.cAwbNumbers.length > 0
+      );
+    }
+
+    // Special validation for push orders to PRS
+    if (operation === ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS && data) {
+      const isValid =
+        data.awbNumbers &&
+        Array.isArray(data.awbNumbers) &&
+        data.awbNumbers.length > 0;
+      if (!isValid) {
+        this.logger.error(
+          `Invalid input for ${operation}: awbNumbers must be a non-empty array`
+        );
+      }
+      return isValid;
+    }
+
+    // Default validation for all other operations
     return true;
   }
 

@@ -1,0 +1,61 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Endpoint Configurations Guide
+
+## Overview
+
+This guide explains how to create and configure endpoint configurations for network partners in the delivery orchestrator system. Endpoint configurations determine how the system communicates with different network partners' APIs.
+
+## Schema Structure
+
+The endpoint configurations are stored in MongoDB with the following schema structure:
+- `name`: Descriptive name of the endpoint
+- `method`: HTTP method (GET, POST, PUT, PATCH, DELETE)
+- `partnerCode`: Unique code identifying the network partner (e.g., TSAW, BIGSHIP) - Reference `PARTNER_CODE_ENUM` in `global.enum.ts`
+- `url`: API endpoint URL
+- `payloadMapperConfig`: Configuration for transforming request and response payloads
+- `endpointId`: Identifier for the specific endpoint type - Reference `ENDPOINT_ID_ENUM` in `global.enum.ts` (e.g., CREATE_ORDER, CANCEL_ORDER, CREATE_MANIFEST)
+- `contentType`: HTTP content type (typically application/json)
+- `requiresAuth`: Whether authentication is required
+- `urlParamMapping`: Configuration for URL path parameters
+- `headerMapping`: Configuration for HTTP headers
+- `responseMapping`: Configuration for parsing responses
+
+## Creating New Endpoint Configurations
+
+To create a new endpoint configuration:
+
+1. Identify the required API endpoints for the network partner
+2. Determine the HTTP method, URL, and authentication requirements
+3. Use the `payloadMapperConfig` from the partner's schema config file in their module directory (`src/services/network-partners/implementation/{partner-name}/{partner-name}-schema-config.json`)
+4. Set up any URL parameters, query parameters, and headers needed
+5. Use valid endpoint IDs from `ENDPOINT_ID_ENUM` in `global.enum.ts`
+
+## Endpoint IDs
+
+Reference the `ENDPOINT_ID_ENUM` in `global.enum.ts` for valid endpoint IDs:
+- `AUTH_TOKEN`: Authentication token generation
+- `CREATE_MANIFEST`: Creating shipping manifests
+- `CREATE_ORDER`: Creating new orders
+- `GET_ORDER_DETAILS`: Retrieving order details
+- `CANCEL_ORDER`: Canceling existing orders
+- `CREATE_DRS`: Creating delivery run sheets
+
+Use the `PARTNER_CODE_ENUM` from `global.enum.ts` for valid partner codes:
+- `BIGSHIP`: Bigship partner
+- `TSAW`: Tsaw partner
+- `SHIPYAARI`: Shipyaari partner
+- `DEFAULT`: Default partner implementation
+
+## Best Practices
+
+1. Use clear and consistent naming for fields in the mapping configuration
+2. Document any complex transformations with comments in the transform string
+3. Use appropriate data type conversions (e.g., `parseInt`, `parseFloat`) for numeric fields
+4. Handle edge cases and null values appropriately with default values or transformation logic
+5. Test the mapping configuration thoroughly before deploying to production
+6. Always reference the partner's schema config file to ensure consistency
+7. Use the appropriate endpoint ID from the `ENDPOINT_ID_ENUM` in `global.enum.ts`

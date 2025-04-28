@@ -25,6 +25,7 @@ export class BaseReqDto {
 export class BaseResDto {
   statusCode: number;
   message: string;
+  partnerCode?: string;
   data?: any;
   trace?: any;
 }
@@ -394,6 +395,13 @@ export class OrderDto {
 
 export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
+  /**
+   * Smile AWB number (if applicable)
+   */
+  @IsString()
+  @IsOptional()
+  smileAwbNumber?: string;
+
   @IsEnum(ORDER_TYPE_ENUM, { message: "Invalid order type" })
   type?: ORDER_TYPE_ENUM;
 
@@ -409,6 +417,11 @@ export class BaseOrderReqDto extends BaseReqDto {
   @ValidateNested()
   @Type(() => AddressDto)
   pickupAddress: AddressDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  fmHubAddress?: AddressDto;
 
   @IsNotEmpty({ message: "Delivery details are required" })
   @ValidateNested()
@@ -463,10 +476,19 @@ export class BaseOrderResDto extends BaseResDto {
   referenceNumber?: string;
 }
 
-export class BaseCancelOrderDto extends BaseReqDto {
+export class BaseCancelOrderDto {
   @IsString()
   @IsNotEmpty()
   cancelReason: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ message: "C-AWB numbers are required" })
+  cAwbNumbers: string[];
+
+  @IsOptional()
+  @IsString()
+  partnerCode?: string;
 }
 
 export class DeliveryDetailsDto {
@@ -504,4 +526,78 @@ export class DRSPayloadDTO {
   shipmentStatus: string;
   source: string;
   serviceType: ServiceTypeDto;
+}
+
+/**
+ * Standardized Network Partner Response DTO
+ * All network partner responses will be transformed to this format
+ */
+export class NetworkPartnerResponseDto {
+  /**
+   * Whether the API request was successful
+   */
+  success: boolean;
+
+  /**
+   * Status code from the network partner
+   */
+  statusCode: number;
+
+  /**
+   * Message from the network partner
+   */
+  message: string;
+
+  /**
+   * Error details if any
+   */
+  error?: any;
+
+  /**
+   * Reference ID from the network partner
+   */
+  referenceId?: string;
+
+  /**
+   * Authentication token if applicable
+   */
+  token?: string;
+
+  /**
+   * Network partner code
+   */
+  partnerCode: string;
+
+  /**
+   * Response data from the network partner
+   */
+  data?: any;
+
+  /**
+   * Raw response from the network partner for debugging
+   */
+  rawResponse?: any;
+
+  /**
+   * Timestamp of the response
+   */
+  timestamp: string;
+}
+
+/**
+ * DTO for manifest creation requests
+ * Extends the base request DTO with support for multiple AWB numbers
+ * Used primarily for batch manifest operations with delivery partners
+ */
+export class ManifestReqDto {
+  /**
+   * List of AWB numbers to include in the manifest
+   */
+  @IsArray()
+  @IsString({ each: true })
+  awbNumbers: string[];
+
+  @IsOptional()
+  @IsString({ message: "Partner code must be a string" })
+  partnerCode?: string;
 }

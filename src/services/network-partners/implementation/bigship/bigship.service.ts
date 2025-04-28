@@ -77,9 +77,10 @@ export class BigshipService extends BaseNetworkPartner {
 
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderDetails: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
-    return await super.createOrder<T, R>(orderDetails, eligiblePartners);
+    return await super.createOrder<T, R>(orderDetails, partnerCode, eligiblePartners);
   }
 
   async getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
@@ -94,10 +95,10 @@ export class BigshipService extends BaseNetworkPartner {
     return await super.cancelOrder<T, R>(data);
   }
 
-  async createManifest<T extends BaseReqDto, R extends BaseResDto>(
-    manifestationDetails: T
-  ): Promise<R> {
-    // This will call the base class implementation which will use our concrete methods
-    return await super.createManifest<T, R>(manifestationDetails);
-  }
+  // async createManifest<T extends BaseReqDto, R extends BaseResDto>(
+  //   manifestationDetails: T
+  // ): Promise<R> {
+  //   // This will call the base class implementation which will use our concrete methods
+  //   return await super.createManifest<T, R>(manifestationDetails);
+  // }
 }

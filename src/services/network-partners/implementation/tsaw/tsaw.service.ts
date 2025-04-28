@@ -33,9 +33,14 @@ export class TsawService extends BaseNetworkPartner {
 
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderDetails: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
-    return await super.createOrder<T, R>(orderDetails, eligiblePartners);
+    return await super.createOrder<T, R>(
+      orderDetails,
+      partnerCode,
+      eligiblePartners
+    );
   }
 
   async getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(

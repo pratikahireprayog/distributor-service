@@ -1,0 +1,136 @@
+{
+  "fields": [
+    {
+      "sources": "pickupAddress",
+      "destination": "pickupDetails",
+      "isNestedObject": true,
+      "nestedMappingConfig": {
+        "fields": [
+          {
+            "sources": ["address1", "address2", "city", "state", "zip"],
+            "destination": "fullAddress",
+            "transform": "(values) => `${values[0].address1} ${values[0].address2 ? values[0].address2 + ', ' : ''}${values[0].city}, ${values[0].state} ${values[0].zip}`"
+          },
+          {
+            "sources": "zip",
+            "destination": "pincode",
+            "transform": "parseInt(value) || 0"
+          },
+          {
+            "sources": "",
+            "destination": "contact",
+            "isNestedObject": true,
+            "nestedMappingConfig": {
+              "fields": [
+                {
+                  "sources": "name",
+                  "destination": "name"
+                },
+                {
+                  "sources": "mobile",
+                  "destination": "mobileNo",
+                  "transform": "parseInt(value) || 0"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "sources": "shippingAddress",
+      "destination": "deliveryDetails",
+      "isNestedObject": true,
+      "nestedMappingConfig": {
+        "fields": [
+          {
+            "sources": ["address1", "address2", "city", "state", "zip"],
+            "destination": "fullAddress",
+            "transform": "(values) => `${values[0].address1} ${values[0].address2 ? values[0].address2 + ', ' : ''}${values[0].city}, ${values[0].state} ${values[0].zip}`"
+          },
+          {
+            "sources": "zip",
+            "destination": "pincode",
+            "transform": "parseInt(value) || 0"
+          },
+          {
+            "sources": "",
+            "destination": "contact",
+            "isNestedObject": true,
+            "nestedMappingConfig": {
+              "fields": [
+                {
+                  "sources": "name",
+                  "destination": "name"
+                },
+                {
+                  "sources": "mobile",
+                  "destination": "mobileNo",
+                  "transform": "parseInt(value) || 0"
+                }
+              ]
+            }
+          },
+          {
+            "sources": "",
+            "destination": "gstNumber",
+            "defaultValue": ""
+          }
+        ]
+      }
+    },
+    {
+      "sources": "",
+      "destination": "boxInfo",
+      "isArrayInDestination": true,
+      "transform": "(value) => [{ name: 'box_1', weightUnit: 'Kg', measureUnit: 'cm', deadWeight: (parseFloat(value[0]?.dimensions?.weight) || 0) / 1000, length: parseFloat(value[0]?.dimensions?.length) || 0, breadth: parseFloat(value[0]?.dimensions?.breadth) || 0, height: parseFloat(value[0]?.dimensions?.height) || 0, products: [], codInfo: { isCod: value[0]?.paymentDetails?.isCOD || false, collectableAmount: value[0]?.paymentDetails?.isCOD ? parseFloat(value[0]?.paymentDetails?.amount) || 0 : 0, invoiceValue: parseFloat(value[0]?.paymentDetails?.amount) || 0 }, podInfo: { isPod: false }, insurance: false }]"
+    },
+    {
+      "sources": "",
+      "destination": "orderType",
+      "defaultValue": "B2C"
+    },
+    {
+      "sources": "shippingType",
+      "destination": "transit"
+    },
+    {
+      "sources": "partnerCode",
+      "destination": "courierPartner"
+    },
+    {
+      "sources": "",
+      "destination": "source",
+      "defaultValue": ""
+    },
+    {
+      "sources": "orderCreatedDate",
+      "destination": "pickupDate",
+      "transform": "(value) => value ? new Date(value).getTime().toString() : ''"
+    },
+    {
+      "sources": "",
+      "destination": "gstNumber",
+      "defaultValue": ""
+    },
+    {
+      "sources": "cAwbNumber",
+      "destination": "orderId"
+    },
+    {
+      "sources": "ewayBillNos",
+      "destination": "eWayBillNo",
+      "transform": "(value) => value && value.length > 0 ? value[0] : ''"
+    },
+    {
+      "sources": "",
+      "destination": "brandName",
+      "defaultValue": ""
+    },
+    {
+      "sources": "",
+      "destination": "brandLogo",
+      "defaultValue": ""
+    }
+  ]
+}
