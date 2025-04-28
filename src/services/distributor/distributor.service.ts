@@ -237,8 +237,8 @@ export class DistributorService {
     const orderData = requestDto.order as BaseOrderReqDto;
 
     // Execute the operation with the selected partner
-    return partnerActivity.manifestOrderToTracking<BaseOrderReqDto, R>(
-      orderData
+    return partnerActivity.manifestOrderToTracking<StandardRequestDto, R>(
+      requestDto
     );
   }
 }

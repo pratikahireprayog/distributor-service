@@ -157,9 +157,8 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     const body = {
       trackingId: data.awbNumber,
       cAwbNumber: data.cAwbNumber,
-      smileAwbNumber:
-        "smileAwbNumber" in data ? data.smileAwbNumber : undefined,
-      type: "ECOMM",
+      smileAwbNumber: data?.smileAwbNumber,
+      type: data?.type,
       sourceLocation: {
         city: pickupAddress.city,
         state: pickupAddress.state,
@@ -202,13 +201,15 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   private buildManifestTrackingBody(data: BaseOrderReqDto) {
     return {
       status: "ready_for_dispatch",
-      deliveryPartnerName: data.partnerCode?.toLowerCase() || "innofulfill",
+      deliveryPartnerName: "innofulfill",
       event: "ready_for_dispatch",
       location: data.pickupAddress
         ? `${data.pickupAddress.address1}, ${data.pickupAddress.address2 || ""}, ${data.pickupAddress.zip}, ${data.pickupAddress.city}, ${data.pickupAddress.state}, ${data.pickupAddress.country}`
         : "",
       trackingId: data.awbNumber,
       cAwbNumber: data.cAwbNumber,
+      smileAwbNumber: data?.smileAwbNumber,
+      statusTimestamp: Math.floor(Date.now() / 1000).toString(),
     };
   }
 
@@ -251,7 +252,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   }
 
   async manifestOrderToTracking<
-    T extends BaseOrderReqDto,
+    T extends StandardRequestDto,
     R extends BaseResDto,
   >(data: T): Promise<R> {
     this.logger.log(
@@ -269,7 +270,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         `Sending manifest order to tracking API: ${endpoint.url}`
       );
 
-      const body = this.buildManifestTrackingBody(data);
+      const body = this.buildManifestTrackingBody(
+        data.order as BaseOrderReqDto
+      );
       this.logger.log("Manifest info body sent to tracking", body);
 
       const response = await this.makeTrackingApiCall(endpoint.url, body);
