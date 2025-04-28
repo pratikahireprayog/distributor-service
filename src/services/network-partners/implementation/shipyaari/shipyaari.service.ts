@@ -60,46 +60,23 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token and endpoint
-      // const authHeaders = await this.authService.getAuthHeaders();
-      // const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
+      const authHeaders = await this.authService.getAuthHeaders();
+      const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
 
       // Transform the payload
-      // const transformedData =
-      //   this.transformShipyaariCreateOrderPayload(orderDetails);
+      const transformedData =
+        this.transformShipyaariCreateOrderPayload(orderDetails);
 
       // Make API call
-      // TODO: Uncomment this when Shipyaari is ready
-      // const response = await this.callShipyaariCreateOrderAPI(
-      //   endpoint,
-      //   transformedData,
-      //   authHeaders,
-      //   orderDetails.awbNumber || ""
-      // );
+      const response = await this.callShipyaariCreateOrderAPI(
+        endpoint,
+        transformedData,
+        authHeaders,
+        orderDetails.awbNumber || ""
+      );
 
       // Format and return response
-      // TODO: Uncomment this when Shipyaari is ready
-      // return this.formatCreateOrderResponse<R>(
-      //   response
-      // );
-
-      const result = new BaseOrderResDto() as R;
-
-      result.statusCode = 200;
-      result.message = "Shipyaari Create Order API success";
-      result.data = {
-        success: true,
-        orderId: "21054652899131",
-        cAwbNumber: "AVN23830450797",
-        status: "BOOKED",
-        message: "B2C - 21054652899131 : Placed Successfully",
-      };
-      result.trace = {
-        timestamp: "2025-04-27T10:32:23.892Z",
-        partnerCode: "SHIPYAARI",
-        operation: "CREATE_ORDER",
-      };
-
-      return result;
+      return this.formatCreateOrderResponse<R>(response);
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -142,6 +119,7 @@ export class ShipyaariService extends BaseNetworkPartner {
   private transformShipyaariCreateOrderPayload<T extends BaseOrderReqDto>(
     orderDetails: T
   ): any {
+    // TODO: Replace pickupAddress with fmHubAddress
     const transformedData = {
       pickupDetails: {
         fullAddress: `${orderDetails.pickupAddress?.address1 || ""} ${orderDetails.pickupAddress?.address2 ? orderDetails.pickupAddress?.address2 + ", " : ""}${orderDetails.pickupAddress?.city || ""}, ${orderDetails.pickupAddress?.state || ""} ${orderDetails.pickupAddress?.zip || ""}`,
@@ -539,58 +517,32 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token and endpoint
-      // const authHeaders = await this.authService.getAuthHeaders();
-      // const endpoint = await this.fetchEndpointConfig("CANCEL_ORDER");
+      const authHeaders = await this.authService.getAuthHeaders();
+      const endpoint = await this.fetchEndpointConfig("CANCEL_ORDER");
 
       // Transform the payload to use cAwbNumbers
-      // const transformedData = this.transformShipyaariCancelOrderPayload(data);
+      const transformedData = this.transformShipyaariCancelOrderPayload(data);
 
-      // Use first AWB for logging purposes
-      // const referenceAwb =
-      //   data.cAwbNumbers.length > 0 ? data.cAwbNumbers[0] : "";
-
-      // Make API call
-      // const response = await this.callShipyaariCancelOrderAPI(
-      //   endpoint,
-      //   transformedData,
-      //   authHeaders,
-      //   referenceAwb
-      // );
+      // Make API call with all AWB numbers for proper logging
+      const response = await this.callShipyaariCancelOrderAPI(
+        endpoint,
+        transformedData,
+        authHeaders,
+        data.cAwbNumbers // Pass the entire array of AWB numbers
+      );
 
       // Format and return response
-      // return this.formatCancelOrderResponse<R>(response, data);
-      const result = new BaseResDto() as R;
-
-      result.statusCode = 200;
-      result.message = "Shipyaari Cancel Order API success";
-      result.partnerCode = this.partnerCode;
-      result.data = {
-        success: true,
-        status: "CANCELLED",
-        message: "AWB Cancel Process Started",
-        cAwbNumbers: data.cAwbNumbers,
-      };
-      result.trace = {
-        timestamp: "2025-04-27T12:45:27.560Z",
-        partnerCode: "SHIPYAARI",
-        operation: "CANCEL_ORDER",
-      };
-
-      return result;
+      return this.formatCancelOrderResponse<R>(response, data);
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
         throw error;
       }
 
-      // Get a reference AWB for error reporting
-      const referenceAwb =
-        data.cAwbNumbers.length > 0 ? data.cAwbNumbers[0] : "";
-
-      // For other errors, use the error helper to handle them properly
+      // Pass all AWB numbers for error handling
       return this.errorHelper.handleHttpError(
         error,
-        referenceAwb,
+        data.cAwbNumbers, // Pass the entire array of AWB numbers
         "CANCEL_ORDER"
       );
     }
@@ -621,11 +573,11 @@ export class ShipyaariService extends BaseNetworkPartner {
     endpoint: EndpointConfigModel,
     payload: any,
     authHeaders: Record<string, string>,
-    awbNumber: string
+    cAwbNumbers: string[] // Updated parameter type to string[]
   ): Promise<AxiosResponse<any>> {
-    // Log request
+    // Log request with all AWB numbers
     this.logger.log(
-      `[Shipyaari cancelOrder] Request for AWBs: ${JSON.stringify(payload.awbs)} - Payload: ${JSON.stringify(payload)}`
+      `[Shipyaari cancelOrder] Request for AWBs - Payload: ${JSON.stringify(payload)}`
     );
 
     try {
@@ -639,7 +591,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       );
 
       this.logger.log(
-        `[Shipyaari cancelOrder] Response for AWBs: ${JSON.stringify(payload.awbs)} - ${JSON.stringify(response.data)}`
+        `[Shipyaari cancelOrder] Response for AWBs - ${JSON.stringify(response.data)}`
       );
 
       // Check if the response contains an API-level error despite HTTP success status
@@ -656,7 +608,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       if (isResponseError) {
         throw this.errorHelper.handleApiError(
           response.data,
-          awbNumber,
+          cAwbNumbers, // Pass all AWB numbers
           "CANCEL_ORDER"
         );
       }

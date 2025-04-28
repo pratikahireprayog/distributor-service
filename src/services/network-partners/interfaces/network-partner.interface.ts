@@ -49,5 +49,23 @@ export interface INetworkPartner {
     data: T
   ): Promise<R>;
 
+  /**
+   * Push order to tracking system
+   * @param data Order data for tracking
+   * @returns Response from tracking API
+   */
+  pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
+  /**
+   * Manifest order to tracking system
+   * @param data Order data for manifesting to tracking
+   * @returns Response from tracking API
+   */
+  manifestOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
   // cancelOrder(orderId: string): Promise<any>;
 }

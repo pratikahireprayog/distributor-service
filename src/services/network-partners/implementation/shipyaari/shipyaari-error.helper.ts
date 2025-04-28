@@ -19,29 +19,33 @@ export class ShipyaariErrorHelper {
   /**
    * Handle API errors by throwing appropriate CustomHttpException
    * @param response API response with error
-   * @param awbNumber Tracking number(s) - can be comma-separated string
+   * @param awbNumbers Array of tracking numbers or comma-separated string
    * @param operation API operation name
    */
   public handleApiError(
     response: any,
-    awbNumber: string,
+    awbNumbers: string[] | string,
     operation: string
   ): never {
     // Extract status code from response or default to 422
     const statusCode = response?.statusCode || HttpStatus.UNPROCESSABLE_ENTITY;
     const errorMessage = response?.message || "API reported an error";
 
-    this.logger.error(
-      `[Shipyaari ${operation}] API Error for AWB: ${awbNumber} - Status: ${statusCode} - Message: ${errorMessage}`
-    );
+    // Convert input to array if it's a string
+    const awbArray = Array.isArray(awbNumbers)
+      ? awbNumbers
+      : awbNumbers
+        ? awbNumbers.split(",")
+        : [];
 
-    // Convert comma-separated awbNumber string to array
-    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
+    this.logger.error(
+      `[Shipyaari ${operation}] API Error for AWBs: ${awbArray} - Status: ${statusCode} - Message: ${errorMessage}`
+    );
 
     // Create error data structure
     const errorData = {
       success: false,
-      awbNumbers: awbNumbers,
+      awbNumbers: awbArray,
       message: errorMessage,
     };
 
@@ -63,17 +67,24 @@ export class ShipyaariErrorHelper {
   /**
    * Handle HTTP errors from axios
    * @param error Error from axios
-   * @param awbNumber Tracking number(s) - can be comma-separated string
+   * @param awbNumbers Array of tracking numbers or comma-separated string
    * @param operation API operation name
    */
   public handleHttpError(
     error: any,
-    awbNumber: string,
+    awbNumbers: string[] | string,
     operation: string
   ): never {
+    // Convert input to array if it's a string
+    const awbArray = Array.isArray(awbNumbers)
+      ? awbNumbers
+      : awbNumbers
+        ? awbNumbers.split(",")
+        : [];
+
     // Log the error first
     this.logger.error(
-      `[Shipyaari ${operation}] HTTP Error for AWB: ${awbNumber || "Unknown"} - ${error.response?.status || 500} - ${JSON.stringify(error.response?.data || {})}`,
+      `[Shipyaari ${operation}] HTTP Error for AWBs: ${awbArray.join(", ")} - ${error.response?.status || 500} - ${JSON.stringify(error.response?.data || {})}`,
       error.stack
     );
 
@@ -81,9 +92,6 @@ export class ShipyaariErrorHelper {
     if (error instanceof CustomHttpException) {
       throw error;
     }
-
-    // Convert comma-separated awbNumber string to array
-    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
 
     // Determine the appropriate status code
     const statusCode =
@@ -94,7 +102,7 @@ export class ShipyaariErrorHelper {
     // Create error data structure
     const errorData = {
       success: false,
-      awbNumbers: awbNumbers,
+      awbNumbers: awbArray,
       message: errorMessage,
     };
 
@@ -116,21 +124,25 @@ export class ShipyaariErrorHelper {
   /**
    * Helper for validation errors
    * @param message Error message
-   * @param awbNumber Tracking number(s) - can be comma-separated string
+   * @param awbNumbers Array of tracking numbers or comma-separated string
    * @param operation API operation name
    */
   public throwValidationError(
     message: string,
-    awbNumber: string,
+    awbNumbers: string[] | string,
     operation: string
   ): never {
-    // Convert comma-separated awbNumber string to array
-    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
+    // Convert input to array if it's a string
+    const awbArray = Array.isArray(awbNumbers)
+      ? awbNumbers
+      : awbNumbers
+        ? awbNumbers.split(",")
+        : [];
 
     // Create error data structure
     const errorData = {
       success: false,
-      awbNumbers: awbNumbers,
+      awbNumbers: awbArray,
       message: message,
     };
 

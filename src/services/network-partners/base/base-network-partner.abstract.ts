@@ -375,6 +375,105 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
+  async pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Pushing order to tracking with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for push order to tracking operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+        data,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order pushed to tracking successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  async manifestOrderToTracking<
+    T extends BaseOrderReqDto,
+    R extends BaseResDto,
+  >(data: T): Promise<R> {
+    this.logger.debug(
+      `Manifesting order to tracking with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for manifest order to tracking operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+        data,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order manifested to tracking successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
   // TODO: Create response mapper object for specific partner
   // TODO: Log response message in a proper format
   // Private method for executing HTTP operations
@@ -383,6 +482,9 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     data: any,
     endpointConfig: EndpointConfigModel
   ): Promise<any> {
+    // Transform request body if needed
+    let transformedData = data;
+
     try {
       // Get authentication headers
       const authHeaders = endpointConfig.requiresAuth
@@ -433,7 +535,6 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       }
 
       // Transform request body if needed
-      let transformedData = data;
       if (endpointConfig.payloadMapperConfig) {
         const mappingConfig =
           endpointConfig.payloadMapperConfig as unknown as SchemaMappingConfig;
@@ -491,14 +592,65 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
       return response.data;
     } catch (error) {
-      // Error handling logic
+      // Enhanced error handling logic
       if (error.isAxiosError) {
-        error.context = {
+        // Extract as much information as possible from the error
+        const errorResponse = error.response || {};
+        const errorData = errorResponse.data || {};
+        const errorStatus = errorResponse.status || error.status || 500;
+        let errorMessage = "Unknown error occurred";
+
+        // Try to extract a meaningful error message from various possible locations
+        if (typeof errorData === "string") {
+          errorMessage = errorData;
+        } else if (
+          errorData.message ||
+          errorData.error ||
+          errorData.description
+        ) {
+          errorMessage =
+            errorData.message || errorData.error || errorData.description;
+        } else if (
+          errorData.errors &&
+          Array.isArray(errorData.errors) &&
+          errorData.errors.length > 0
+        ) {
+          errorMessage = errorData.errors.map((e) => e.message || e).join(", ");
+        } else if (Object.keys(errorData).length > 0) {
+          errorMessage = JSON.stringify(errorData);
+        } else {
+          errorMessage = error.message || "Request failed";
+        }
+
+        // Log detailed error information
+        this.logger.error(`API Error [${errorStatus}]: ${errorMessage}`, {
           operation,
           partnerCode: this.partnerCode,
-          // requestData: data
-        };
+          url: error.config?.url,
+          method: error.config?.method,
+          requestData: transformedData,
+          responseData: errorData,
+          headers: error.config?.headers,
+        });
+
+        // Throw a more informative custom exception
+        throw new CustomHttpException(
+          errorStatus,
+          errorMessage,
+          errorData,
+          {
+            timestamp: new Date().toISOString(),
+            operation,
+            partnerCode: this.partnerCode,
+            requestUrl: error.config?.url,
+            requestMethod: error.config?.method,
+          },
+          this.partnerCode
+        );
       }
+
+      // For non-Axios errors, maintain the original behavior
+      this.logger.error(`Non-Axios error: ${error.message}`, error.stack);
       throw error;
     }
   }

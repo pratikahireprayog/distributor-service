@@ -1,6 +1,9 @@
 import { Controller, Get, Post, Body, Param, Query } from "@nestjs/common";
 import { AppService } from "./app.service";
-import { DistributorService, PushOrdersToPrsDto } from "./services/distributor/distributor.service";
+import {
+  DistributorService,
+  PushOrdersToPrsDto,
+} from "./services/distributor/distributor.service";
 import {
   BaseReqDto,
   BaseResDto,
@@ -73,5 +76,19 @@ export class AppController {
   @Post("push-orders-to-prs")
   async pushOrdersToPrs(@Body() data: PushOrdersToPrsDto): Promise<BaseResDto> {
     return this.distributorService.pushOrdersToPrs(data);
+  }
+
+  @Post("push-order-to-tracking")
+  async pushOrderToTracking(
+    @Body() data: BaseOrderReqDto
+  ): Promise<BaseResDto> {
+    return this.distributorService.pushOrderToTracking(data);
+  }
+
+  @Post("manifest-order-to-tracking")
+  async manifestOrderToTracking(
+    @Body() data: BaseOrderReqDto
+  ): Promise<BaseResDto> {
+    return this.distributorService.manifestOrderToTracking(data);
   }
 }

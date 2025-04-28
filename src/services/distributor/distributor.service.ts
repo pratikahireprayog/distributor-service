@@ -162,4 +162,42 @@ export class DistributorService {
     // Execute the operation with the selected partner
     return partnerActivity.pushOrdersToPrs<T, R>(data);
   }
+
+  /**
+   * Push order to tracking system
+   */
+  async pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Pushing order to tracking for ${data.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.pushOrderToTracking<T, R>(data);
+  }
+
+  /**
+   * Manifest order to tracking system
+   */
+  async manifestOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Manifesting order to tracking for ${data.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.manifestOrderToTracking<T, R>(data);
+  }
 }

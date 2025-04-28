@@ -395,6 +395,13 @@ export class OrderDto {
 
 export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
+  /**
+   * Smile AWB number (if applicable)
+   */
+  @IsString()
+  @IsOptional()
+  smileAwbNumber?: string;
+
   @IsEnum(ORDER_TYPE_ENUM, { message: "Invalid order type" })
   type?: ORDER_TYPE_ENUM;
 
@@ -482,14 +489,6 @@ export class BaseCancelOrderDto {
   @IsOptional()
   @IsString()
   partnerCode?: string;
-
-  /**
-   * Optional AWB number. Primarily for potential internal use or backward compatibility scenarios.
-   * The main field for cancellation is cAwbNumbers.
-   */
-  @IsOptional()
-  @IsString({ message: "AWB number must be a string" })
-  awbNumber?: string;
 }
 
 export class DeliveryDetailsDto {
