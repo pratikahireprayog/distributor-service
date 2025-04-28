@@ -68,7 +68,7 @@ export interface INetworkPartner {
    * @param data Order data for manifesting to tracking
    * @returns Response from tracking API
    */
-  manifestOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+  manifestOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 

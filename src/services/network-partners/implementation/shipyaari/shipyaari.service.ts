@@ -134,11 +134,11 @@ export class ShipyaariService extends BaseNetworkPartner {
     // TODO: Replace pickupAddress with fmHubAddress
     const transformedData = {
       pickupDetails: {
-        fullAddress: `${orderDetails.pickupAddress?.address1 || ""} ${orderDetails.pickupAddress?.address2 ? orderDetails.pickupAddress?.address2 + ", " : ""}${orderDetails.pickupAddress?.city || ""}, ${orderDetails.pickupAddress?.state || ""} ${orderDetails.pickupAddress?.zip || ""}`,
-        pincode: parseInt(orderDetails.pickupAddress?.zip || "0"),
+        fullAddress: `${orderDetails.fmHubAddress?.address1 || ""} ${orderDetails.fmHubAddress?.address2 ? orderDetails.fmHubAddress?.address2 + ", " : ""}${orderDetails.fmHubAddress?.city || ""}, ${orderDetails.fmHubAddress?.state || ""} ${orderDetails.fmHubAddress?.zip || ""}`,
+        pincode: parseInt(orderDetails.fmHubAddress?.zip || "0"),
         contact: {
-          name: orderDetails.pickupAddress?.name || "",
-          mobileNo: parseInt(orderDetails.pickupAddress?.mobile || "0"),
+          name: orderDetails.fmHubAddress?.name || "",
+          mobileNo: parseInt(orderDetails.fmHubAddress?.mobile || "0"),
         },
       },
       deliveryDetails: {

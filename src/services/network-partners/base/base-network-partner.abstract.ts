@@ -443,11 +443,11 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   }
 
   async manifestOrderToTracking<
-    T extends BaseOrderReqDto,
+    T extends StandardRequestDto,
     R extends BaseResDto,
   >(data: T): Promise<R> {
     this.logger.debug(
-      `Manifesting order to tracking with partner ${this.partnerCode}`
+      `Manifesting order to tracking with partner ${data.partnerCode}`
     );
     const startTime = Date.now();
 
