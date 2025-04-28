@@ -9,15 +9,33 @@ import {
   BaseResDto,
   DRSPayloadDTO,
   ManifestReqDto,
+  OrderDto,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 
 /**
  * DTO for pushing orders to PRS
  */
-export class PushOrdersToPrsDto {
+export class pushOrdersToPRSDto {
   awbNumbers: string[];
   partnerCode?: PARTNER_CODE_ENUM;
+}
+
+/**
+ * Standardized request DTO for all endpoints
+ */
+export class StandardRequestDto {
+  order: OrderDto;
+  partnerCode: PARTNER_CODE_ENUM | string;
+  eligiblePartners?: EligiblePartnersData;
+}
+
+/**
+ * Specific DTO for the push-orders-to-prs endpoint
+ */
+export class pushOrdersToPRSRequestDto {
+  order: pushOrdersToPRSDto;
+  partnerCode: PARTNER_CODE_ENUM | string;
 }
 
 /**
@@ -35,28 +53,35 @@ export class DistributorService {
   /**
    * Main method to create an order with a network partner
    */
-  async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
-    orderData: T,
-    eligiblePartners?: EligiblePartnersData
+  async createOrder<R extends BaseOrderResDto>(
+    requestDto: StandardRequestDto
   ): Promise<R> {
-    this.logger.log(`Creating Order for ${orderData.awbNumber || "unknown"}`);
+    this.logger.log(
+      `Creating Order for ${requestDto.order.awbNumber || "unknown"}`
+    );
 
     // Get the appropriate partner implementation
     const partnerActivity = this.networkPartnerFactory.getPartner(
-      orderData.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
     );
 
     // Execute the operation with the selected partner, passing eligiblePartners
-    return partnerActivity.createOrder<T, R>(orderData, eligiblePartners);
+    return partnerActivity.createOrder<BaseOrderReqDto, R>(
+      requestDto.order as BaseOrderReqDto,
+      requestDto.partnerCode as string,
+      requestDto.eligiblePartners
+    );
   }
 
   /**
    * Retry creating an order with the next available partner
    */
-  async retryCreateOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
-    orderData: T
+  async retryCreateOrder<R extends BaseOrderResDto>(
+    requestDto: StandardRequestDto
   ): Promise<R> {
-    this.logger.log(`Retrying order creation for ${orderData.awbNumber}`);
+    this.logger.log(
+      `Retrying order creation for ${requestDto.order.awbNumber || "unknown"}`
+    );
 
     // Get the default partner
     const partnerActivity = this.networkPartnerFactory.getPartner(
@@ -65,7 +90,10 @@ export class DistributorService {
 
     // Execute the operation with the default partner
     // This will use the partner helper to determine the next partner to try
-    return partnerActivity.createOrder<T, R>(orderData);
+    return partnerActivity.createOrder<BaseOrderReqDto, R>(
+      requestDto.order as BaseOrderReqDto,
+      requestDto.partnerCode as string
+    );
   }
 
   /**
@@ -130,8 +158,9 @@ export class DistributorService {
   /**
    * Create DRS payload for an order
    */
-  async createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
-    orderData: T
+  async createDRS<R extends DRSPayloadDTO>(
+    orderData: BaseOrderReqDto,
+    partnerCode: string
   ): Promise<R> {
     this.logger.log(
       `Creating DRS payload for ${orderData.awbNumber || "unknown"}`
@@ -143,61 +172,73 @@ export class DistributorService {
     );
 
     // Execute the operation with the selected partner
-    return partnerActivity.createDRS<T, R>(orderData);
-  }
-
-  /**
-   * Push orders to PRS
-   */
-  async pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
-    data: T
-  ): Promise<R> {
-    this.logger.log(`Pushing orders to PRS: ${data.awbNumbers || "unknown"}`);
-
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    return partnerActivity.createDRS<BaseOrderReqDto, R>(
+      orderData,
+      partnerCode
     );
-
-    // Execute the operation with the selected partner
-    return partnerActivity.pushOrdersToPrs<T, R>(data);
   }
 
   /**
-   * Push order to tracking system
+   * Push orders to PRS - Accepts the new standardized format
    */
-  async pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
-    data: T
+  async pushOrdersToPRS<R extends BaseResDto>(
+    requestDto: pushOrdersToPRSDto
   ): Promise<R> {
     this.logger.log(
-      `Pushing order to tracking for ${data.awbNumber || "unknown"}`
+      `Pushing orders to PRS: ${requestDto.awbNumbers || "unknown"}`
     );
 
     // Get the appropriate partner implementation
     const partnerActivity = this.networkPartnerFactory.getPartner(
-      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
     );
 
     // Execute the operation with the selected partner
-    return partnerActivity.pushOrderToTracking<T, R>(data);
+    return partnerActivity.pushOrdersToPRS<pushOrdersToPRSDto, R>(requestDto);
   }
 
   /**
-   * Manifest order to tracking system
+   * Push order to tracking system - Accepts the new standardized format
    */
-  async manifestOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
-    data: T
+  async pushOrderToTracking<R extends BaseResDto>(
+    requestDto: StandardRequestDto
   ): Promise<R> {
     this.logger.log(
-      `Manifesting order to tracking for ${data.awbNumber || "unknown"}`
+      `Pushing order to tracking for ${requestDto.order.awbNumber || "unknown"}`
     );
 
     // Get the appropriate partner implementation
     const partnerActivity = this.networkPartnerFactory.getPartner(
-      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
     );
 
     // Execute the operation with the selected partner
-    return partnerActivity.manifestOrderToTracking<T, R>(data);
+    return partnerActivity.pushOrderToTracking<StandardRequestDto, R>(
+      requestDto
+    );
+  }
+
+  /**
+   * Manifest order to tracking system - Accepts the new standardized format
+   */
+  async manifestOrderToTracking<R extends BaseResDto>(
+    requestDto: StandardRequestDto
+  ): Promise<R> {
+    this.logger.log(
+      `Manifesting order to tracking for ${requestDto.order.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Get the type that the partner expects
+    const orderData = requestDto.order as BaseOrderReqDto;
+
+    // Execute the operation with the selected partner
+    return partnerActivity.manifestOrderToTracking<BaseOrderReqDto, R>(
+      orderData
+    );
   }
 }

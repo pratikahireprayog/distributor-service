@@ -599,5 +599,5 @@ export class ManifestReqDto {
 
   @IsOptional()
   @IsString({ message: "Partner code must be a string" })
-  partnerCode: string;
+  partnerCode?: string;
 }

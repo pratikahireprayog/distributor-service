@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
+import * as https from "https";
 
 import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { ShipyaariAuthService } from "./shipyaari-auth.service";
@@ -30,6 +31,7 @@ import { EndpointConfigModel } from "src/common/repositories/endpoint-configs/en
 export class ShipyaariService extends BaseNetworkPartner {
   protected readonly logger = new Logger(ShipyaariService.name);
   private readonly errorHelper: ShipyaariErrorHelper;
+  private readonly httpsAgent: https.Agent;
 
   constructor(
     private readonly authService: ShipyaariAuthService,
@@ -48,6 +50,15 @@ export class ShipyaariService extends BaseNetworkPartner {
 
     // Initialize the error helper
     this.errorHelper = new ShipyaariErrorHelper(PARTNER_CODE_ENUM.SHIPYAARI);
+
+    // Configure HTTPS agent with proper keep-alive and timeouts
+    this.httpsAgent = new https.Agent({
+      keepAlive: true,
+      maxSockets: 50,
+      timeout: 60000,
+    });
+
+    // Remove axios-retry configuration as Temporal handles retries
   }
 
   /**
@@ -56,6 +67,7 @@ export class ShipyaariService extends BaseNetworkPartner {
    */
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderDetails: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     try {
@@ -231,6 +243,10 @@ export class ShipyaariService extends BaseNetworkPartner {
             "Content-Type": "application/json",
             Authorization: authHeaders["Authorization"],
           },
+          // Use HTTPS agent for secure connections
+          httpsAgent: this.httpsAgent,
+          // Set timeout to avoid long-running requests
+          timeout: 30000,
         })
       );
 
@@ -256,6 +272,20 @@ export class ShipyaariService extends BaseNetworkPartner {
 
       return response;
     } catch (error) {
+      // Log all errors, not just network-related ones
+      const errorData = {
+        message: error.message || "Unknown error",
+        code: error.code || "",
+        status: error.response?.status || "",
+        responseData: error.response?.data || {},
+        stack: error.stack,
+      };
+
+      this.logger.error(
+        `[Shipyaari createOrder] Error for AWB: ${awbNumber} - ${JSON.stringify(errorData)}`,
+        error.stack
+      );
+
       this.errorHelper.handleHttpError(error, awbNumber, "CREATE_ORDER");
     }
   }
@@ -412,6 +442,10 @@ export class ShipyaariService extends BaseNetworkPartner {
             "Content-Type": "application/json",
             Authorization: authHeaders["Authorization"],
           },
+          // Use HTTPS agent for secure connections
+          httpsAgent: this.httpsAgent,
+          // Set timeout to avoid long-running requests
+          timeout: 30000,
         })
       );
 
@@ -440,6 +474,20 @@ export class ShipyaariService extends BaseNetworkPartner {
 
       return response;
     } catch (error) {
+      // Log all errors, not just network-related ones
+      const errorData = {
+        message: error.message || "Unknown error",
+        code: error.code || "",
+        status: error.response?.status || "",
+        responseData: error.response?.data || {},
+        stack: error.stack,
+      };
+
+      this.logger.error(
+        `[Shipyaari createManifest] Error for AWB: ${awbNumber} - ${JSON.stringify(errorData)}`,
+        error.stack
+      );
+
       // Let the calling method handle the error
       throw error;
     }
@@ -587,6 +635,10 @@ export class ShipyaariService extends BaseNetworkPartner {
             "Content-Type": "application/json",
             Authorization: authHeaders["Authorization"],
           },
+          // Use HTTPS agent for secure connections
+          httpsAgent: this.httpsAgent,
+          // Set timeout to avoid long-running requests
+          timeout: 30000,
         })
       );
 
@@ -615,6 +667,20 @@ export class ShipyaariService extends BaseNetworkPartner {
 
       return response;
     } catch (error) {
+      // Log all errors, not just network-related ones
+      const errorData = {
+        message: error.message || "Unknown error",
+        code: error.code || "",
+        status: error.response?.status || "",
+        responseData: error.response?.data || {},
+        awbNumbers: cAwbNumbers,
+      };
+
+      this.logger.error(
+        `[Shipyaari cancelOrder] Error for AWBs: ${cAwbNumbers.join(",")} - ${JSON.stringify(errorData)}`,
+        error.stack
+      );
+
       throw error; // Let the calling method handle the error
     }
   }

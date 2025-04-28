@@ -1,5 +1,8 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
-import { DistributorService } from "../../../services/distributor/distributor.service";
+import {
+  DistributorService,
+  StandardRequestDto,
+} from "../../../services/distributor/distributor.service";
 import { ActivityRegistryService } from "./activity-registry.service";
 import { BaseOrderReqDto, BaseOrderResDto } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
@@ -8,6 +11,7 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 // Interface for payload that includes both order data and eligible partners
 interface CreateOrderPayload {
   orderData: BaseOrderReqDto;
+  partnerCode: string;
   eligiblePartners?: EligiblePartnersData;
 }
 
@@ -33,12 +37,9 @@ export class ActivityRegistrationProvider implements OnModuleInit {
           this.distributorService
         ),
         createOrder: async (
-          payload: CreateOrderPayload
+          payload: StandardRequestDto
         ): Promise<BaseOrderResDto> => {
-          return this.distributorService.createOrder(
-            payload.orderData,
-            payload.eligiblePartners
-          );
+          return this.distributorService.createOrder(payload);
         },
         retryCreateOrder: this.distributorService.retryCreateOrder.bind(
           this.distributorService
@@ -47,10 +48,19 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         cancelOrder: this.distributorService.cancelOrder.bind(
           this.distributorService
         ),
-
         createDRS: this.distributorService.createDRS.bind(
           this.distributorService
         ),
+        pushOrdersToPRS: this.distributorService.pushOrdersToPRS.bind(
+          this.distributorService
+        ),
+        pushOrderToTracking: this.distributorService.pushOrderToTracking.bind(
+          this.distributorService
+        ),
+        manifestOrderToTracking:
+          this.distributorService.manifestOrderToTracking.bind(
+            this.distributorService
+          ),
       });
     });
   }

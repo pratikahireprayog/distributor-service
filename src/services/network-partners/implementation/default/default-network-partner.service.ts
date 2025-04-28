@@ -18,7 +18,10 @@ import {
 } from "src/common/dtos/base.dto";
 import { BaseNetworkPartnerHelper } from "../../base/base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
-import { PushOrdersToPrsDto } from "src/services/distributor/distributor.service";
+import {
+  pushOrdersToPRSDto,
+  StandardRequestDto,
+} from "src/services/distributor/distributor.service";
 import { firstValueFrom } from "rxjs";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 
@@ -51,6 +54,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   // Override methods to use partner code from the request data
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderDetails: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     this.logger.log(
@@ -58,7 +62,11 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     );
     // Set the partner code from the request data
     (this as any).partnerCode = orderDetails.partnerCode;
-    return await super.createOrder<T, R>(orderDetails, eligiblePartners);
+    return await super.createOrder<T, R>(
+      orderDetails,
+      partnerCode,
+      eligiblePartners
+    );
   }
 
   async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
@@ -94,15 +102,13 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return await super.cancelOrder<T, R>(data);
   }
 
-  async pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+  async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.log(
       `Using base implementation for partner code: ${data.partnerCode}`
     );
-    // Set the partner code from the request data
-    (this as any).partnerCode = data.partnerCode;
-    return await super.pushOrdersToPrs<T, R>(data);
+    return await super.pushOrdersToPRS<T, R>(data);
   }
 
   private async getTrackingEndpoint(partnerCode: string, endpointId: string) {
@@ -206,7 +212,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     };
   }
 
-  async pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+  async pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.log(
@@ -222,7 +228,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       this.logger.log(`Sending order to tracking API: ${endpoint.url}`);
 
-      const body = this.buildOrderTrackingBody(data);
+      const body = this.buildOrderTrackingBody(data.order as BaseOrderReqDto);
       this.logger.log("Order info body sent to tracking", body);
 
       const response = await this.makeTrackingApiCall(endpoint.url, body);

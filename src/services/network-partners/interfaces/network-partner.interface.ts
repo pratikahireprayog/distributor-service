@@ -8,7 +8,10 @@ import {
   ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
-import { PushOrdersToPrsDto } from "src/services/distributor/distributor.service";
+import {
+  pushOrdersToPRSDto,
+  StandardRequestDto,
+} from "src/services/distributor/distributor.service";
 
 /**
  * Interface defining the operations that can be performed by a network partner
@@ -20,6 +23,7 @@ export interface INetworkPartner {
 
   createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderDetails: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R>;
 
@@ -37,7 +41,8 @@ export interface INetworkPartner {
    * @returns DRS payload data
    */
   createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
-    orderData: T
+    orderData: T,
+    partnerCode: string
   ): Promise<R>;
 
   /**
@@ -45,7 +50,7 @@ export interface INetworkPartner {
    * @param data Data containing order IDs to push to PRS
    * @returns Response from PRS API
    */
-  pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+  pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 
@@ -54,7 +59,7 @@ export interface INetworkPartner {
    * @param data Order data for tracking
    * @returns Response from tracking API
    */
-  pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+  pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 

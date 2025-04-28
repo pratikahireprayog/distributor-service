@@ -22,7 +22,10 @@ import {
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
-import { PushOrdersToPrsDto } from "src/services/distributor/distributor.service";
+import {
+  pushOrdersToPRSDto,
+  StandardRequestDto,
+} from "src/services/distributor/distributor.service";
 
 /**
  * Base abstract class for network partner activities
@@ -44,12 +47,13 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
   async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
     orderData: T,
+    partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
     let existingPartners: any;
     let attemptNumber = 1;
-    let partnerType: PARTNER_CODE_ENUM = this.partnerCode;
+    let partnerType = partnerCode;
     const startTime = Date.now();
 
     try {
@@ -78,7 +82,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       // }
 
       const endpointConfig = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_ORDER
+        ENDPOINT_ID_ENUM.CREATE_ORDER,
+        partnerCode
       );
 
       if (
@@ -93,6 +98,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CREATE_ORDER,
         orderData,
+        partnerCode,
         endpointConfig
       );
 
@@ -149,7 +155,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_MANIFEST
+        ENDPOINT_ID_ENUM.CREATE_MANIFEST,
+        data.partnerCode
       );
 
       if (
@@ -163,6 +170,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CREATE_MANIFEST,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -191,7 +199,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.GET_ORDER_DETAILS
+        ENDPOINT_ID_ENUM.GET_ORDER_DETAILS,
+        params.partnerCode
       );
 
       if (
@@ -206,6 +215,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.GET_ORDER_DETAILS,
         params,
+        params.partnerCode,
         endpoint
       );
 
@@ -236,7 +246,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CANCEL_ORDER
+        ENDPOINT_ID_ENUM.CANCEL_ORDER,
+        data.partnerCode
       );
 
       if (
@@ -248,6 +259,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CANCEL_ORDER,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -283,7 +295,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     // throw new Error("Not implemented");
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_DRS
+        ENDPOINT_ID_ENUM.CREATE_DRS,
+        orderData.partnerCode
       );
 
       if (
@@ -295,6 +308,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.CREATE_DRS,
         orderData,
+        orderData.partnerCode,
         endpoint
       );
 
@@ -326,7 +340,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
    * @param data Data containing order IDs to push to PRS
    * @returns Response from PRS API
    */
-  async pushOrdersToPrs<T extends PushOrdersToPrsDto, R extends BaseResDto>(
+  async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.debug(`Pushing orders to PRS: ${data.awbNumbers || "unknown"}`);
@@ -334,7 +348,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
+        data.partnerCode
       );
 
       if (
@@ -349,6 +364,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -375,7 +391,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
-  async pushOrderToTracking<T extends BaseOrderReqDto, R extends BaseResDto>(
+  async pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.debug(
@@ -385,7 +401,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
+        data.partnerCode
       );
 
       if (
@@ -402,6 +419,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -435,7 +453,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
+        data.partnerCode
       );
 
       if (
@@ -452,6 +471,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING,
         data,
+        data.partnerCode,
         endpoint
       );
 
@@ -480,6 +500,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   private async executeOperation(
     operation: string,
     data: any,
+    partnerCode: string,
     endpointConfig: EndpointConfigModel
   ): Promise<any> {
     // Transform request body if needed
@@ -622,56 +643,75 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
           errorMessage = error.message || "Request failed";
         }
 
-        // Log detailed error information
-        this.logger.error(`API Error [${errorStatus}]: ${errorMessage}`, {
-          operation,
-          partnerCode: this.partnerCode,
-          url: error.config?.url,
-          method: error.config?.method,
-          requestData: transformedData,
-          responseData: errorData,
-          headers: error.config?.headers,
-        });
+        // Log detailed error information with clear formatting for easy identification
+        this.logger.error(`API ERROR DETAILS:`);
+        this.logger.error(`Status: [${errorStatus}]`);
+        this.logger.error(`Message: ${errorMessage}`);
+        this.logger.error(`Operation: ${operation}`);
+        this.logger.error(`Partner: ${partnerCode}`);
+        this.logger.error(`URL: ${error.config?.url}`);
+        this.logger.error(`Method: ${error.config?.method}`);
+        this.logger.error(
+          `Request Data: ${JSON.stringify(transformedData, null, 2)}`
+        );
+        this.logger.error(
+          `Response Data: ${JSON.stringify(errorData, null, 2)}`
+        );
 
-        // Throw a more informative custom exception
+        // Throw a more informative custom exception with clearer error message
         throw new CustomHttpException(
           errorStatus,
-          errorMessage,
+          `API Error [${operation}]: ${errorMessage}`,
           errorData,
           {
             timestamp: new Date().toISOString(),
             operation,
-            partnerCode: this.partnerCode,
+            partnerCode: partnerCode,
             requestUrl: error.config?.url,
             requestMethod: error.config?.method,
+            requestData: transformedData,
           },
-          this.partnerCode
+          partnerCode
         );
       }
 
-      // For non-Axios errors, maintain the original behavior
-      this.logger.error(`Non-Axios error: ${error.message}`, error.stack);
-      throw error;
+      // For non-Axios errors, improve logging and error message
+      this.logger.error(
+        `Non-Axios error in ${operation}: ${error.message}`,
+        error.stack
+      );
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `Error during ${operation} operation: ${error.message}`,
+        error,
+        {
+          timestamp: new Date().toISOString(),
+          operation,
+          partnerCode: partnerCode,
+        },
+        partnerCode
+      );
     }
   }
 
   private async getEndpointConfig(
-    endpointId: string
+    endpointId: string,
+    partnerCode: string
   ): Promise<EndpointConfigModel> {
     if (endpointId === ENDPOINT_ID_ENUM.CREATE_DRS) {
       return this.endpointConfigRepository.getOne({
-        partnerCode: "SMILE_DRS",
+        partnerCode: partnerCode,
         endpointId: endpointId,
       });
     }
     const endpoint = await this.endpointConfigRepository.getOne({
-      partnerCode: this.partnerCode,
+      partnerCode: partnerCode,
       endpointId: endpointId,
     });
     if (!endpoint) {
       throw new CustomHttpException(
         HttpStatus.NOT_FOUND,
-        `Endpoint configuration not found for ${this.partnerCode} - ${endpointId}`
+        `Endpoint configuration not found for ${partnerCode} - ${endpointId}`
       );
     }
     return endpoint;
@@ -685,6 +725,20 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         Array.isArray(data.cAwbNumbers) &&
         data.cAwbNumbers.length > 0
       );
+    }
+
+    // Special validation for push orders to PRS
+    if (operation === ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS && data) {
+      const isValid =
+        data.awbNumbers &&
+        Array.isArray(data.awbNumbers) &&
+        data.awbNumbers.length > 0;
+      if (!isValid) {
+        this.logger.error(
+          `Invalid input for ${operation}: awbNumbers must be a non-empty array`
+        );
+      }
+      return isValid;
     }
 
     // Default validation for all other operations

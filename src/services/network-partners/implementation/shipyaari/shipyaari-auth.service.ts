@@ -26,6 +26,17 @@ interface ShipyaariAuthResponse {
   data?: any[];
 }
 
+// Custom error class for authentication errors
+class AuthenticationError extends Error {
+  constructor(
+    message: string,
+    public readonly responseData?: any
+  ) {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}
+
 @Injectable()
 export class ShipyaariAuthService implements AuthProvider {
   private readonly logger = new Logger(ShipyaariAuthService.name);
@@ -110,13 +121,15 @@ export class ShipyaariAuthService implements AuthProvider {
       });
 
       if (!endpointConfig || !endpointConfig.credentials) {
-        throw new Error("Auth endpoint configuration not found for Shipyaari");
+        throw new AuthenticationError(
+          "Auth endpoint configuration not found for Shipyaari"
+        );
       }
 
       const { email, password, client_id } = endpointConfig.credentials;
 
       if (!email || !password) {
-        throw new Error(
+        throw new AuthenticationError(
           "Shipyaari authentication credentials are missing in endpoint configuration"
         );
       }
@@ -161,7 +174,8 @@ export class ShipyaariAuthService implements AuthProvider {
       }
 
       if (!token) {
-        throw new Error(`Token not found in response: ${JSON.stringify(data)}`);
+        // Throw custom error with structured data for better error handling
+        throw new AuthenticationError("Token not found in response", data);
       }
 
       // Calculate token expiry (23 hours from now)
@@ -175,10 +189,18 @@ export class ShipyaariAuthService implements AuthProvider {
       this.logger.debug("Successfully refreshed Shipyaari auth token");
       return tokenData;
     } catch (error) {
-      this.logger.error(
-        `Failed to refresh Shipyaari auth token: ${error.message}`,
-        error.stack
-      );
+      // If it's our custom error, log it properly
+      if (error instanceof AuthenticationError) {
+        this.logger.error(
+          `Failed to refresh Shipyaari auth token: ${error.message}`,
+          error.responseData ? JSON.stringify(error.responseData) : ""
+        );
+      } else {
+        this.logger.error(
+          `Failed to refresh Shipyaari auth token: ${error.message}`,
+          error.stack
+        );
+      }
       throw error;
     }
   }

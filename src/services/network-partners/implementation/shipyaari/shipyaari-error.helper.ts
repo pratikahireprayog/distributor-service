@@ -17,6 +17,36 @@ export class ShipyaariErrorHelper {
   }
 
   /**
+   * Format error message to avoid nested JSON stringification
+   * @param message Original error message
+   * @param responseData Optional response data
+   * @returns Formatted error message
+   */
+  private formatErrorMessage(message: string, responseData?: any): string {
+    // If message contains a JSON string (likely from nested stringification)
+    if (message && message.includes('{"')) {
+      try {
+        // Extract actual error details from the Shipyaari response
+        const match = message.match(/response: ({.*})/);
+        if (match && match[1]) {
+          const parsedJson = JSON.parse(match[1]);
+          // Return a cleaner message using the parsed data
+          return parsedJson.message || message.split("response:")[0].trim();
+        }
+      } catch (e) {
+        // If parsing fails, continue with original message
+      }
+    }
+
+    // If we have responseData with a message, use that directly
+    if (responseData?.message) {
+      return responseData.message;
+    }
+
+    return message;
+  }
+
+  /**
    * Handle API errors by throwing appropriate CustomHttpException
    * @param response API response with error
    * @param awbNumbers Array of tracking numbers or comma-separated string
@@ -57,7 +87,7 @@ export class ShipyaariErrorHelper {
 
     throw new CustomHttpException(
       statusCode,
-      `Shipyaari ${operation} API error`,
+      `Shipyaari ${operation} API error: ${errorMessage}`,
       errorData,
       traceData,
       this.partnerCode
@@ -93,11 +123,41 @@ export class ShipyaariErrorHelper {
       throw error;
     }
 
+    // Check for custom AuthenticationError with response data
+    if (error.name === "AuthenticationError" && error.responseData) {
+      const errorMessage = error.responseData.message || error.message;
+
+      // Create error data structure
+      const errorData = {
+        success: false,
+        awbNumbers: awbArray,
+        message: errorMessage,
+      };
+
+      // Create trace information
+      const traceData = {
+        timestamp: new Date().toISOString(),
+        operation: operation,
+      };
+
+      throw new CustomHttpException(
+        error.responseData.statusCode || HttpStatus.UNAUTHORIZED,
+        `Shipyaari ${operation} API error: ${errorMessage}`,
+        errorData,
+        traceData,
+        this.partnerCode
+      );
+    }
+
     // Determine the appropriate status code
     const statusCode =
       error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
-    const errorMessage =
-      error.response?.data?.message || error.message || "HTTP request failed";
+
+    // Format error message to avoid nested JSON
+    const errorMessage = this.formatErrorMessage(
+      error.message,
+      error.response?.data
+    );
 
     // Create error data structure
     const errorData = {
@@ -114,7 +174,7 @@ export class ShipyaariErrorHelper {
 
     throw new CustomHttpException(
       statusCode,
-      `Shipyaari ${operation} API error`,
+      `Shipyaari ${operation} API error: ${errorMessage}`,
       errorData,
       traceData,
       this.partnerCode
@@ -154,7 +214,7 @@ export class ShipyaariErrorHelper {
 
     throw new CustomHttpException(
       HttpStatus.BAD_REQUEST,
-      `Shipyaari ${operation} validation error`,
+      `Shipyaari ${operation} validation error: ${message}`,
       errorData,
       traceData,
       this.partnerCode

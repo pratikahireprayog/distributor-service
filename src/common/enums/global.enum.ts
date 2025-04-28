@@ -29,6 +29,7 @@ export enum TRAVEL_TYPE_ENUM {
 }
 
 export enum PARTNER_CODE_ENUM {
+  SMILE = "SMILE",
   BIGSHIP = "BIGSHIP",
   TSAW = "TSAW",
   SHIPYAARI = "SHIPYAARI",
