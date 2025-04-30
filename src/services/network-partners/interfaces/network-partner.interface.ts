@@ -36,13 +36,12 @@ export interface INetworkPartner {
   ): Promise<R>;
 
   /**
-   * Create DRS payload for an order
+   * Push orders to DRS
    * @param orderData Order data for DRS payload creation
    * @returns DRS payload data
    */
-  createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
-    orderData: T,
-    partnerCode: string
+  pushOrderToDRS<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
   ): Promise<R>;
 
   /**

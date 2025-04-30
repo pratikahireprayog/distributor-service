@@ -281,46 +281,49 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   }
 
   /**
-   * Create DRS payload for an order
+   * Push orders to DRS
    * @param orderData Order data for DRS payload creation
    * @returns DRS payload data
    */
-  async createDRS<T extends BaseOrderReqDto, R extends DRSPayloadDTO>(
-    orderData: T
+  async pushOrderToDRS<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
   ): Promise<R> {
     this.logger.debug(
-      `Creating DRS payload for ${orderData.awbNumber || "unknown"}`
+      `Pushing orders to DRS for ${data.order.awbNumber || "unknown"}`
     );
     const startTime = Date.now();
     // throw new Error("Not implemented");
     try {
       const endpoint = await this.getEndpointConfig(
-        ENDPOINT_ID_ENUM.CREATE_DRS,
-        orderData.partnerCode
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS,
+        data.partnerCode
       );
 
       if (
-        !this.validateInputForOperation(ENDPOINT_ID_ENUM.CREATE_DRS, orderData)
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS,
+          data.order
+        )
       ) {
-        throw new Error("Invalid input data for create DRS operation");
+        throw new Error("Invalid input data for push orders to DRS operation");
       }
 
       const response = await this.executeOperation(
-        ENDPOINT_ID_ENUM.CREATE_DRS,
-        orderData,
-        orderData.partnerCode,
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS,
+        data.order,
+        data.partnerCode,
         endpoint
       );
 
       const result = this.transformResponseForOperation(
-        ENDPOINT_ID_ENUM.CREATE_DRS,
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS,
         response
       ) as R;
 
       // Log successful operation with timing
       const responseTimeMs = Date.now() - startTime;
       this.logger.debug(
-        `DRS payload created successfully in ${responseTimeMs}ms`
+        `Orders pushed to DRS successfully in ${responseTimeMs}ms`
       );
 
       return result;
@@ -328,7 +331,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       // Add timing to error for tracking
       error.responseTimeMs = Date.now() - startTime;
       this.logger.error(
-        `Error creating DRS payload: ${error.message}`,
+        `Error pushing orders to DRS: ${error.message}`,
         error.stack
       );
       throw error;
@@ -698,12 +701,6 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     endpointId: string,
     partnerCode: string
   ): Promise<EndpointConfigModel> {
-    if (endpointId === ENDPOINT_ID_ENUM.CREATE_DRS) {
-      return this.endpointConfigRepository.getOne({
-        partnerCode: partnerCode,
-        endpointId: endpointId,
-      });
-    }
     const endpoint = await this.endpointConfigRepository.getOne({
       partnerCode: partnerCode,
       endpointId: endpointId,

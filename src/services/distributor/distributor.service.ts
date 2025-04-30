@@ -156,26 +156,22 @@ export class DistributorService {
   }
 
   /**
-   * Create DRS payload for an order
+   * Push orders to DRS
    */
-  async createDRS<R extends DRSPayloadDTO>(
-    orderData: BaseOrderReqDto,
-    partnerCode: string
+  async pushOrderToDRS<R extends BaseResDto>(
+    data: StandardRequestDto,
   ): Promise<R> {
     this.logger.log(
-      `Creating DRS payload for ${orderData.awbNumber || "unknown"}`
+      `Creating DRS payload for ${data.order.awbNumber || "unknown"}`
     );
 
     // Get the appropriate partner implementation
     const partnerActivity = this.networkPartnerFactory.getPartner(
-      orderData.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
     );
 
     // Execute the operation with the selected partner
-    return partnerActivity.createDRS<BaseOrderReqDto, R>(
-      orderData,
-      partnerCode
-    );
+    return partnerActivity.pushOrderToDRS<StandardRequestDto, R>(data);
   }
 
   /**

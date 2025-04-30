@@ -293,4 +293,83 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       );
     }
   }
+
+  async pushOrderToDRS<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      const endpoint = await this.getTrackingEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS
+      );
+
+      this.logger.log(`Sending order to DRS API: ${endpoint.url}`);
+
+      const body = this.buildDrsPayload(data.order as BaseOrderReqDto);
+      this.logger.log("DRS payload body sent to API", body);
+
+      const response = await this.makeTrackingApiCall(endpoint.url, body);
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully pushed to DRS"
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error pushing order to DRS: ${error.message}`,
+        error.stack
+      );
+      throw new CustomHttpException(
+        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        `Failed to push order to DRS: ${error.message}`,
+        error.response?.data || error
+      );
+    }
+  }
+
+  private buildDrsPayload(data: BaseOrderReqDto) {
+    const serviceTypeNames = ["vayuquick", "vayuquick_pro"];
+    const serviceType = {
+      name: data.serviceType,
+      isVisible: serviceTypeNames.includes(data.serviceType) ? true : false,
+      icon: serviceTypeNames.includes(data.serviceType)
+        ? data.serviceType === "vayuquick"
+          ? `https://${process.env.S3_BUCKET_NAME}.s3.ap-south-1.amazonaws.com/drs_pod/fastrack_icons/vayu_quick.png`
+          : `https://${process.env.S3_BUCKET_NAME}.s3.ap-south-1.amazonaws.com/drs_pod/fastrack_icons/vayu_quick_pro.png`
+        : "",
+    };
+
+    return {
+      cAWB_No: data.cAwbNumber || data.awbNumber,
+      AWB_No: data.awbNumber,
+      created_at: data.orderCreatedDate,
+      payload: {
+        cAWB_No: data.cAwbNumber || data.awbNumber,
+        deliveryDetails: {
+          name: data.shippingAddress.name,
+          address:
+            `${data.shippingAddress.address1} ${data.shippingAddress.address2 || ""}`.trim(),
+          pincode: data.shippingAddress.zip,
+          phoneNo: data.shippingAddress.mobile,
+          email: data?.shippingAddress?.email || null,
+        },
+        deliveryTypeOptions: "image",
+        paymentType: data.paymentDetails?.isCOD ? "COD" : "PREPAID",
+        deadWeight: Number(data.dimensions?.weight) || null,
+        length: data.dimensions?.length || 0,
+        width: data.dimensions?.breadth || 0,
+        height: data.dimensions?.height || 0,
+      },
+      shipmentType: data.type,
+      shippingType: data.shippingType,
+      shipmentStatus: data.orderStatus,
+      source: "ORCHESTRATION",
+      serviceType,
+    };
+  }
 }
