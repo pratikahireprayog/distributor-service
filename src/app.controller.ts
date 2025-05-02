@@ -69,14 +69,11 @@ export class AppController {
     return this.distributorService.cancelOrder(requestDto);
   }
 
-  @Post("create-drs")
-  async createDRS(
+  @Post("push-order-to-drs")
+  async pushOrderToDRS(
     @Body() requestDto: StandardRequestDto
-  ): Promise<DRSPayloadDTO> {
-    return this.distributorService.createDRS(
-      requestDto.order as BaseOrderReqDto,
-      requestDto.partnerCode as string
-    );
+  ): Promise<BaseResDto> {
+    return this.distributorService.pushOrderToDRS(requestDto);
   }
 
   @Post("push-orders-to-prs")
