@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Query } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Patch,
+} from "@nestjs/common";
 import { AppService } from "./app.service";
 import {
   DistributorService,
@@ -95,5 +103,12 @@ export class AppController {
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
     return this.distributorService.manifestOrderToTracking(requestDto);
+  }
+
+  @Patch("update-ecom-order")
+  async updateEcomOrder(
+    @Body() requestDto: StandardRequestDto
+  ): Promise<BaseResDto> {
+    return this.distributorService.updateEcomOrder(requestDto);
   }
 }

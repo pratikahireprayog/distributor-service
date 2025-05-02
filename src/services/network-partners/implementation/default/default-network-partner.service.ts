@@ -111,7 +111,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return await super.pushOrdersToPRS<T, R>(data);
   }
 
-  private async getTrackingEndpoint(partnerCode: string, endpointId: string) {
+  private async getEndpoint(partnerCode: string, endpointId: string) {
     const endpoint = await this.endpointConfigRepository.getOne({
       partnerCode,
       endpointId,
@@ -127,7 +127,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return endpoint;
   }
 
-  private async makeTrackingApiCall<T>(url: string, body: T): Promise<any> {
+  private async makeApiCall<T>(url: string, body: T): Promise<any> {
     try {
       const response = await firstValueFrom(
         this.httpService.post(url, body, {
@@ -222,7 +222,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getTrackingEndpoint(
+      const endpoint = await this.getEndpoint(
         data.partnerCode,
         ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
       );
@@ -232,7 +232,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       const body = this.buildOrderTrackingBody(data.order as BaseOrderReqDto);
       this.logger.log("Order info body sent to tracking", body);
 
-      const response = await this.makeTrackingApiCall(endpoint.url, body);
+      const response = await this.makeApiCall(endpoint.url, body);
 
       return this.createSuccessResponse<R>(
         response.data,
@@ -261,7 +261,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getTrackingEndpoint(
+      const endpoint = await this.getEndpoint(
         data.partnerCode,
         ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
       );
@@ -275,7 +275,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       );
       this.logger.log("Manifest info body sent to tracking", body);
 
-      const response = await this.makeTrackingApiCall(endpoint.url, body);
+      const response = await this.makeApiCall(endpoint.url, body);
 
       return this.createSuccessResponse<R>(
         response.data,
@@ -303,7 +303,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getTrackingEndpoint(
+      const endpoint = await this.getEndpoint(
         data.partnerCode,
         ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS
       );
@@ -313,7 +313,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       const body = this.buildDrsPayload(data.order as BaseOrderReqDto);
       this.logger.log("DRS payload body sent to API", body);
 
-      const response = await this.makeTrackingApiCall(endpoint.url, body);
+      const response = await this.makeApiCall(endpoint.url, body);
 
       return this.createSuccessResponse<R>(
         response.data,
@@ -371,5 +371,77 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       source: "ORCHESTRATION",
       serviceType,
     };
+  }
+
+  async updateEcomOrder<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.SELLER_ECOMM_WEBHOOK
+      );
+
+      const awbNumber = data.order.awbNumber;
+
+      this.logger.log(`Updating ecom order details for AWB: ${awbNumber}`);
+
+      // Build the URL with the awbNumber path parameter
+      const url = endpoint.url.replace("{awbNumber}", awbNumber);
+
+      // Create the request payload
+      const body = {
+        cAwbNumber: data.order.cAwbNumber,
+        firstMileHub: data.order.firstMileHub,
+      };
+
+      this.logger.log("Request payload for ecom order update:", body);
+
+      // Make PATCH request
+      const response = await this.makePatchApiCall(url, body);
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Ecommerce order details updated successfully"
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error updating ecom order: ${error.message}`,
+        error.stack
+      );
+      throw new CustomHttpException(
+        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        `Failed to update ecom order: ${error.message}`,
+        error.response?.data || error
+      );
+    }
+  }
+
+  private async makePatchApiCall<T>(url: string, body: T): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.patch(url, body, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+      );
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Error making PATCH API call: ${error.message}`,
+        error.stack
+      );
+      throw new CustomHttpException(
+        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        `Failed to make PATCH API call: ${error.message}`,
+        error.response?.data || error
+      );
+    }
   }
 }

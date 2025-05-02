@@ -71,5 +71,14 @@ export interface INetworkPartner {
     data: T
   ): Promise<R>;
 
+  /**
+   * Update E-commerce order details
+   * @param data Order data with first mile hub details
+   * @returns Response from ecom update API
+   */
+  updateEcomOrder<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
   // cancelOrder(orderId: string): Promise<any>;
 }
