@@ -497,6 +497,58 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
+  /**
+   * Updates ecommerce order details with first mile hub information
+   * @param data Order data with first mile hub details
+   * @returns Response from ecom update API
+   */
+  async updateEcomOrder<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(`Updating ecom order with partner ${this.partnerCode}`);
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.SELLER_ECOMM_WEBHOOK,
+        data.partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.SELLER_ECOMM_WEBHOOK,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for update ecom order operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.SELLER_ECOMM_WEBHOOK,
+        data,
+        data.partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.SELLER_ECOMM_WEBHOOK,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Ecom order updated successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
   // TODO: Create response mapper object for specific partner
   // TODO: Log response message in a proper format
   // Private method for executing HTTP operations

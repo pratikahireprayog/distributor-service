@@ -159,7 +159,7 @@ export class DistributorService {
    * Push orders to DRS
    */
   async pushOrderToDRS<R extends BaseResDto>(
-    data: StandardRequestDto,
+    data: StandardRequestDto
   ): Promise<R> {
     this.logger.log(
       `Creating DRS payload for ${data.order.awbNumber || "unknown"}`
@@ -236,5 +236,26 @@ export class DistributorService {
     return partnerActivity.manifestOrderToTracking<StandardRequestDto, R>(
       requestDto
     );
+  }
+
+  /**
+   * Update E-commerce order details with first mile hub
+   * @param requestDto Request data containing order details and first mile hub info
+   * @returns Response from ecom update API
+   */
+  async updateEcomOrder<R extends BaseResDto>(
+    requestDto: StandardRequestDto
+  ): Promise<R> {
+    this.logger.log(
+      `Updating ecom order details for ${requestDto.order.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.updateEcomOrder<StandardRequestDto, R>(requestDto);
   }
 }

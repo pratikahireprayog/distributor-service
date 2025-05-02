@@ -282,6 +282,14 @@ export class OrderDto {
   shippingAddress: AddressDto;
 
   /**
+   * First mile hub information
+   */
+  @Type(() => AddressDto)
+  @ValidateNested()
+  @IsOptional()
+  firstMileHub?: AddressDto;
+
+  /**
    * Date when the order was created
    */
   @IsDateString()
