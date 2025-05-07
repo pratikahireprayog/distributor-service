@@ -76,7 +76,16 @@ export interface INetworkPartner {
    * @param data Order data with first mile hub details
    * @returns Response from ecom update API
    */
-  updateEcomOrder<T extends StandardRequestDto, R extends BaseResDto>(
+  updateEcomOrderWebhook<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
+  /**
+   * Push order to HubOps system
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  pushOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 

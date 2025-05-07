@@ -61,6 +61,13 @@ export class ActivityRegistrationProvider implements OnModuleInit {
           this.distributorService.manifestOrderToTracking.bind(
             this.distributorService
           ),
+        updateEcomOrderWebhook:
+          this.distributorService.updateEcomOrderWebhook.bind(
+            this.distributorService
+          ),
+        pushOrderToHubOps: this.distributorService.pushOrderToHubOps.bind(
+          this.distributorService
+        ),
       });
     });
   }
