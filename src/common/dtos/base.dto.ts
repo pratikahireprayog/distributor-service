@@ -477,6 +477,11 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @IsDateString()
   orderCreatedDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ewayBillNumber?: string[];
 }
 
 export class BaseOrderResDto extends BaseResDto {

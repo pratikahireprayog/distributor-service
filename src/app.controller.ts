@@ -106,9 +106,16 @@ export class AppController {
   }
 
   @Patch("update-ecom-order")
-  async updateEcomOrder(
+  async updateEcomOrderWebhook(
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
-    return this.distributorService.updateEcomOrder(requestDto);
+    return this.distributorService.updateEcomOrderWebhook(requestDto);
+  }
+
+  @Post("push-order-to-hubops")
+  async pushOrderToHubOps(
+    @Body() requestDto: StandardRequestDto
+  ): Promise<BaseResDto> {
+    return this.distributorService.pushOrderToHubOps(requestDto);
   }
 }

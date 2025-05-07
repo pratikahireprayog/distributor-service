@@ -127,7 +127,11 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return endpoint;
   }
 
-  private async makeApiCall<T>(url: string, body: T): Promise<any> {
+  private async makeApiCall<T>(
+    url: string,
+    body: T,
+    operation: string = "API"
+  ): Promise<any> {
     try {
       const response = await firstValueFrom(
         this.httpService.post(url, body, {
@@ -136,17 +140,66 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
           },
         })
       );
+
+      // Include request body in success response
+      if (response.data) {
+        response.data = {
+          originalResponse: response.data,
+          requestUrl: url,
+          requestBody: body,
+        };
+      }
+
       return response;
     } catch (error) {
+      this.logger.error(`Error making API call: ${error.message}`, error.stack);
+
+      // Extract detailed error information
+      const errorResponse = error.response || {};
+      const errorData = errorResponse.data || {};
+      const statusCode =
+        errorResponse.status || HttpStatus.INTERNAL_SERVER_ERROR;
+
+      // Construct meaningful error message for the data payload
+      let detailedErrorMessage = "API request failed";
+      if (typeof errorData === "string") {
+        detailedErrorMessage = errorData;
+      } else if (
+        errorData.message ||
+        errorData.error ||
+        errorData.description
+      ) {
+        detailedErrorMessage =
+          errorData.message || errorData.error || errorData.description;
+      } else if (
+        errorData.errors &&
+        Array.isArray(errorData.errors) &&
+        errorData.errors.length > 0
+      ) {
+        detailedErrorMessage = errorData.errors
+          .map((e) => e.message || e)
+          .join(", ");
+      }
+
+      // Log detailed error info
       this.logger.error(
-        `Error making tracking API call: ${error.message}`,
-        error.stack
+        `API call failed with status ${statusCode}: ${detailedErrorMessage}`
       );
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to make tracking API call: ${error.message}`,
-        error.response?.data || error
-      );
+      this.logger.error(`Request URL: ${url}`);
+      this.logger.error(`Request body: ${JSON.stringify(body)}`);
+      this.logger.error(`Response data: ${JSON.stringify(errorData)}`);
+
+      // Format the root message as [operation] API fail
+      const rootMessage = `${operation} API fail`;
+
+      throw new CustomHttpException(statusCode, rootMessage, {
+        originalError: {
+          statusCode: statusCode,
+          message: detailedErrorMessage,
+        },
+        requestUrl: url,
+        requestBody: body,
+      });
     }
   }
 
@@ -232,22 +285,15 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       const body = this.buildOrderTrackingBody(data.order as BaseOrderReqDto);
       this.logger.log("Order info body sent to tracking", body);
 
-      const response = await this.makeApiCall(endpoint.url, body);
+      const response = await this.makeApiCall(endpoint.url, body, "Tracking");
 
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully pushed to tracking"
       );
     } catch (error) {
-      this.logger.error(
-        `Error pushing order to tracking: ${error.message}`,
-        error.stack
-      );
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to push order to tracking: ${error.message}`,
-        error.response?.data || error
-      );
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
     }
   }
 
@@ -275,22 +321,19 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       );
       this.logger.log("Manifest info body sent to tracking", body);
 
-      const response = await this.makeApiCall(endpoint.url, body);
+      const response = await this.makeApiCall(
+        endpoint.url,
+        body,
+        "Manifest Tracking"
+      );
 
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully manifested to tracking"
       );
     } catch (error) {
-      this.logger.error(
-        `Error manifesting order to tracking: ${error.message}`,
-        error.stack
-      );
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to manifest order to tracking: ${error.message}`,
-        error.response?.data || error
-      );
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
     }
   }
 
@@ -313,22 +356,15 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       const body = this.buildDrsPayload(data.order as BaseOrderReqDto);
       this.logger.log("DRS payload body sent to API", body);
 
-      const response = await this.makeApiCall(endpoint.url, body);
+      const response = await this.makeApiCall(endpoint.url, body, "DRS");
 
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully pushed to DRS"
       );
     } catch (error) {
-      this.logger.error(
-        `Error pushing order to DRS: ${error.message}`,
-        error.stack
-      );
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to push order to DRS: ${error.message}`,
-        error.response?.data || error
-      );
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
     }
   }
 
@@ -373,9 +409,93 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     };
   }
 
-  async updateEcomOrder<T extends StandardRequestDto, R extends BaseResDto>(
+  async pushOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
+      );
+
+      this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
+
+      const body = this.buildHubOpsPayload(data.order as BaseOrderReqDto);
+      this.logger.log("HubOps payload body sent to API", body);
+
+      const response = await this.makeApiCall(endpoint.url, body, "HubOps");
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully pushed to HubOps"
+      );
+    } catch (error) {
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
+    }
+  }
+
+  private buildHubOpsPayload(order: BaseOrderReqDto) {
+    // Determine AWB number based on priority
+    let awbNum;
+    if (order.smileAwbNumber) {
+      awbNum = parseInt(order.smileAwbNumber);
+    } else if (
+      order.partnerCode === PARTNER_CODE_ENUM.SMILE &&
+      order.cAwbNumber
+    ) {
+      awbNum = parseInt(order.cAwbNumber);
+    } else {
+      awbNum = parseInt(order.awbNumber);
+    }
+
+    // Create the booking payload and wrap it in an array
+    return [
+      {
+        awbNumber: awbNum,
+        bookingStatus: order.orderStatus,
+        bookingType: order.type,
+        // ewayBillCreateDate: null,
+        ewayBillNumber: "",
+        // expiryDate: null,
+        extendEwayBillCount: 0,
+        fromPincode: parseInt(order?.pickupAddress?.zip),
+        height: order?.dimensions?.height || 0,
+        length: order?.dimensions?.length || 0,
+        modeOfPayment: order?.paymentDetails?.isCOD ? "COD" : "PREPAID",
+        receiverAddressLine: order?.shippingAddress?.address1 || "",
+        receiverCity: order?.shippingAddress?.city || "",
+        receiverMobileNumber: parseInt(order?.shippingAddress?.mobile) || 0,
+        receiverName: order?.shippingAddress?.name || "",
+        receiverPincode: parseInt(order?.shippingAddress?.zip) || 0,
+        receiverState: order?.shippingAddress?.state || "",
+        senderAddressLine: order?.pickupAddress?.address1 || "",
+        senderCity: order?.pickupAddress?.city || "",
+        senderName: order?.pickupAddress?.name || "",
+        senderPincode: parseInt(order?.pickupAddress?.zip) || 0,
+        senderState: order?.pickupAddress?.state || "",
+        service: order?.serviceType || "",
+        mcn: (order as any)?.mcnOrder ? true : false,
+        time: "",
+        toPincode: parseInt(order?.shippingAddress?.zip) || 0,
+        travelBy: order?.travelType || "",
+        value: (order as any)?.amount || 0,
+        volumetricWeight: 0,
+        weight: order?.dimensions?.weight || 0,
+        width: order?.dimensions?.breadth || 0,
+      },
+    ];
+  }
+
+  async updateEcomOrderWebhook<
+    T extends StandardRequestDto,
+    R extends BaseResDto,
+  >(data: T): Promise<R> {
     this.logger.log(
       `Using base implementation for partner code: ${data.partnerCode}`
     );
@@ -403,26 +523,23 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       this.logger.log("Request payload for ecom order update:", body);
 
       // Make PATCH request
-      const response = await this.makePatchApiCall(url, body);
+      const response = await this.makePatchApiCall(url, body, "Ecom Update");
 
       return this.createSuccessResponse<R>(
         response.data,
         "Ecommerce order details updated successfully"
       );
     } catch (error) {
-      this.logger.error(
-        `Error updating ecom order: ${error.message}`,
-        error.stack
-      );
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to update ecom order: ${error.message}`,
-        error.response?.data || error
-      );
+      // Let the error propagate up, makePatchApiCall already formats it properly
+      throw error;
     }
   }
 
-  private async makePatchApiCall<T>(url: string, body: T): Promise<any> {
+  private async makePatchApiCall<T>(
+    url: string,
+    body: T,
+    operation: string = "PATCH"
+  ): Promise<any> {
     try {
       const response = await firstValueFrom(
         this.httpService.patch(url, body, {
@@ -431,17 +548,69 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
           },
         })
       );
+
+      // Include request body in success response
+      if (response.data) {
+        response.data = {
+          originalResponse: response.data,
+          requestUrl: url,
+          requestBody: body,
+        };
+      }
+
       return response;
     } catch (error) {
       this.logger.error(
         `Error making PATCH API call: ${error.message}`,
         error.stack
       );
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to make PATCH API call: ${error.message}`,
-        error.response?.data || error
+
+      // Extract detailed error information
+      const errorResponse = error.response || {};
+      const errorData = errorResponse.data || {};
+      const statusCode =
+        errorResponse.status || HttpStatus.INTERNAL_SERVER_ERROR;
+
+      // Construct meaningful error message for the data payload
+      let detailedErrorMessage = "API request failed";
+      if (typeof errorData === "string") {
+        detailedErrorMessage = errorData;
+      } else if (
+        errorData.message ||
+        errorData.error ||
+        errorData.description
+      ) {
+        detailedErrorMessage =
+          errorData.message || errorData.error || errorData.description;
+      } else if (
+        errorData.errors &&
+        Array.isArray(errorData.errors) &&
+        errorData.errors.length > 0
+      ) {
+        detailedErrorMessage = errorData.errors
+          .map((e) => e.message || e)
+          .join(", ");
+      }
+
+      // Log detailed error info
+      this.logger.error(
+        `PATCH API call failed with status ${statusCode}: ${detailedErrorMessage}`
       );
+      this.logger.error(`Request URL: ${url}`);
+      this.logger.error(`Request body: ${JSON.stringify(body)}`);
+      this.logger.error(`Response data: ${JSON.stringify(errorData)}`);
+
+      // Format the root message as [operation] API fail
+      const rootMessage = `${operation} API fail`;
+
+      throw new CustomHttpException(statusCode, rootMessage, {
+        originalError: {
+          statusCode: statusCode,
+          message: detailedErrorMessage,
+        },
+        requestUrl: url,
+        requestBody: body,
+      });
     }
   }
 }

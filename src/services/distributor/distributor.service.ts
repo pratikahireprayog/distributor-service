@@ -243,7 +243,7 @@ export class DistributorService {
    * @param requestDto Request data containing order details and first mile hub info
    * @returns Response from ecom update API
    */
-  async updateEcomOrder<R extends BaseResDto>(
+  async updateEcomOrderWebhook<R extends BaseResDto>(
     requestDto: StandardRequestDto
   ): Promise<R> {
     this.logger.log(
@@ -256,6 +256,29 @@ export class DistributorService {
     );
 
     // Execute the operation with the selected partner
-    return partnerActivity.updateEcomOrder<StandardRequestDto, R>(requestDto);
+    return partnerActivity.updateEcomOrderWebhook<StandardRequestDto, R>(
+      requestDto
+    );
+  }
+
+  /**
+   * Push order to HubOps system - Accepts the new standardized format
+   * @param requestDto Request data containing order details
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOps<R extends BaseResDto>(
+    requestDto: StandardRequestDto
+  ): Promise<R> {
+    this.logger.log(
+      `Pushing order to HubOps for ${requestDto.order.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.pushOrderToHubOps<StandardRequestDto, R>(requestDto);
   }
 }

@@ -502,9 +502,10 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
    * @param data Order data with first mile hub details
    * @returns Response from ecom update API
    */
-  async updateEcomOrder<T extends StandardRequestDto, R extends BaseResDto>(
-    data: T
-  ): Promise<R> {
+  async updateEcomOrderWebhook<
+    T extends StandardRequestDto,
+    R extends BaseResDto,
+  >(data: T): Promise<R> {
     this.logger.debug(`Updating ecom order with partner ${this.partnerCode}`);
     const startTime = Date.now();
 
@@ -539,6 +540,62 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       const responseTimeMs = Date.now() - startTime;
       this.logger.debug(
         `Ecom order updated successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  /**
+   * Push order data to HubOps system
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Pushing order to HubOps with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        data.partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for push order to HubOps operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        data,
+        data.partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order pushed to HubOps successfully in ${responseTimeMs}ms`
       );
 
       return result;
@@ -615,6 +672,15 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         const mappingConfig =
           endpointConfig.payloadMapperConfig as unknown as SchemaMappingConfig;
         transformedData = this.schemaMapper.map(data, mappingConfig);
+      }
+
+      if (
+        endpointConfig.partnerCode === PARTNER_CODE_ENUM.SMILE &&
+        endpointConfig.endpointId === ENDPOINT_ID_ENUM.CREATE_ORDER &&
+        transformedData[0]?.smileAwbNumber
+      ) {
+        transformedData[0].awbNumber = transformedData[0].smileAwbNumber;
+        delete transformedData[0].smileAwbNumber;
       }
 
       this.logger.log(`(Transformed Data): ${JSON.stringify(transformedData)}`);
