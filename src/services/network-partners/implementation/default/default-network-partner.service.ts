@@ -480,7 +480,8 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         senderPincode: parseInt(order?.pickupAddress?.zip) || 0,
         senderState: order?.pickupAddress?.state || "",
         service: order?.serviceType || "",
-        mcn: (order as any)?.mcnOrder ? true : false,
+        // TODO: Make it dynamic based on the serviceability partner selection
+        mcn: this.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI ? true : false,
         time: "",
         toPincode: parseInt(order?.shippingAddress?.zip) || 0,
         travelBy: order?.travelType || "",
