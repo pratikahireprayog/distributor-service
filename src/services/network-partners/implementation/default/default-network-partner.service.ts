@@ -193,10 +193,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       const rootMessage = `${operation} API fail`;
 
       throw new CustomHttpException(statusCode, rootMessage, {
-        originalError: {
-          statusCode: statusCode,
-          message: detailedErrorMessage,
-        },
+        originalResponse: errorData,
         requestUrl: url,
         requestBody: body,
       });
@@ -358,6 +355,31 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       const response = await this.makeApiCall(endpoint.url, body, "DRS");
 
+      // Check if the API response indicates failure
+      const originalResponse = response.data?.originalResponse;
+      if (originalResponse && originalResponse.statusCode !== 200) {
+        // Extract error details from the response
+        let errorMessage = "DRS API failed";
+        if (originalResponse.data && Array.isArray(originalResponse.data)) {
+          const errorDetails = originalResponse.data
+            .map((item: any) => item.message || "Unknown error")
+            .join(", ");
+          errorMessage = `DRS API failed: ${errorDetails}`;
+        } else if (originalResponse.message) {
+          errorMessage = `DRS API failed: ${originalResponse.message}`;
+        }
+
+        this.logger.error(
+          `DRS API returned error: ${JSON.stringify(originalResponse)}`
+        );
+
+        throw new CustomHttpException(
+          originalResponse.statusCode || HttpStatus.BAD_REQUEST,
+          "DRS API fail",
+          response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
+        );
+      }
+
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully pushed to DRS"
@@ -394,6 +416,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
           phoneNo: data.shippingAddress.mobile,
           email: data?.shippingAddress?.email || null,
         },
+        // TODO: Make it dynamic and take from the order data
         deliveryTypeOptions: "image",
         paymentType: data.paymentDetails?.isCOD ? "COD" : "PREPAID",
         deadWeight: Number(data.dimensions?.weight) || null,
@@ -430,6 +453,31 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       const response = await this.makeApiCall(endpoint.url, body, "HubOps");
 
+      // Check if the API response indicates failure
+      const originalResponse = response.data?.originalResponse;
+      if (originalResponse && originalResponse.statusCode !== 200) {
+        // Extract error details from the response
+        let errorMessage = "HubOps API failed";
+        if (originalResponse.data && Array.isArray(originalResponse.data)) {
+          const errorDetails = originalResponse.data
+            .map((item: any) => item.message || "Unknown error")
+            .join(", ");
+          errorMessage = `HubOps API failed: ${errorDetails}`;
+        } else if (originalResponse.message) {
+          errorMessage = `HubOps API failed: ${originalResponse.message}`;
+        }
+
+        this.logger.error(
+          `HubOps API returned error: ${JSON.stringify(originalResponse)}`
+        );
+
+        throw new CustomHttpException(
+          originalResponse.statusCode || HttpStatus.BAD_REQUEST,
+          "HubOps API fail",
+          response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
+        );
+      }
+
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully pushed to HubOps"
@@ -461,7 +509,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         bookingStatus: order.orderStatus,
         bookingType: order.type,
         // ewayBillCreateDate: null,
-        ewayBillNumber: "",
+        ewayBillNumber: order?.ewayBillNos?.[0] || "",
         // expiryDate: null,
         extendEwayBillCount: 0,
         fromPincode: parseInt(order?.pickupAddress?.zip),
@@ -605,10 +653,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       const rootMessage = `${operation} API fail`;
 
       throw new CustomHttpException(statusCode, rootMessage, {
-        originalError: {
-          statusCode: statusCode,
-          message: detailedErrorMessage,
-        },
+        originalResponse: errorData,
         requestUrl: url,
         requestBody: body,
       });
