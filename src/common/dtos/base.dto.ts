@@ -481,7 +481,7 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  ewayBillNumber?: string[];
+  ewayBillNos?: string[];
 }
 
 export class BaseOrderResDto extends BaseResDto {
