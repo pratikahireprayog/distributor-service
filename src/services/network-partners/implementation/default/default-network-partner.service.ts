@@ -23,7 +23,10 @@ import {
   StandardRequestDto,
 } from "src/services/distributor/distributor.service";
 import { firstValueFrom } from "rxjs";
-import { CustomHttpException } from "src/infrastructure/exception-handlers";
+import {
+  CustomHttpException,
+  TemporalErrorHandler,
+} from "src/infrastructure/exception-handlers";
 
 /**
  * Default implementation of the network partner for when a specific
@@ -118,10 +121,13 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     });
 
     if (!endpoint) {
-      throw new CustomHttpException(
+      const customError = new CustomHttpException(
         HttpStatus.NOT_FOUND,
         `Endpoint configuration not found for ${partnerCode} - ${endpointId}`
       );
+
+      // Convert to ApplicationFailure for Temporal compatibility
+      TemporalErrorHandler.throwAsApplicationFailure(customError);
     }
 
     return endpoint;
@@ -192,11 +198,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Format the root message as [operation] API fail
       const rootMessage = `${operation} API fail`;
 
-      throw new CustomHttpException(statusCode, rootMessage, {
+      const customError = new CustomHttpException(statusCode, rootMessage, {
         originalResponse: errorData,
         requestUrl: url,
         requestBody: body,
       });
+
+      // Convert to ApplicationFailure for Temporal compatibility
+      TemporalErrorHandler.throwAsApplicationFailure(customError);
     }
   }
 
@@ -373,11 +382,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
           `DRS API returned error: ${JSON.stringify(originalResponse)}`
         );
 
-        throw new CustomHttpException(
+        const customError = new CustomHttpException(
           originalResponse.statusCode || HttpStatus.BAD_REQUEST,
           "DRS API fail",
           response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
         );
+
+        // Convert to ApplicationFailure for Temporal compatibility
+        TemporalErrorHandler.throwAsApplicationFailure(customError);
       }
 
       return this.createSuccessResponse<R>(
@@ -471,11 +483,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
           `HubOps API returned error: ${JSON.stringify(originalResponse)}`
         );
 
-        throw new CustomHttpException(
+        const customError = new CustomHttpException(
           originalResponse.statusCode || HttpStatus.BAD_REQUEST,
           "HubOps API fail",
           response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
         );
+
+        // Convert to ApplicationFailure for Temporal compatibility
+        TemporalErrorHandler.throwAsApplicationFailure(customError);
       }
 
       return this.createSuccessResponse<R>(
@@ -533,7 +548,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         time: "",
         toPincode: parseInt(order?.shippingAddress?.zip) || 0,
         travelBy: order?.travelType || "",
-        value: (order as any)?.amount || 0,
+        value: order?.paymentDetails?.amount || 0,
         volumetricWeight: 0,
         weight: order?.dimensions?.weight || 0,
         width: order?.dimensions?.breadth || 0,
@@ -652,11 +667,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Format the root message as [operation] API fail
       const rootMessage = `${operation} API fail`;
 
-      throw new CustomHttpException(statusCode, rootMessage, {
+      const customError = new CustomHttpException(statusCode, rootMessage, {
         originalResponse: errorData,
         requestUrl: url,
         requestBody: body,
       });
+
+      // Convert to ApplicationFailure for Temporal compatibility
+      TemporalErrorHandler.throwAsApplicationFailure(customError);
     }
   }
 }
