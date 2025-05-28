@@ -10,6 +10,8 @@ import { Request, Response } from "express";
 import * as path from "path";
 import { CustomHttpException } from "./exception-handler.exception";
 import { BaseResDto } from "src/common/dtos/base.dto";
+import { ApplicationFailure } from "@temporalio/common";
+import { TemporalErrorHandler } from "./temporal-error-handler";
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -22,8 +24,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = "Internal Server Error";
+    let data = null;
+    let trace = null;
 
-    if (exception instanceof HttpException) {
+    // Handle ApplicationFailure from Temporal
+    if (exception instanceof ApplicationFailure) {
+      const customData = TemporalErrorHandler.extractCustomErrorData(exception);
+      if (customData && customData.errorType === "CustomHttpException") {
+        status = customData.statusCode;
+        message = customData.message;
+        data = customData.data;
+        trace = customData.trace;
+      } else {
+        message = exception.message;
+        trace = {
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
       message =
@@ -48,10 +66,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const errorResponse = new BaseResDto();
     errorResponse.statusCode = status;
     errorResponse.message = message;
-    errorResponse.data = null;
+    errorResponse.data = data;
 
     // Build a comprehensive trace with all available information
-    errorResponse.trace = {
+    errorResponse.trace = trace || {
       timestamp: new Date().toISOString(),
       // path: request.url,
       // method: request.method,
