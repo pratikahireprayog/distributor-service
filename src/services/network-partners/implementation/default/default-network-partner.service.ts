@@ -465,32 +465,23 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       const response = await this.makeApiCall(endpoint.url, body, "HubOps");
 
+      // TODO: PATCHWORK FIX - Remove this and properly handle HubOps API errors
+      // Currently returning success even for API failures to prevent workflow interruption
+      // Original error handling should be restored once HubOps API issues are resolved
+
       // Check if the API response indicates failure
       const originalResponse = response.data?.originalResponse;
       if (originalResponse && originalResponse.statusCode !== 200) {
-        // Extract error details from the response
-        let errorMessage = "HubOps API failed";
-        if (originalResponse.data && Array.isArray(originalResponse.data)) {
-          const errorDetails = originalResponse.data
-            .map((item: any) => item.message || "Unknown error")
-            .join(", ");
-          errorMessage = `HubOps API failed: ${errorDetails}`;
-        } else if (originalResponse.message) {
-          errorMessage = `HubOps API failed: ${originalResponse.message}`;
-        }
-
+        // Log the error but don't throw - temporary patchwork solution
         this.logger.error(
-          `HubOps API returned error: ${JSON.stringify(originalResponse)}`
+          `HubOps API returned error but continuing as success (PATCHWORK): ${JSON.stringify(originalResponse)}`
         );
 
-        const customError = new CustomHttpException(
-          originalResponse.statusCode || HttpStatus.BAD_REQUEST,
-          "HubOps API fail",
-          response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
+        // Return success response with the original error data intact
+        return this.createSuccessResponse<R>(
+          response.data, // Keep original response structure with error details
+          "Order processed for HubOps (with API errors - patchwork fix)"
         );
-
-        // Convert to ApplicationFailure for Temporal compatibility
-        TemporalErrorHandler.throwAsApplicationFailure(customError);
       }
 
       return this.createSuccessResponse<R>(
