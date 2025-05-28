@@ -366,7 +366,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       // Check if the API response indicates failure
       const originalResponse = response.data?.originalResponse;
-      if (originalResponse && originalResponse.statusCode !== 200) {
+      const responseStatus =
+        originalResponse?.status || originalResponse?.statusCode;
+      if (originalResponse && responseStatus !== 200) {
         // Extract error details from the response
         let errorMessage = "DRS API failed";
         if (originalResponse.data && Array.isArray(originalResponse.data)) {
@@ -383,7 +385,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         );
 
         const customError = new CustomHttpException(
-          originalResponse.statusCode || HttpStatus.BAD_REQUEST,
+          responseStatus || HttpStatus.BAD_REQUEST,
           "DRS API fail",
           response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
         );
