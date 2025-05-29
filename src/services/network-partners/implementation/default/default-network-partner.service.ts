@@ -257,11 +257,15 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
-  private buildManifestTrackingBody(data: BaseOrderReqDto) {
+  private buildTrackingStatusBody(
+    data: BaseOrderReqDto,
+    status: string,
+    event: string
+  ) {
     return {
-      status: "ready_for_dispatch",
+      status: status,
       deliveryPartnerName: "innofulfill",
-      event: "ready_for_dispatch",
+      event: event,
       location: data.pickupAddress
         ? `${data.pickupAddress.address1}, ${data.pickupAddress.address2 || ""}, ${data.pickupAddress.zip}, ${data.pickupAddress.city}, ${data.pickupAddress.state}, ${data.pickupAddress.country}`
         : "",
@@ -322,8 +326,10 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         `Sending manifest order to tracking API: ${endpoint.url}`
       );
 
-      const body = this.buildManifestTrackingBody(
-        data.order as BaseOrderReqDto
+      const body = this.buildTrackingStatusBody(
+        data.order as BaseOrderReqDto,
+        "ready_for_dispatch",
+        "ready_for_dispatch"
       );
       this.logger.log("Manifest info body sent to tracking", body);
 
@@ -336,6 +342,46 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully manifested to tracking"
+      );
+    } catch (error) {
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
+    }
+  }
+
+  async cancelOrderToTracking<
+    T extends StandardRequestDto,
+    R extends BaseResDto,
+  >(data: T): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
+      );
+
+      this.logger.log(`Sending cancel order to tracking API: ${endpoint.url}`);
+
+      const body = this.buildTrackingStatusBody(
+        data.order as BaseOrderReqDto,
+        "cancelled",
+        "cancelled"
+      );
+      this.logger.log("Cancel order info body sent to tracking", body);
+
+      const response = await this.makeApiCall(
+        endpoint.url,
+        body,
+        "Cancel Order Tracking"
+      );
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully cancelled in tracking"
       );
     } catch (error) {
       // Let the error propagate up, makeApiCall already formats it properly
