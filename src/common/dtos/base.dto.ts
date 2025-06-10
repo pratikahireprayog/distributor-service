@@ -482,6 +482,10 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsArray()
   @IsString({ each: true })
   ewayBillNos?: string[];
+
+  @IsOptional()
+  @IsString({ message: "docType must be a string" })
+  docType?: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {

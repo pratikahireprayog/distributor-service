@@ -518,6 +518,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         bookingType: order.type,
         // ewayBillCreateDate: null,
         ewayBillNumber: order?.ewayBillNos?.[0] || "",
+        documentType: order?.docType || "",
         // expiryDate: null,
         extendEwayBillCount: 0,
         fromPincode: parseInt(order?.pickupAddress?.zip),
@@ -545,6 +546,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         volumetricWeight: 0,
         weight: order?.dimensions?.weight || 0,
         width: order?.dimensions?.breadth || 0,
+
       },
     ];
   }
