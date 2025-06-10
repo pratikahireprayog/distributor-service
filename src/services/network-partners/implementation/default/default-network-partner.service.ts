@@ -27,7 +27,7 @@ import {
   CustomHttpException,
   TemporalErrorHandler,
 } from "src/infrastructure/exception-handlers";
-
+import { SOURCE_CONST } from "src/common/constants";
 /**
  * Default implementation of the network partner for when a specific
  * partner implementation is not found.
@@ -537,7 +537,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         senderPincode: parseInt(order?.pickupAddress?.zip) || 0,
         senderState: order?.pickupAddress?.state || "",
         service: order?.serviceType || "",
-        source: order?.source || "orchestrator",
+        source: SOURCE_CONST.ORCHESTRATOR,
         // TODO: Make it dynamic based on the serviceability partner selection
         mcn: order?.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI ? true : false,
         time: "",

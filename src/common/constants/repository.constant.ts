@@ -31,3 +31,7 @@ export const REPOSITORY_MODEL_CONST = {
   ORDER_PARTNER_MODEL: "OrderPartnerModel",
   ORDER_PARTNER_HISTORY_MODEL: "OrderPartnerHistoryModel",
 };
+
+export const SOURCE_CONST = {
+  ORCHESTRATOR: "orchestrator"
+}
