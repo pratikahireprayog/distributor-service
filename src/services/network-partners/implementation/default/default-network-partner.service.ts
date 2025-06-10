@@ -537,6 +537,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         senderPincode: parseInt(order?.pickupAddress?.zip) || 0,
         senderState: order?.pickupAddress?.state || "",
         service: order?.serviceType || "",
+        source: order?.source || "orchestrator",
         // TODO: Make it dynamic based on the serviceability partner selection
         mcn: order?.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI ? true : false,
         time: "",
@@ -546,7 +547,6 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         volumetricWeight: 0,
         weight: order?.dimensions?.weight || 0,
         width: order?.dimensions?.breadth || 0,
-
       },
     ];
   }

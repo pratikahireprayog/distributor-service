@@ -486,6 +486,10 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @IsString({ message: "docType must be a string" })
   docType?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {
