@@ -463,9 +463,6 @@ export class BaseOrderReqDto extends BaseReqDto {
   returnAddress?: AddressDto;
 
   @IsOptional()
-  deliveryMode?: string;
-
-  @IsOptional()
   serviceType?: string;
 
   @IsOptional()
@@ -484,12 +481,11 @@ export class BaseOrderReqDto extends BaseReqDto {
   ewayBillNos?: string[];
 
   @IsOptional()
-  @IsString({ message: "docType must be a string" })
-  docType?: string;
-
-  @IsOptional()
   @IsString()
   source?: string;
+
+  @IsOptional()
+  deliveryMode?: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {
