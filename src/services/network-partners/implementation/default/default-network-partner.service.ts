@@ -518,7 +518,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         bookingType: order.type,
         // ewayBillCreateDate: null,
         ewayBillNumber: order?.ewayBillNos?.[0] || "",
-        documentType: order?.docType || "",
+        docType: order?.docType || "",
         // expiryDate: null,
         extendEwayBillCount: 0,
         fromPincode: parseInt(order?.pickupAddress?.zip),
