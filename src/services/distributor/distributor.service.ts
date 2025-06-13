@@ -281,4 +281,27 @@ export class DistributorService {
     // Execute the operation with the selected partner
     return partnerActivity.pushOrderToHubOps<StandardRequestDto, R>(requestDto);
   }
+
+  /**
+   * Update order in HubOps system - Accepts the new standardized format
+   * @param requestDto Request data containing order details for update
+   * @returns Response from HubOps API
+   */
+  async updateOrderToHubOps<R extends BaseResDto>(
+    requestDto: StandardRequestDto
+  ): Promise<R> {
+    this.logger.log(
+      `Updating order in HubOps for ${requestDto.order.awbNumber || "unknown"}`
+    );
+
+    // Get the appropriate partner implementation
+    const partnerActivity = this.networkPartnerFactory.getPartner(
+      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    );
+
+    // Execute the operation with the selected partner
+    return partnerActivity.updateOrderToHubOps<StandardRequestDto, R>(
+      requestDto
+    );
+  }
 }

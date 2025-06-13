@@ -6,6 +6,8 @@ import {
   Param,
   Query,
   Patch,
+  Put,
+  Headers,
 } from "@nestjs/common";
 import { AppService } from "./app.service";
 import {
@@ -117,5 +119,12 @@ export class AppController {
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
     return this.distributorService.pushOrderToHubOps(requestDto);
+  }
+
+  @Post("update-order-to-hubops")
+  async updateOrderToHubOps(
+    @Body() requestDto: StandardRequestDto
+  ): Promise<BaseResDto> {
+    return this.distributorService.updateOrderToHubOps(requestDto);
   }
 }

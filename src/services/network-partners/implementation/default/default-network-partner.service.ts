@@ -551,6 +551,49 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     ];
   }
 
+  async updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Updating order to HubOps for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS
+      );
+
+      // Get AWB number for the URL path
+      const orderData = data.order as BaseOrderReqDto;
+      const awbNumber = orderData.awbNumber;
+
+      // Build the URL with the awbNumber path parameter
+      const url = endpoint.url.replace("{awbNumber}", awbNumber);
+
+      this.logger.log(`Updating order in HubOps API: ${url}`);
+
+      const body = this.buildHubOpsUpdatePayload(data.order as BaseOrderReqDto);
+      this.logger.log("HubOps update payload body sent to API", body);
+
+      // Make PUT request with custom headers
+      const response = await this.makeHubOpsPutApiCall(
+        url,
+        body,
+        "HubOps Update"
+      );
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully updated in HubOps"
+      );
+    } catch (error) {
+      // Let the error propagate up, makeHubOpsPutApiCall already formats it properly
+      throw error;
+    }
+  }
+
   async updateEcomOrderWebhook<
     T extends StandardRequestDto,
     R extends BaseResDto,
@@ -591,6 +634,189 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     } catch (error) {
       // Let the error propagate up, makePatchApiCall already formats it properly
       throw error;
+    }
+  }
+
+  /**
+   * Build payload for HubOps update operation
+   */
+  private buildHubOpsUpdatePayload(order: BaseOrderReqDto) {
+    return {
+      destinationPincode: parseInt(order?.shippingAddress?.zip) || 0,
+      travelBy: order?.travelType || "",
+      receiverAddressLine1: order?.shippingAddress?.address1 || "",
+      receiverAddressLine2: order?.shippingAddress?.address2 || "",
+    };
+  }
+
+  /**
+   * Make POST API call with HubOps specific headers
+   */
+  private async makeHubOpsApiCall<T>(
+    url: string,
+    body: T,
+    operation: string = "HubOps POST",
+    premiseId?: string,
+    userId?: string
+  ): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(url, body, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+      );
+
+      // Include request body in success response
+      if (response.data) {
+        response.data = {
+          originalResponse: response.data,
+          requestUrl: url,
+          requestBody: body,
+        };
+      }
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Error making HubOps POST API call: ${error.message}`,
+        error.stack
+      );
+
+      // Extract detailed error information
+      const errorResponse = error.response || {};
+      const errorData = errorResponse.data || {};
+      const statusCode =
+        errorResponse.status || HttpStatus.INTERNAL_SERVER_ERROR;
+
+      // Construct meaningful error message for the data payload
+      let detailedErrorMessage = "HubOps POST API request failed";
+      if (typeof errorData === "string") {
+        detailedErrorMessage = errorData;
+      } else if (
+        errorData.message ||
+        errorData.error ||
+        errorData.description
+      ) {
+        detailedErrorMessage =
+          errorData.message || errorData.error || errorData.description;
+      } else if (
+        errorData.errors &&
+        Array.isArray(errorData.errors) &&
+        errorData.errors.length > 0
+      ) {
+        detailedErrorMessage = errorData.errors
+          .map((e) => e.message || e)
+          .join(", ");
+      }
+
+      // Log detailed error info
+      this.logger.error(
+        `HubOps POST API call failed with status ${statusCode}: ${detailedErrorMessage}`
+      );
+      this.logger.error(`Request URL: ${url}`);
+      this.logger.error(`Request body: ${JSON.stringify(body)}`);
+      this.logger.error(`Response data: ${JSON.stringify(errorData)}`);
+
+      // Format the root message as [operation] API fail
+      const rootMessage = `${operation} API fail`;
+
+      const customError = new CustomHttpException(statusCode, rootMessage, {
+        originalResponse: errorData,
+        requestUrl: url,
+        requestBody: body,
+      });
+
+      // Convert to ApplicationFailure for Temporal compatibility
+      TemporalErrorHandler.throwAsApplicationFailure(customError);
+    }
+  }
+
+  /**
+   * Make PUT API call with HubOps specific headers for updating orders
+   */
+  private async makeHubOpsPutApiCall<T>(
+    url: string,
+    body: T,
+    operation: string = "HubOps PUT"
+  ): Promise<any> {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        // "SMCS-PREMISE-ID": process.env.HUBOPS_PREMISE_ID || "default-premise",
+        // "USER-ID": process.env.HUBOPS_USER_ID || "default-user",
+        "x-api-key": process.env.HUBOPS_API_KEY,
+      };
+
+      this.logger.log(`🔑 HubOps PUT headers: ${JSON.stringify(headers)}`);
+
+      const response = await firstValueFrom(
+        this.httpService.put(url, body, { headers })
+      );
+
+      // Include request body in success response
+      if (response.data) {
+        response.data = {
+          originalResponse: response.data,
+          requestUrl: url,
+          requestBody: body,
+        };
+      }
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Error making HubOps PUT API call: ${error.message}`,
+        error.stack
+      );
+
+      // Extract detailed error information
+      const errorResponse = error.response || {};
+      const errorData = errorResponse.data || {};
+      const statusCode =
+        errorResponse.status || HttpStatus.INTERNAL_SERVER_ERROR;
+
+      // Construct meaningful error message for the data payload
+      let detailedErrorMessage = "HubOps Update API request failed";
+      if (typeof errorData === "string") {
+        detailedErrorMessage = errorData;
+      } else if (
+        errorData.message ||
+        errorData.error ||
+        errorData.description
+      ) {
+        detailedErrorMessage =
+          errorData.message || errorData.error || errorData.description;
+      } else if (
+        errorData.errors &&
+        Array.isArray(errorData.errors) &&
+        errorData.errors.length > 0
+      ) {
+        detailedErrorMessage = errorData.errors
+          .map((e) => e.message || e)
+          .join(", ");
+      }
+
+      // Log detailed error info
+      this.logger.error(
+        `HubOps PUT API call failed with status ${statusCode}: ${detailedErrorMessage}`
+      );
+      this.logger.error(`Request URL: ${url}`);
+      this.logger.error(`Request body: ${JSON.stringify(body)}`);
+      this.logger.error(`Response data: ${JSON.stringify(errorData)}`);
+
+      // Format the root message as [operation] API fail
+      const rootMessage = `${operation} API fail`;
+
+      const customError = new CustomHttpException(statusCode, rootMessage, {
+        originalResponse: errorData,
+        requestUrl: url,
+        requestBody: body,
+      });
+
+      // Convert to ApplicationFailure for Temporal compatibility
+      TemporalErrorHandler.throwAsApplicationFailure(customError);
     }
   }
 
