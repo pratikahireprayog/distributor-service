@@ -15,6 +15,7 @@
     "debug:simple": "ts-node src/debug-test-direct.ts"
   },
   "dependencies": {
+    "@innofulfill/core-node-library": "^0.1.0",
     "@nestjs/axios": "^3.0.0",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^4.0.0",
@@ -57,6 +58,7 @@
     "@nestjs/cli": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
     "@types/express": "^4.17.17",
+    "@types/hapi__shot": "^4.1.6",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.3.1",
     "@types/passport-jwt": "^4.0.0",

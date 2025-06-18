@@ -12,6 +12,7 @@ import {
   OrderDto,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
+import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
 
 /**
  * DTO for pushing orders to PRS
@@ -47,7 +48,8 @@ export class DistributorService {
   private readonly logger = new Logger(DistributorService.name);
 
   constructor(
-    private readonly networkPartnerFactory: NetworkPartnerFactoryService
+    private readonly networkPartnerFactory: NetworkPartnerFactoryService,
+    private readonly discordAlertService: DiscordAlertService
   ) {}
 
   /**
@@ -60,17 +62,68 @@ export class DistributorService {
       `Creating Order for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner, passing eligiblePartners
-    return partnerActivity.createOrder<BaseOrderReqDto, R>(
-      requestDto.order as BaseOrderReqDto,
-      requestDto.partnerCode as string,
-      requestDto.eligiblePartners
-    );
+      // Execute the operation with the selected partner, passing eligiblePartners
+      const result = await partnerActivity.createOrder<BaseOrderReqDto, R>(
+        requestDto.order as BaseOrderReqDto,
+        requestDto.partnerCode as string,
+        requestDto.eligiblePartners
+      );
+
+      // Check if the result contains error data even with a successful response
+      if (
+        result &&
+        (result as any).statusCode &&
+        (result as any).statusCode >= 400
+      ) {
+        this.logger.error(
+          `🚨 ORDER CREATION RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
+        );
+
+        // Create a custom error object for Discord alerting
+        const errorForAlert = {
+          message: (result as any).message || "Order creation failed",
+          status: (result as any).statusCode,
+          statusText: "API Error Response",
+          stack: "No stack trace - API response error",
+          response: result,
+        };
+
+        await this.discordAlertService.sendOrderCreationErrorAlert(
+          errorForAlert,
+          requestDto.order.awbNumber,
+          requestDto.partnerCode as string,
+          undefined,
+          { eligiblePartners: requestDto.eligiblePartners, responseError: true }
+        );
+      }
+
+      this.logger.log(
+        `✅ Order creation completed successfully for ${requestDto.order.awbNumber}`
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`🚨 ORDER CREATION ERROR CAUGHT: ${error.message}`);
+      this.logger.error(`Error type: ${error.constructor.name}`);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
+      this.logger.error(
+        `Is ApplicationFailure: ${error.constructor.name === "ApplicationFailure"}`
+      );
+
+      await this.discordAlertService.sendOrderCreationErrorAlert(
+        error,
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string,
+        undefined,
+        { eligiblePartners: requestDto.eligiblePartners }
+      );
+      throw error;
+    }
   }
 
   /**
@@ -83,17 +136,28 @@ export class DistributorService {
       `Retrying order creation for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the default partner
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the default partner
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the default partner
-    // This will use the partner helper to determine the next partner to try
-    return partnerActivity.createOrder<BaseOrderReqDto, R>(
-      requestDto.order as BaseOrderReqDto,
-      requestDto.partnerCode as string
-    );
+      // Execute the operation with the default partner
+      // This will use the partner helper to determine the next partner to try
+      return partnerActivity.createOrder<BaseOrderReqDto, R>(
+        requestDto.order as BaseOrderReqDto,
+        requestDto.partnerCode as string
+      );
+    } catch (error) {
+      await this.discordAlertService.sendOrderCreationErrorAlert(
+        error,
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string,
+        undefined,
+        { isRetry: true }
+      );
+      throw error;
+    }
   }
 
   /**
@@ -107,13 +171,22 @@ export class DistributorService {
       `Creating Manifestation for ${data.awbNumbers.join(",") || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.createManifest<T, R>(data);
+      // Execute the operation with the selected partner
+      return partnerActivity.createManifest<T, R>(data);
+    } catch (error) {
+      await this.discordAlertService.sendManifestCreationErrorAlert(
+        error,
+        data.awbNumbers,
+        data.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -126,13 +199,22 @@ export class DistributorService {
       `Getting Order Details for ${params.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      params.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        params.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.getOrderDetails<T, R>(params);
+      // Execute the operation with the selected partner
+      return partnerActivity.getOrderDetails<T, R>(params);
+    } catch (error) {
+      await this.discordAlertService.sendOrderDetailsErrorAlert(
+        error,
+        params.awbNumber,
+        params.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -146,13 +228,22 @@ export class DistributorService {
       : "unknown";
     this.logger.debug(`Cancelling Order for ${awbDisplay}`);
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.cancelOrder<T, R>(data);
+      // Execute the operation with the selected partner
+      return partnerActivity.cancelOrder<T, R>(data);
+    } catch (error) {
+      await this.discordAlertService.sendOrderCancellationErrorAlert(
+        error,
+        data.cAwbNumbers,
+        data.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -165,13 +256,23 @@ export class DistributorService {
       `Creating DRS payload for ${data.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        data.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.pushOrderToDRS<StandardRequestDto, R>(data);
+      // Execute the operation with the selected partner
+      return partnerActivity.pushOrderToDRS<StandardRequestDto, R>(data);
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "PushOrderToDRS",
+        data.order.awbNumber,
+        data.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -184,13 +285,25 @@ export class DistributorService {
       `Pushing orders to PRS: ${requestDto.awbNumbers || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.pushOrdersToPRS<pushOrdersToPRSDto, R>(requestDto);
+      // Execute the operation with the selected partner
+      return partnerActivity.pushOrdersToPRS<pushOrdersToPRSDto, R>(requestDto);
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "PushOrdersToPRS",
+        requestDto.awbNumbers?.join(","),
+        requestDto.partnerCode as string,
+        undefined,
+        { awbCount: requestDto.awbNumbers?.length }
+      );
+      throw error;
+    }
   }
 
   /**
@@ -203,15 +316,25 @@ export class DistributorService {
       `Pushing order to tracking for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.pushOrderToTracking<StandardRequestDto, R>(
-      requestDto
-    );
+      // Execute the operation with the selected partner
+      return partnerActivity.pushOrderToTracking<StandardRequestDto, R>(
+        requestDto
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "PushOrderToTracking",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -224,18 +347,28 @@ export class DistributorService {
       `Manifesting order to tracking for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Get the type that the partner expects
-    const orderData = requestDto.order as BaseOrderReqDto;
+      // Get the type that the partner expects
+      const orderData = requestDto.order as BaseOrderReqDto;
 
-    // Execute the operation with the selected partner
-    return partnerActivity.manifestOrderToTracking<StandardRequestDto, R>(
-      requestDto
-    );
+      // Execute the operation with the selected partner
+      return partnerActivity.manifestOrderToTracking<StandardRequestDto, R>(
+        requestDto
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "ManifestOrderToTracking",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -250,15 +383,25 @@ export class DistributorService {
       `Updating ecom order details for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.updateEcomOrderWebhook<StandardRequestDto, R>(
-      requestDto
-    );
+      // Execute the operation with the selected partner
+      return partnerActivity.updateEcomOrderWebhook<StandardRequestDto, R>(
+        requestDto
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "UpdateEcomOrderWebhook",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
@@ -273,13 +416,25 @@ export class DistributorService {
       `Pushing order to HubOps for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.pushOrderToHubOps<StandardRequestDto, R>(requestDto);
+      // Execute the operation with the selected partner
+      return partnerActivity.pushOrderToHubOps<StandardRequestDto, R>(
+        requestDto
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "PushOrderToHubOps",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
   }
 
   /**
