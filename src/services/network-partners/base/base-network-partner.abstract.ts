@@ -606,6 +606,62 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
+  /**
+   * Update order in HubOps system
+   * @param data Order data for HubOps update
+   * @returns Response from HubOps API
+   */
+  async updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Updating order in HubOps with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS,
+        data.partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for update order to HubOps operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS,
+        data,
+        data.partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order updated in HubOps successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
   // TODO: Create response mapper object for specific partner
   // TODO: Log response message in a proper format
   // Private method for executing HTTP operations

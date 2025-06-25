@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Injectable,
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import * as path from "path";
@@ -12,12 +13,14 @@ import { CustomHttpException } from "./exception-handler.exception";
 import { BaseResDto } from "src/common/dtos/base.dto";
 import { ApplicationFailure } from "@temporalio/common";
 import { TemporalErrorHandler } from "./temporal-error-handler";
+import { AlertNotificationService } from "@innofulfill/core-node-library";
 
 @Catch()
+@Injectable()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  async catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -90,8 +93,134 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       "GlobalExceptionFilter"
     );
 
+    // Send Discord alert for errors
+    await this.sendDiscordAlert(
+      exception,
+      request,
+      status,
+      message,
+      errorResponse
+    );
+
     // Send response to client
     response.status(status).json(errorResponse);
+  }
+
+  private async sendDiscordAlert(
+    exception: unknown,
+    request: Request,
+    status: number,
+    message: string,
+    errorResponse: any
+  ): Promise<void> {
+    try {
+      this.logger.log(`🚨 Sending Discord alert from GlobalExceptionFilter...`);
+
+      const alertService = new AlertNotificationService();
+
+      // Extract additional context from the request
+      const body = request.body || {};
+      const awbNumber =
+        body.order?.awbNumber ||
+        body.awbNumber ||
+        body.awbNumbers?.join(",") ||
+        "unknown";
+      const partnerCode = body.partnerCode || "unknown";
+
+      // Determine operation type from the URL
+      let operationType = "UnknownOperation";
+      if (request.url.includes("create-order")) operationType = "CreateOrder";
+      else if (request.url.includes("create-manifest"))
+        operationType = "CreateManifest";
+      else if (request.url.includes("get-order-details"))
+        operationType = "GetOrderDetails";
+      else if (request.url.includes("cancel-order"))
+        operationType = "CancelOrder";
+      else if (request.url.includes("push-order-to-drs"))
+        operationType = "PushOrderToDRS";
+      else if (request.url.includes("push-orders-to-prs"))
+        operationType = "PushOrdersToPRS";
+      else if (request.url.includes("push-order-to-tracking"))
+        operationType = "PushOrderToTracking";
+      else if (request.url.includes("manifest-order-to-tracking"))
+        operationType = "ManifestOrderToTracking";
+      else if (request.url.includes("update-ecom-order"))
+        operationType = "UpdateEcomOrder";
+      else if (request.url.includes("push-order-to-hubops"))
+        operationType = "PushOrderToHubOps";
+
+      const discordPayload = {
+        channel: { discord: {} },
+        traceId: "global-filter-" + Date.now(),
+        metaData: {
+          service: "Distributor-Service",
+          version: "1.0.0",
+          environment: process.env.NODE_ENV || "development",
+        },
+        error: {
+          status: status,
+          statusText: this.getStatusText(status),
+          message: message,
+          endpoint: request.url,
+          method: request.method,
+          timestamp: new Date().toISOString(),
+          stack:
+            exception instanceof Error
+              ? exception.stack
+              : "No stack trace available",
+          requestId: awbNumber,
+          additionalInfo: {
+            operationType,
+            awbNumber,
+            partnerCode,
+            caughtBy: "GlobalExceptionFilter",
+            exceptionType: exception?.constructor?.name || "Unknown",
+            requestBody: body,
+            errorResponse: errorResponse,
+          },
+        },
+      };
+
+      this.logger.log(
+        `📤 Sending Discord alert from GlobalExceptionFilter with payload: ${JSON.stringify(discordPayload, null, 2)}`
+      );
+
+      const result = await alertService.sendToDiscord(discordPayload);
+      this.logger.log(
+        `🔄 Discord API response from GlobalExceptionFilter: ${JSON.stringify(result)}`
+      );
+
+      this.logger.log(
+        `✅ Discord alert sent successfully from GlobalExceptionFilter`
+      );
+    } catch (alertError) {
+      this.logger.error(
+        `❌ Failed to send Discord alert from GlobalExceptionFilter: ${alertError.message}`
+      );
+      this.logger.error(`Alert error stack: ${alertError.stack}`);
+      this.logger.error(`Alert error details: ${JSON.stringify(alertError)}`);
+    }
+  }
+
+  private getStatusText(status: number): string {
+    switch (status) {
+      case 400:
+        return "Bad Request";
+      case 401:
+        return "Unauthorized";
+      case 403:
+        return "Forbidden";
+      case 404:
+        return "Not Found";
+      case 500:
+        return "Internal Server Error";
+      case 502:
+        return "Bad Gateway";
+      case 503:
+        return "Service Unavailable";
+      default:
+        return "Unknown Error";
+    }
   }
 }
 

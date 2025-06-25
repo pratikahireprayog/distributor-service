@@ -68,6 +68,9 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         pushOrderToHubOps: this.distributorService.pushOrderToHubOps.bind(
           this.distributorService
         ),
+        updateOrderToHubOps: this.distributorService.updateOrderToHubOps.bind(
+          this.distributorService
+        ),
       });
     });
   }

@@ -89,5 +89,14 @@ export interface INetworkPartner {
     data: T
   ): Promise<R>;
 
+  /**
+   * Update order in HubOps system
+   * @param data Order data for HubOps update
+   * @returns Response from HubOps API
+   */
+  updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
   // cancelOrder(orderId: string): Promise<any>;
 }
