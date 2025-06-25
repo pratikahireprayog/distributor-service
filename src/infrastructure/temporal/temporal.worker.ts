@@ -112,8 +112,12 @@ export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
         activities,
         taskQueue: TASK_QUEUE_CONST.DISTRIBUTOR_SERVICE_TASK_QUEUE,
         namespace: namespace,
-        // Add additional worker options if needed
-        // maxConcurrentActivityTaskExecutions: 100, // Default is 100
+        // High-performance activity execution settings
+        maxConcurrentActivityTaskExecutions: 1000, // Max activities at once - set high for throughput
+        maxConcurrentActivityTaskPolls: 100, // Max concurrent polls for activities - set high
+        maxActivitiesPerSecond: 0, // Worker-side rate limit - 0 means no limit (unlimited)
+        maxTaskQueueActivitiesPerSecond: 0, // Server-side rate limit - 0 means no limit (unlimited)
+        // Keep default workflow settings
         // maxConcurrentWorkflowTaskExecutions: 50,  // Default is 50
       });
 
