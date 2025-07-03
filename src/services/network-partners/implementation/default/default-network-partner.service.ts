@@ -500,14 +500,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // Determine AWB number based on priority
     let awbNum;
     if (order.smileAwbNumber) {
-      awbNum = parseInt(order.smileAwbNumber);
+      awbNum = order.smileAwbNumber;
     } else if (
       order.partnerCode === PARTNER_CODE_ENUM.SMILE &&
       order.cAwbNumber
     ) {
-      awbNum = parseInt(order.cAwbNumber);
+      awbNum = order.cAwbNumber;
     } else {
-      awbNum = parseInt(order.awbNumber);
+      awbNum = order.awbNumber;
     }
 
     // Create the booking payload and wrap it in an array

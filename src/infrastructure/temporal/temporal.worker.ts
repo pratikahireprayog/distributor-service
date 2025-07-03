@@ -112,23 +112,6 @@ export class TemporalWorker implements OnModuleInit, OnModuleDestroy {
         activities,
         taskQueue: TASK_QUEUE_CONST.DISTRIBUTOR_SERVICE_TASK_QUEUE,
         namespace: namespace,
-        // SHARED-SERVER OPTIMIZED CONFIGURATION (6-8 services per EC2)
-        // High-performance but resource-conscious workflow settings
-        maxConcurrentWorkflowTaskExecutions: 200, // Reduced from 1000 - good performance, shared resources
-        maxConcurrentWorkflowTaskPolls: 50, // Reduced from 200 - less network overhead
-        maxCachedWorkflows: 500, // Reduced from 2000 - less memory per service
-        workflowThreadPoolSize: Math.min(
-          Math.max(Math.floor(require("os").cpus().length / 2), 2),
-          4
-        ), // Conservative: 2-4 threads max
-        // High-performance but resource-conscious activity settings
-        maxConcurrentActivityTaskExecutions: 400, // Reduced from 2000 - still high but reasonable
-        maxConcurrentActivityTaskPolls: 50, // Reduced from 200 - less network overhead
-        maxActivitiesPerSecond: 10000, // Reduced from 50000 - still very high but reasonable
-        maxTaskQueueActivitiesPerSecond: 10000, // Reduced from 50000 - less server load
-        // Local activity optimizations
-        maxConcurrentLocalActivityExecutions: 200, // Reduced from 1000 - shared resources
-        // Note: Optimized for shared EC2 environment with multiple services
       });
 
       // Start the worker
