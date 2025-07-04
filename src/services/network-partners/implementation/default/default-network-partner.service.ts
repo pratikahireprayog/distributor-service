@@ -343,6 +343,127 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
+  async buildPrsPayload(data: BaseOrderReqDto) {
+    return {
+      vendorCode: data?.sellerInfo?.vendorCode,
+      originalOrderId: data.awbNumber,
+      type: data.type,
+      weight: data.dimensions?.weight,
+      mcnOrder: data.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI ? true : false,
+      shippingAddress: {
+        name: data.shippingAddress.name,
+        phone: data.shippingAddress.mobile,
+        address1: data.shippingAddress.address1,
+        address2: data.shippingAddress.address2,
+        city: data.shippingAddress.city,
+        state: data.shippingAddress.state,
+        country: data.shippingAddress.country,
+        zip: data.shippingAddress.zip,
+        geoLocation: {
+          type: "Point",
+          coordinates: [
+            data.shippingAddress.longitude,
+            data.shippingAddress.latitude,
+          ],
+        },
+        innoCity: data.shippingAddress.city,
+        innoState: data.shippingAddress.state,
+      },
+      sellerName: data?.sellerInfo?.name,
+      carrierName: data.partnerCode,
+      pickupAddress: {
+        name: data.pickupAddress.name,
+        phone: data.pickupAddress.mobile,
+        address1: data.pickupAddress.address1,
+        address2: data.pickupAddress.address2,
+        city: data.pickupAddress.city,
+        state: data.pickupAddress.state,
+        country: data.pickupAddress.country,
+        zip: data.pickupAddress.zip,
+        geoLocation: {
+          type: "Point",
+          coordinates: [
+            data.pickupAddress.longitude,
+            data.pickupAddress.latitude,
+          ],
+        },
+        innoCity: data.pickupAddress.city,
+        innoState: data.pickupAddress.state,
+      },
+      sellerInfo: {
+        name: data?.sellerInfo?.name,
+        mobile: data?.sellerInfo?.mobile,
+        companyName: data?.sellerInfo?.companyName,
+      },
+      awbNumber: data.awbNumber,
+      cAwbNumber: data.cAwbNumber,
+    };
+  }
+
+  async pushOrderToPRS<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
+      );
+
+      this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
+
+      const body = this.buildPrsPayload(data.order as BaseOrderReqDto);
+      this.logger.log("PRS payload body sent to API", body);
+
+      const response = await this.makeApiCall(endpoint.url, body, "PRS");
+
+      // Check if the API response indicates failure
+      const originalResponse = response.data?.originalResponse;
+      const responseStatus =
+        originalResponse?.status || originalResponse?.statusCode;
+      if (
+        originalResponse &&
+        (responseStatus !== 200 || responseStatus !== 201)
+      ) {
+        // Extract error details from the response
+        let errorMessage = "PRS API failed";
+        if (originalResponse.data && Array.isArray(originalResponse.data)) {
+          const errorDetails = originalResponse.data
+            .map((item: any) => item.message || "Unknown error")
+            .join(", ");
+          errorMessage = `PRS API failed: ${errorDetails}`;
+        } else if (originalResponse.message) {
+          errorMessage = `PRS API failed: ${originalResponse.message}`;
+        }
+
+        this.logger.error(
+          `PRS API returned error: ${JSON.stringify(originalResponse)}`
+        );
+
+        const customError = new CustomHttpException(
+          responseStatus || HttpStatus.BAD_REQUEST,
+          "PRS API fail",
+          response.data // Keep the same response structure with originalResponse, requestUrl, requestBody
+        );
+
+        // Convert to ApplicationFailure for Temporal compatibility
+        TemporalErrorHandler.throwAsApplicationFailure(customError);
+      }
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully pushed to PRS"
+      );
+    } catch (error) {
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
+    }
+  }
+
   async pushOrderToDRS<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
