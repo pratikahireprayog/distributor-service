@@ -343,10 +343,12 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
    * @param data Data containing order IDs to push to PRS
    * @returns Response from PRS API
    */
-  async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
+  async pushOrdersToPRS<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
-    this.logger.debug(`Pushing orders to PRS: ${data.awbNumbers || "unknown"}`);
+    this.logger.debug(
+      `Pushing orders to PRS: ${data.order.awbNumber || "unknown"}`
+    );
     const startTime = Date.now();
 
     try {
@@ -358,7 +360,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       if (
         !this.validateInputForOperation(
           ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
-          data
+          data.order
         )
       ) {
         throw new Error("Invalid input data for push orders to PRS operation");
@@ -366,7 +368,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
 
       const response = await this.executeOperation(
         ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS,
-        data,
+        data.order,
         data.partnerCode,
         endpoint
       );

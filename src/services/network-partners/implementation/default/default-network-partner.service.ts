@@ -105,14 +105,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return await super.cancelOrder<T, R>(data);
   }
 
-  async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
-    data: T
-  ): Promise<R> {
-    this.logger.log(
-      `Using base implementation for partner code: ${data.partnerCode}`
-    );
-    return await super.pushOrdersToPRS<T, R>(data);
-  }
+  // async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
+  //   data: T
+  // ): Promise<R> {
+  //   this.logger.log(
+  //     `Using base implementation for partner code: ${data.partnerCode}`
+  //   );
+  //   return await super.pushOrdersToPRS<T, R>(data);
+  // }
 
   private async getEndpoint(partnerCode: string, endpointId: string) {
     const endpoint = await this.endpointConfigRepository.getOne({
@@ -396,11 +396,11 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         companyName: data?.sellerInfo?.companyName,
       },
       awbNumber: data.awbNumber,
-      cAwbNumber: data.cAwbNumber,
+      cAwbNumber: data.cAwbNumber || data.awbNumber,
     };
   }
 
-  async pushOrderToPRS<T extends StandardRequestDto, R extends BaseResDto>(
+  async pushOrdersToPRS<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
     this.logger.log(
@@ -416,7 +416,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
 
-      const body = this.buildPrsPayload(data.order as BaseOrderReqDto);
+      const body = await this.buildPrsPayload(data.order as BaseOrderReqDto);
       this.logger.log("PRS payload body sent to API", body);
 
       const response = await this.makeApiCall(endpoint.url, body, "PRS");
@@ -427,7 +427,8 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         originalResponse?.status || originalResponse?.statusCode;
       if (
         originalResponse &&
-        (responseStatus !== 200 || responseStatus !== 201)
+        responseStatus !== 200 &&
+        responseStatus !== 201
       ) {
         // Extract error details from the response
         let errorMessage = "PRS API failed";
@@ -454,10 +455,12 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         TemporalErrorHandler.throwAsApplicationFailure(customError);
       }
 
-      return this.createSuccessResponse<R>(
-        response.data,
-        "Order successfully pushed to PRS"
-      );
+      // Return consistent response structure like DRS API
+      return {
+        statusCode: HttpStatus.OK,
+        message: "Order successfully pushed to PRS",
+        data: response.data, // This already contains originalResponse, requestUrl, requestBody from makeApiCall
+      } as R;
     } catch (error) {
       // Let the error propagate up, makeApiCall already formats it properly
       throw error;

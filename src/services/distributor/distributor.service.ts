@@ -279,10 +279,10 @@ export class DistributorService {
    * Push orders to PRS - Accepts the new standardized format
    */
   async pushOrdersToPRS<R extends BaseResDto>(
-    requestDto: pushOrdersToPRSDto
+    requestDto: StandardRequestDto
   ): Promise<R> {
     this.logger.log(
-      `Pushing orders to PRS: ${requestDto.awbNumbers || "unknown"}`
+      `Pushing orders to PRS: ${requestDto.order.awbNumber || "unknown"}`
     );
 
     try {
@@ -292,15 +292,15 @@ export class DistributorService {
       );
 
       // Execute the operation with the selected partner
-      return partnerActivity.pushOrdersToPRS<pushOrdersToPRSDto, R>(requestDto);
+      return partnerActivity.pushOrdersToPRS<StandardRequestDto, R>(requestDto);
     } catch (error) {
       await this.discordAlertService.sendPushOrderErrorAlert(
         error,
         "PushOrdersToPRS",
-        requestDto.awbNumbers?.join(","),
+        requestDto.order.awbNumber,
         requestDto.partnerCode as string,
         undefined,
-        { awbCount: requestDto.awbNumbers?.length }
+        { awbCount: 1 }
       );
       throw error;
     }

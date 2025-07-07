@@ -49,7 +49,7 @@ export interface INetworkPartner {
    * @param data Data containing order IDs to push to PRS
    * @returns Response from PRS API
    */
-  pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
+  pushOrdersToPRS<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 

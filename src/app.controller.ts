@@ -88,7 +88,7 @@ export class AppController {
 
   @Post("push-orders-to-prs")
   async pushOrdersToPRS(
-    @Body() requestDto: pushOrdersToPRSDto
+    @Body() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
     return this.distributorService.pushOrdersToPRS(requestDto);
   }
