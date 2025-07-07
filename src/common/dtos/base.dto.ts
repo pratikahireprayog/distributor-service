@@ -112,6 +112,36 @@ export class AddressDto {
   longitude: number = 0;
 }
 
+export class SellerInfoDto {
+  /**
+   * Name of the seller
+   */
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  /**
+   * Mobile number of the seller
+   */
+  @IsString()
+  @IsNotEmpty()
+  mobile: string;
+
+  /**
+   * Company name of the seller
+   */
+  @IsString()
+  @IsNotEmpty()
+  companyName: string;
+
+  /**
+   * Vendor code of the seller
+   */
+  @IsString()
+  @IsNotEmpty()
+  vendorCode: string;
+}
+
 /**
  * Delivery promise information
  */
@@ -425,6 +455,11 @@ export class BaseOrderReqDto extends BaseReqDto {
   @ValidateNested()
   @Type(() => AddressDto)
   pickupAddress: AddressDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SellerInfoDto)
+  sellerInfo?: SellerInfoDto;
 
   @IsOptional()
   @ValidateNested()
