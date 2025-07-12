@@ -9,6 +9,7 @@ import { TsawModule } from "./implementation/tsaw/tsaw.module";
 import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { DefaultNetworkPartnerModule } from "./implementation/default/default-network-partner.module";
 import { ShipyaariModule } from "./implementation/shipyaari/shipyaari.module";
+import { DHLModule } from "./implementation/dhl/dhl.module";
 /**
  * Module for network partners
  */
@@ -21,6 +22,7 @@ import { ShipyaariModule } from "./implementation/shipyaari/shipyaari.module";
     DefaultNetworkPartnerModule,
     EndpointConfigModule,
     ShipyaariModule,
+    DHLModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

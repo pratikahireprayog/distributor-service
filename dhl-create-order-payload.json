@@ -1,0 +1,172 @@
+{
+  "plannedShippingDateAndTime": "2025-01-15T10:00:00",
+  "pickup": {
+    "isRequested": false
+  },
+  "productCode": "P",
+  "localProductCode": "P",
+  "getRateEstimates": false,
+  "accounts": [
+    {
+      "typeCode": "shipper",
+      "number": "535911093"
+    }
+  ],
+  "content": {
+    "packages": [
+      {
+        "typeCode": "2BP",
+        "weight": 1.5,
+        "dimensions": {
+          "length": 30,
+          "width": 20,
+          "height": 10
+        },
+        "customerReferences": [
+          {
+            "value": "BOOK0000000352",
+            "typeCode": "CU"
+          }
+        ],
+        "description": "CUSTOMIZED FASHION GARMENTS",
+        "labelDescription": "Ref: BOOK0000000352"
+      }
+    ],
+    "isCustomsDeclarable": true,
+    "declaredValue": 5000,
+    "declaredValueCurrency": "USD",
+    "description": "Shipment",
+    "incoterm": "DAP",
+    "unitOfMeasurement": "metric",
+    "exportDeclaration": {
+      "lineItems": [
+        {
+          "number": 1,
+          "description": "Fashion Garments",
+          "price": 5000,
+          "quantity": {
+            "value": 1,
+            "unitOfMeasurement": "KG"
+          },
+          "commodityCodes": [
+            {
+              "typeCode": "outbound",
+              "value": "84713000"
+            }
+          ],
+          "exportReasonType": "permanent",
+          "manufacturerCountry": "IN",
+          "weight": {
+            "netValue": 1.5,
+            "grossValue": 1.5
+          },
+          "isTaxesPaid": true,
+          "customerReferences": [
+            {
+              "typeCode": "AFE",
+              "value": "BOOK0000000352"
+            }
+          ]
+        }
+      ],
+      "invoice": {
+        "number": "INV-BOOK0000000352",
+        "date": "2025-01-15",
+        "instructions": [
+          "Handle with care"
+        ],
+        "totalNetWeight": 1.5,
+        "totalGrossWeight": 1.5
+      }
+    }
+  },
+  "outputImageProperties": {
+    "printerDPI": 300,
+    "encodingFormat": "pdf",
+    "imageOptions": [
+      {
+        "typeCode": "invoice",
+        "templateName": "COMMERCIAL_INVOICE_P_10",
+        "isRequested": true,
+        "invoiceType": "commercial",
+        "languageCode": "eng",
+        "languageCountryCode": "US"
+      },
+      {
+        "typeCode": "waybillDoc",
+        "templateName": "ARCH_8x4",
+        "isRequested": true,
+        "hideAccountNumber": false,
+        "numberOfCopies": 1
+      },
+      {
+        "typeCode": "label",
+        "templateName": "ECOM26_84_001",
+        "renderDHLLogo": true,
+        "fitLabelsToA4": false
+      }
+    ],
+    "splitTransportAndWaybillDocLabels": true,
+    "allDocumentsInOneImage": false,
+    "splitDocumentsByPages": false,
+    "splitInvoiceAndReceipt": true,
+    "receiptAndLabelsInOneImage": false
+  },
+  "customerDetails": {
+    "shipperDetails": {
+      "postalAddress": {
+        "postalCode": "560086",
+        "cityName": "Bangalore",
+        "countryCode": "IN",
+        "addressLine1": "MG Road, Near Church Street",
+        "countryName": "India"
+      },
+      "contactInformation": {
+        "email": "shipper@example.com",
+        "phone": "9876543210",
+        "mobilePhone": "9876543210",
+        "companyName": "Shipper Pvt Ltd",
+        "fullName": "Ramesh"
+      },
+      "typeCode": "business"
+    },
+    "receiverDetails": {
+      "postalAddress": {
+        "postalCode": "266001",
+        "cityName": "QING DAO",
+        "countyName": "Shandong",
+        "countryCode": "CN",
+        "addressLine1": "123 Beijing Road",
+        "countryName": "China"
+      },
+      "contactInformation": {
+        "email": "receiver@example.cn",
+        "phone": "02112345678",
+        "mobilePhone": "13800138000",
+        "companyName": "Receiver Ltd",
+        "fullName": "Li Wei"
+      },
+      "typeCode": "business"
+    }
+  },
+  "shipmentNotification": [
+    {
+      "typeCode": "email",
+      "receiverId": "shipmentnotification@mydhlapisample.com",
+      "languageCode": "eng",
+      "languageCountryCode": "UK",
+      "bespokeMessage": "message to be included in the notification"
+    }
+  ],
+  "getTransliteratedResponse": false,
+  "estimatedDeliveryDate": {
+    "isRequested": true,
+    "typeCode": "QDDC"
+  },
+  "getAdditionalInformation": [
+    {
+      "typeCode": "pickupDetails",
+      "isRequested": true
+    }
+  ]
+} 

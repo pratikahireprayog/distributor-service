@@ -1,0 +1,83 @@
+{
+  "_id": "507f1f77bcf86cd799439011",
+  "name": "DHL Create Order Endpoint",
+  "method": "POST",
+  "endpointId": "CREATE_ORDER",
+  "partnerCode": "DHL",
+  "requiresAuth": true,
+  "contentType": "application/json",
+  "url": "https://express.api.dhl.com/mydhlapi/shipments",
+  "payloadMapperConfig": {
+    "fields": [
+      {
+        "sources": "awbNumber",
+        "destination": "shipmentId",
+        "transform": "value ? 'DHL' + value : ''"
+      },
+      {
+        "sources": ["pickupAddress", "shippingAddress"],
+        "destination": "addresses",
+        "transform": "Array.isArray(value) ? value.map(addr => ({ name: addr.name, address: addr.address1 })) : []"
+      }
+    ],
+    "createNewObject": true
+  },
+  "partnerId": "dhl_express_001",
+  "urlParamMapping": [
+    {
+      "paramName": "shipmentId",
+      "sourceField": "awbNumber"
+    }
+  ],
+  "queryParamMapping": [
+    {
+      "paramName": "accountNumber",
+      "sourceField": "partnerId"
+    }
+  ],
+  "headerMapping": [
+    {
+      "headerName": "Authorization",
+      "sourceField": "authToken",
+      "defaultValue": "Bearer "
+    },
+    {
+      "headerName": "Content-Type",
+      "sourceField": "contentType",
+      "defaultValue": "application/json"
+    }
+  ],
+  "responseMapping": {
+    "mapperConfig": {
+      "fields": [
+        {
+          "sources": "shipmentId",
+          "destination": "trackingId"
+        },
+        {
+          "sources": "status",
+          "destination": "orderStatus"
+        }
+      ],
+      "createNewObject": false
+    },
+    "successPath": "status",
+    "statusCodePath": "statusCode",
+    "messagePath": "message",
+    "errorPath": "error.message",
+    "dataPath": "data",
+    "tokenPath": "auth.token",
+    "referenceIdPath": "data.referenceId"
+  },
+  "timeout": 30000,
+  "retryCount": 3,
+  "retryDelay": 1000,
+  "credentials": {
+    "apiKey": "your-api-key-here",
+    "accountNumber": "123456789",
+    "username": "dhl_user",
+    "password": "dhl_password"
+  },
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "updatedAt": "2024-01-15T10:30:00.000Z"
+} 

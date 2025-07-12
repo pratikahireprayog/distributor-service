@@ -34,6 +34,7 @@ export enum PARTNER_CODE_ENUM {
   TSAW = "TSAW",
   SHIPYAARI = "SHIPYAARI",
   DEFAULT = "DEFAULT",
+  DHL = "DHL",
 }
 
 export enum ENDPOINT_ID_ENUM {

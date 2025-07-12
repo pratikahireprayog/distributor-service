@@ -1,0 +1,176 @@
+{
+  "partnerCode": "DHL",
+  "eligiblePartners": null,
+  "order": {
+    "plannedShippingDateAndTime": "{{orderDetails.orderCreatedDate || 'tomorrow'}}",
+    "pickup": {
+      "isRequested": false
+    },
+    "productCode": "P",
+    "localProductCode": "P",
+    "getRateEstimates": false,
+    "accounts": [
+      {
+        "typeCode": "shipper",
+        "number": "{{DHL_ACCOUNT_NUMBER}}"
+      }
+    ],
+    "content": {
+      "packages": [
+        {
+          "typeCode": "2BP",
+          "weight": "{{orderDetails.dimensions.weight / 1000}}",
+          "dimensions": {
+            "length": "{{orderDetails.dimensions.length}}",
+            "width": "{{orderDetails.dimensions.breadth}}",
+            "height": "{{orderDetails.dimensions.height}}"
+          },
+          "customerReferences": [
+            {
+              "value": "{{orderDetails.awbNumber}}",
+              "typeCode": "CU"
+            }
+          ],
+          "description": "CUSTOMIZED FASHION GARMENTS",
+          "labelDescription": "Ref: {{orderDetails.awbNumber}}"
+        }
+      ],
+      "isCustomsDeclarable": true,
+      "declaredValue": "{{orderDetails.paymentDetails.amount}}",
+      "declaredValueCurrency": "USD",
+      "description": "Shipment",
+      "incoterm": "DAP",
+      "unitOfMeasurement": "metric",
+      "exportDeclaration": {
+        "lineItems": [
+          {
+            "number": 1,
+            "description": "Fashion Garments",
+            "price": "{{orderDetails.paymentDetails.amount}}",
+            "quantity": {
+              "value": "{{Math.round(orderDetails.dimensions.weight / 1000)}}",
+              "unitOfMeasurement": "KG"
+            },
+            "commodityCodes": [
+              {
+                "typeCode": "outbound",
+                "value": "84713000"
+              }
+            ],
+            "exportReasonType": "permanent",
+            "manufacturerCountry": "IN",
+            "weight": {
+              "netValue": "{{orderDetails.dimensions.weight / 1000}}",
+              "grossValue": "{{orderDetails.dimensions.weight / 1000}}"
+            },
+            "isTaxesPaid": true,
+            "customerReferences": [
+              {
+                "typeCode": "AFE",
+                "value": "{{orderDetails.awbNumber}}"
+              }
+            ]
+          }
+        ],
+        "invoice": {
+          "number": "INV-{{orderDetails.awbNumber}}",
+          "date": "{{new Date().toISOString().split('T')[0]}}",
+          "instructions": [
+            "Handle with care"
+          ],
+          "totalNetWeight": "{{orderDetails.dimensions.weight / 1000}}",
+          "totalGrossWeight": "{{orderDetails.dimensions.weight / 1000}}"
+        }
+      }
+    },
+    "outputImageProperties": {
+      "printerDPI": 300,
+      "encodingFormat": "pdf",
+      "imageOptions": [
+        {
+          "typeCode": "invoice",
+          "templateName": "COMMERCIAL_INVOICE_P_10",
+          "isRequested": true,
+          "invoiceType": "commercial",
+          "languageCode": "eng",
+          "languageCountryCode": "US"
+        },
+        {
+          "typeCode": "waybillDoc",
+          "templateName": "ARCH_8x4",
+          "isRequested": true,
+          "hideAccountNumber": false,
+          "numberOfCopies": 1
+        },
+        {
+          "typeCode": "label",
+          "templateName": "ECOM26_84_001",
+          "renderDHLLogo": true,
+          "fitLabelsToA4": false
+        }
+      ],
+      "splitTransportAndWaybillDocLabels": true,
+      "allDocumentsInOneImage": false,
+      "splitDocumentsByPages": false,
+      "splitInvoiceAndReceipt": true,
+      "receiptAndLabelsInOneImage": false
+    },
+    "customerDetails": {
+      "shipperDetails": {
+        "postalAddress": {
+          "postalCode": "{{orderDetails.fmHubAddress.zip || orderDetails.pickupAddress.zip}}",
+          "cityName": "{{orderDetails.fmHubAddress.city || orderDetails.pickupAddress.city}}",
+          "countryCode": "{{(orderDetails.fmHubAddress.country || orderDetails.pickupAddress.country) === 'India' ? 'IN' : 'US'}}",
+          "addressLine1": "{{orderDetails.fmHubAddress.address1 || orderDetails.pickupAddress.address1}}",
+          "countryName": "{{orderDetails.fmHubAddress.country || orderDetails.pickupAddress.country}}"
+        },
+        "contactInformation": {
+          "email": "{{orderDetails.fmHubAddress.email || orderDetails.pickupAddress.email || 'shipper@example.com'}}",
+          "phone": "{{orderDetails.fmHubAddress.mobile || orderDetails.pickupAddress.mobile}}",
+          "mobilePhone": "{{orderDetails.fmHubAddress.mobile || orderDetails.pickupAddress.mobile}}",
+          "companyName": "{{orderDetails.fmHubAddress.name || orderDetails.pickupAddress.name}}",
+          "fullName": "{{orderDetails.fmHubAddress.name || orderDetails.pickupAddress.name}}"
+        },
+        "typeCode": "business"
+      },
+      "receiverDetails": {
+        "postalAddress": {
+          "postalCode": "{{orderDetails.shippingAddress.zip}}",
+          "cityName": "{{orderDetails.shippingAddress.city}}",
+          "countyName": "{{orderDetails.shippingAddress.state}}",
+          "countryCode": "{{orderDetails.shippingAddress.country === 'India' ? 'IN' : 'US'}}",
+          "addressLine1": "{{orderDetails.shippingAddress.address1}}",
+          "countryName": "{{orderDetails.shippingAddress.country}}"
+        },
+        "contactInformation": {
+          "email": "{{orderDetails.shippingAddress.email || 'receiver@example.com'}}",
+          "phone": "{{orderDetails.shippingAddress.mobile}}",
+          "mobilePhone": "{{orderDetails.shippingAddress.mobile}}",
+          "companyName": "{{orderDetails.shippingAddress.name}}",
+          "fullName": "{{orderDetails.shippingAddress.name}}"
+        },
+        "typeCode": "business"
+      }
+    },
+    "shipmentNotification": [
+      {
+        "typeCode": "email",
+        "receiverId": "shipmentnotification@mydhlapisample.com",
+        "languageCode": "eng",
+        "languageCountryCode": "UK",
+        "bespokeMessage": "message to be included in the notification"
+      }
+    ],
+    "getTransliteratedResponse": false,
+    "estimatedDeliveryDate": {
+      "isRequested": true,
+      "typeCode": "QDDC"
+    },
+    "getAdditionalInformation": [
+      {
+        "typeCode": "pickupDetails",
+        "isRequested": true
+      }
+    ]
+  }
+} 
