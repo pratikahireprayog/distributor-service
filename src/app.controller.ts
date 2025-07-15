@@ -15,6 +15,7 @@ import {
   pushOrdersToPRSDto,
   StandardRequestDto,
   pushOrdersToPRSRequestDto,
+  StandardRequestDtoV2
 } from "./services/distributor/distributor.service";
 import {
   BaseReqDto,
@@ -50,6 +51,13 @@ export class AppController {
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseOrderResDto> {
     return this.distributorService.createOrder(requestDto);
+  }
+
+  @Post("create-order-v2")
+  async createOrderV2(
+    @Body() requestDto:StandardRequestDtoV2
+  ): Promise<any> {
+    return this.distributorService.createOrderV2(requestDto)
   }
 
   @Post("create-manifest")

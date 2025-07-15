@@ -18,6 +18,7 @@ import {
   BaseCancelOrderDto,
   DRSPayloadDTO,
   ManifestReqDto,
+  BaseOrderReqDtoV2
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
@@ -144,6 +145,112 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       throw error;
     }
   }
+
+  async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
+    orderData: T,
+    partnerCode: string,
+    eligiblePartners:EligiblePartnersData
+  ): Promise<R> {
+
+   this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
+    let existingPartners: any;
+    let attemptNumber = 1;
+    let partnerType = partnerCode;
+    const startTime = Date.now();
+
+    try {
+      // Use the helper if available to handle partner tracking and selection
+      // if (this.partnerHelper) {
+      //   // Step 1: Load or store partner data
+      //   existingPartners = await this.partnerHelper.loadOrStorePartners(
+      //     orderData.awbNumber,
+      //     eligiblePartners
+      //   );
+
+      //   // Step 2: Determine which partner to use
+      //   partnerType = await this.partnerHelper.determinePartnerWithEligibility(
+      //     orderData,
+      //     eligiblePartners
+      //   );
+
+      //   // Make sure partnerCode in orderData matches the selected partner
+      //   orderData.partnerCode = partnerType;
+
+      //   // Step 3: Get current attempt number
+      //   attemptNumber = this.partnerHelper.getAttemptNumber(
+      //     existingPartners,
+      //     partnerType
+      //   );
+      // }
+
+      const endpointConfig = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CREATE_ORDER,
+        partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.CREATE_ORDER,
+          orderData
+        )
+      ) {
+        throw new Error("Invalid input data for CREATE_ORDER operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.CREATE_ORDER,
+        orderData,
+        partnerCode,
+        endpointConfig
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.CREATE_ORDER,
+        response
+      ) as R;
+
+      // Calculate response time
+      const responseTimeMs = Date.now() - startTime;
+
+      // Record successful attempt if helper is available
+      // if (this.partnerHelper) {
+      //   await this.partnerHelper.recordSuccessfulAttempt(
+      //     orderData.awbNumber,
+      //     partnerType,
+      //     existingPartners,
+      //     eligiblePartners,
+      //     attemptNumber,
+      //     result,
+      //     responseTimeMs,
+      //     orderData
+      //   );
+      // }
+
+      return result;
+    } catch (error) {
+      // Calculate response time for error tracking
+      error.responseTimeMs = Date.now() - startTime;
+
+      // Record failed attempt if helper is available
+      // if (this.partnerHelper) {
+      //   await this.partnerHelper.recordFailedAttempt(
+      //     error,
+      //     orderData,
+      //     partnerType,
+      //     existingPartners,
+      //     eligiblePartners,
+      //     attemptNumber
+      //   );
+      // }
+
+      throw error;
+    }
+  }
+
+    
+
+    
+  
 
   async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     data: T

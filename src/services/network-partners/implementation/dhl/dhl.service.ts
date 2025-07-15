@@ -3,19 +3,22 @@ import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
 import * as https from "https";
+import * as moment from "moment";
 
 import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { DHLAuthService } from "./dhl-auth.service";
 import { SHIPYAARI_ENV_VARS } from "../shipyaari/shipyaari.enum";
 
 import {
-  BaseOrderReqDto,
+  BaseOrderReqDtoV2,
   BaseOrderResDto,
   BaseReqDto,
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
   ManifestReqDto,
+  BaseOrderReqDto,
+  extractLineItems
 } from "src/common/dtos/base.dto";
 
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
@@ -57,51 +60,87 @@ export class DHLService extends BaseNetworkPartner {
   /**
    * Create an order with DHL
    */
-  async createOrder<T extends BaseOrderReqDto, R extends BaseOrderResDto>(
+  async createOrderV2<T extends BaseOrderReqDtoV2, R extends any>(
     orderDetails: T,
     partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     try {
-      const awbNumber = orderDetails?.awbNumber || "";
-      this.logger.log(`Creating DHL order for AWB: ${awbNumber}`);
+      // const awbNumber = orderDetails?.awbNumber || "";
+      // this.logger.log(`Creating DHL order for AWB: ${awbNumber}`);
 
       // Get endpoint configuration
       const endpoint = {
-        url: "https://express.api.dhl.com/mydhlapi/shipments",
+        url: this.configService.get<string>('DHL_CREATE_ORDER_URL'),
       }
 
-      // Transform the payload
+      // Transform the payload for DHL API
       const transformedData = this.transformDHLPayload(orderDetails);
 
       // Make API call
-      const response = await this.callDHLCreateOrderAPI(
-        endpoint,
-        transformedData,
-        awbNumber
-      );
+       const response = await this.callDHLCreateOrderAPI(
+         endpoint,
+         transformedData,
+         
+       );
 
-      // Format and return response
-      return this.formatCreateOrderResponse<R>(response);
+       //Format and return response
+      return this.formatCreateOrderResponse<any>(response);
+
+      return transformedData
     } catch (error) {
-      this.logger.error(`DHL createOrder error: ${JSON.stringify(error.response.data.message)}`);
+      this.logger.error(`DHL createOrder error: ${JSON.stringify(error.response)}`);
       throw error;
     }
   }
 
-    /**
+  /**
    * Transform order request into DHL API format
+   * - Extracts all line items from parent and child shipments
+   * - Uses only addresses of type PICKUP and DELIVERY for shipper/receiver
    */
-  private transformDHLPayload<T extends BaseOrderReqDto>(orderDetails: T): any {
+  private transformDHLPayload<T extends BaseOrderReqDtoV2>(orderDetails: T): any {
     console.log("dhl payload", orderDetails);
-    // Use the exact payload structure as provided
+    // Extract all line items from parent and child shipments
+    const lineItems = extractLineItems(orderDetails);
+
+    // Gather all shipments: parent + children
+    const shipments = [
+      orderDetails.parentShipment,
+      ...(orderDetails.childShipments || [])
+    ].filter(Boolean);
+
+    // Map each shipment to a DHL package object
+    const packages = shipments.map((shipment, idx) => ({
+      typeCode: "2BP",
+      weight: shipment.physicalWeight,
+      dimensions: {
+        length: shipment.dimensions.length,
+        width: shipment.dimensions.width,
+        height: shipment.dimensions.height
+      },
+      customerReferences: [
+        {
+          value: shipment.awbNumber || orderDetails.awbNumber,
+          typeCode: "CU"
+        }
+      ],
+      description: shipment.items?.[0]?.description || "No description",
+      labelDescription: shipment.items?.[0]?.description || "No description"
+    }));
+
+    // Find pickup and delivery addresses for DHL API
+    const pickupAddress: any = orderDetails.addresses?.find((a: any) => a.type === 'PICKUP') || {};
+    const deliveryAddress: any = orderDetails.addresses?.find((a: any) => a.type === 'DELIVERY') || {};
+
+    // Build DHL API payload
     const transformedData = {
-      plannedShippingDateAndTime: "2025-07-12T10:00:00 GMT+05:30",
+      plannedShippingDateAndTime: moment(orderDetails.orderDate).utcOffset('+05:30').format('YYYY-MM-DDTHH:mm:ss [GMT+05:30]'),
       pickup: {
         isRequested: false
       },
       productCode: "P",
-      localProductCode: "P",
+      localProductCode: "P", 
       getRateEstimates: false,
       accounts: [
         {
@@ -110,70 +149,57 @@ export class DHLService extends BaseNetworkPartner {
         }
       ],
       content: {
-        packages: [
-          {
-            typeCode: "2BP",
-            weight: 1.5,
-            dimensions: {
-              length: 30,
-              width: 20,
-              height: 10
-            },
-            customerReferences: [
-              {
-                value: "BOOK0000000352",
-                typeCode: "CU"
-              }
-            ],
-            description: "CUSTOMIZED FASHION GARMENTS",
-            labelDescription: "Ref: BOOK0000000352"
-          }
-        ],
+        packages: packages,
         isCustomsDeclarable: true,
-        declaredValue: 5000,
-        declaredValueCurrency: "USD",
-        description: "Shipment",
+        declaredValue: orderDetails.payment.finalAmount,
+        declaredValueCurrency:"INR",
+        description: lineItems[0]?.description || orderDetails.parentShipment.items[0].description,
         incoterm: "DAP",
         unitOfMeasurement: "metric",
         exportDeclaration: {
-          lineItems: [
-            {
-              number: 1,
-              description: "Fashion Garments",
-              price: 5000,
+          lineItems: lineItems.map((item, idx) => {
+            // Determine the correct AWB number for customerReferences
+            let awbNumber = orderDetails.parentShipment?.awbNumber;
+            if (item._shipmentType === 'child' && item._shipmentIndex !== undefined && orderDetails.childShipments) {
+              awbNumber = orderDetails.childShipments[item._shipmentIndex]?.awbNumber || awbNumber;
+            }
+            return {
+              number: idx + 1,
+              description: item.description,
+              price: item.unitPrice,
               quantity: {
-                value: 1,
+                value: item.quantity,
                 unitOfMeasurement: "KG"
               },
               commodityCodes: [
                 {
                   typeCode: "outbound",
-                  value: "84713000"
+                  value: item.hsnCode || "84713000"
                 }
               ],
               exportReasonType: "permanent",
               manufacturerCountry: "IN",
               weight: {
-                netValue: 1.5,
-                grossValue: 1.5
+                netValue: item.weight,
+                grossValue: item.weight
               },
               isTaxesPaid: true,
               customerReferences: [
                 {
                   typeCode: "AFE",
-                  value: "BOOK0000000352"
+                  value: awbNumber
                 }
               ]
-            }
-          ],
+            };
+          }),
           invoice: {
-            number: "INV-BOOK0000000352",
-            date: "2025-07-11",
+            number: `INV-${orderDetails.parentShipment?.awbNumber}`,
+            date: moment(orderDetails.orderDate).utcOffset('+05:30').format('YYYY-MM-DD'),
             instructions: [
-              "Handle with care"
+              orderDetails.parentShipment?.note || ""
             ],
-            totalNetWeight: 1.5,
-            totalGrossWeight: 1.5
+            totalNetWeight: lineItems.reduce((sum, item) => sum + (item.weight || 0), 0),
+            totalGrossWeight: lineItems.reduce((sum, item) => sum + (item.weight || 0), 0)
           }
         }
       },
@@ -210,38 +236,39 @@ export class DHLService extends BaseNetworkPartner {
         receiptAndLabelsInOneImage: false
       },
       customerDetails: {
+        // Use only PICKUP for shipper and DELIVERY for receiver
         shipperDetails: {
           postalAddress: {
-            postalCode: "560086",
-            cityName: "Bangalore",
-            countryCode: "IN",
-            addressLine1: "MG Road, Near Church Street",
-            countryName: "India"
+            postalCode: pickupAddress.zip || "",
+            cityName: pickupAddress.city || "",
+            countryCode: pickupAddress.countryCode || "IN",
+            addressLine1: pickupAddress.street || "",
+            countryName: pickupAddress.country || "India"
           },
           contactInformation: {
-            email: "shipper@example.com",
-            phone: "9876543210",
-            mobilePhone: "9876543210",
-            companyName: "Shipper Pvt Ltd",
-            fullName: "Ramesh"
+            email: pickupAddress.email || "",
+            phone: pickupAddress.phone || "",
+            mobilePhone: pickupAddress.phone || "",
+            companyName: pickupAddress.addressName || "",
+            fullName: pickupAddress.name || ""
           },
           typeCode: "business"
         },
         receiverDetails: {
           postalAddress: {
-            postalCode: "266001",
-            cityName: "QING DAO",
-            countyName: "Shandong",
-            countryCode: "CN",
-            addressLine1: "123 Beijing Road",
-            countryName: "China"
+            postalCode: deliveryAddress.zip || "",
+            cityName: deliveryAddress.city || "",
+            countyName: deliveryAddress.state || "",
+            countryCode: deliveryAddress.countryCode || "IN",
+            addressLine1: deliveryAddress.street || "",
+            countryName: deliveryAddress.country || "India"
           },
           contactInformation: {
-            email: "receiver@example.cn",
-            phone: "02112345678",
-            mobilePhone: "13800138000",
-            companyName: "Receiver Ltd",
-            fullName: "Li Wei"
+            email: deliveryAddress.email || "",
+            phone: deliveryAddress.phone || "",
+            mobilePhone: deliveryAddress.phone || "",
+            companyName: deliveryAddress.addressName || "",
+            fullName: deliveryAddress.name || ""
           },
           typeCode: "business"
         }
@@ -249,7 +276,7 @@ export class DHLService extends BaseNetworkPartner {
       shipmentNotification: [
         {
           typeCode: "email",
-          receiverId: "shipmentnotification@mydhlapisample.com",
+          receiverId: "pratik.ranjan@shreemaruti.com",
           languageCode: "eng",
           languageCountryCode: "UK",
           bespokeMessage: "message to be included in the notification"
@@ -263,7 +290,7 @@ export class DHLService extends BaseNetworkPartner {
       getAdditionalInformation: [
         {
           typeCode: "pickupDetails",
-          isRequested: true
+          isRequested: false
         }
       ]
     };
@@ -303,12 +330,9 @@ export class DHLService extends BaseNetworkPartner {
   private async callDHLCreateOrderAPI(
     endpoint: any,
     payload: any,
-    awbNumber: string
   ): Promise<AxiosResponse<any>> {
     // Log request
-    this.logger.log(
-      `[DHL createOrder] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
-    );
+ 
 
     console.log("dhl transformed payload", JSON.stringify(payload));
     console.log("dhl end of line");
@@ -336,7 +360,7 @@ export class DHLService extends BaseNetworkPartner {
               "Webstore-Platform-Name": "",
               "Webstore-Platform-Version": "",
               "x-version": "2.12.0",
-              "Authorization": `Basic ${this.configService.get<string>('DHL_AUTH_TOKEN') || 'c2hyZWVtYXJ1dDlJTjpEJDZwUCM0blZAMmdCXjB6'}`,
+              "Authorization": `Basic ${this.configService.get<string>('DHL_AUTH_TOKEN')}`,
               "Content-Type": "application/json"
             },
             httpsAgent: this.httpsAgent,
@@ -345,17 +369,13 @@ export class DHLService extends BaseNetworkPartner {
         )
       );
 
-      this.logger.log(
-        `[DHL createOrder] Response for AWB: ${awbNumber} - ${JSON.stringify(response.data)}`
-      );
+   
 
       return response;
     } catch (error) {
       console.log("dhl error", JSON.stringify(payload));
       console.log("dhl end of line for payload");
-      this.logger.error(
-        `[DHL createOrder] Error for AWB: ${awbNumber} - ${JSON.stringify(error.response?.data || error.message)}`
-      );
+   
       throw error;
     }
   }

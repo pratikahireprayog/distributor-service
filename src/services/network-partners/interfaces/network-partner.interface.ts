@@ -6,6 +6,7 @@ import {
   BaseCancelOrderDto,
   DRSPayloadDTO,
   ManifestReqDto,
+  BaseOrderReqDtoV2
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
@@ -26,6 +27,12 @@ export interface INetworkPartner {
     partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R>;
+
+  createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
+    orderDetails: T,
+    partnerCode: string,
+    eligiblePartners?:EligiblePartnersData
+  ):Promise<R>
 
   getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
     params: T

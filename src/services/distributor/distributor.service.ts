@@ -4,12 +4,14 @@ import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
 import {
   BaseCancelOrderDto,
   BaseOrderReqDto,
+  BaseOrderReqDtoV2,
   BaseOrderResDto,
   BaseReqDto,
   BaseResDto,
   DRSPayloadDTO,
   ManifestReqDto,
   OrderDto,
+  OrderDtov2,
 } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
@@ -27,6 +29,13 @@ export class pushOrdersToPRSDto {
  */
 export class StandardRequestDto {
   order: OrderDto;
+  partnerCode: PARTNER_CODE_ENUM | string;
+  eligiblePartners?: EligiblePartnersData;
+}
+
+
+export class StandardRequestDtoV2 {
+  order: OrderDtov2;
   partnerCode: PARTNER_CODE_ENUM | string;
   eligiblePartners?: EligiblePartnersData;
 }
@@ -124,6 +133,78 @@ export class DistributorService {
       );
       throw error;
     }
+  }
+
+
+  async createOrderV2<R extends BaseOrderResDto>(
+    requestDto:StandardRequestDtoV2
+  ):Promise<R> {
+    //this.logger.log(`Creating Order for ${requestDto.order.awbNumber || "unknown"}`);
+
+    try {
+      const partnerActivity = this.networkPartnerFactory.getPartner(requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT);
+
+      const result = await partnerActivity.createOrderV2<BaseOrderReqDtoV2, R>(
+        requestDto.order as BaseOrderReqDtoV2,
+        requestDto.partnerCode as string, 
+        requestDto.eligiblePartners,
+      )
+
+      if (
+        result &&
+        (result as any).statusCode &&
+        (result as any).statusCode >= 400
+      ) {
+        this.logger.error(
+          `🚨 ORDER CREATION RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
+        );
+
+        // Create a custom error object for Discord alerting
+        const errorForAlert = {
+          message: (result as any).message || "Order creation failed",
+          status: (result as any).statusCode,
+          statusText: "API Error Response",
+          stack: "No stack trace - API response error",
+          response: result,
+        };
+
+        await this.discordAlertService.sendOrderCreationErrorAlert(
+          errorForAlert,
+          requestDto.order.awbNumber,
+          requestDto.partnerCode as string,
+          undefined,
+          { eligiblePartners: requestDto.eligiblePartners, responseError: true }
+        );
+      }
+
+      this.logger.log(
+        `✅ Order creation completed successfully for ${requestDto.order.awbNumber}`
+      );
+      return result;
+    }
+    catch (error) {
+
+      this.logger.error(`🚨 ORDER CREATION ERROR CAUGHT: ${error.message}`);
+      this.logger.error(`Error type: ${error.constructor.name}`);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
+      this.logger.error(
+        `Is ApplicationFailure: ${error.constructor.name === "ApplicationFailure"}`
+      );
+
+      await this.discordAlertService.sendOrderCreationErrorAlert(
+        error,
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string,
+        undefined,
+        { eligiblePartners: requestDto.eligiblePartners }
+      );
+      throw error;
+      
+    }
+
+
+
+
   }
 
   /**
