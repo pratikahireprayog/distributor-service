@@ -6,8 +6,8 @@ import {
   BaseCancelOrderDto,
   DRSPayloadDTO,
   ManifestReqDto,
-  BaseOrderReqDtoV2
 } from "src/common/dtos/base.dto";
+import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
   pushOrdersToPRSDto,

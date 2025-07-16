@@ -17,10 +17,10 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
-  ManifestReqDto,
-  BaseOrderReqDtoV2
+  ManifestReqDto
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
+import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {

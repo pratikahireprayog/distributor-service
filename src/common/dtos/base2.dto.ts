@@ -101,6 +101,17 @@ export class DocumentDto {
   url: string;
 }
 
+export class DimensionsV2Dto {
+  @IsNumber()
+  width: number;
+
+  @IsNumber()
+  height: number;
+
+  @IsNumber()
+  length: number;
+}
+
 export class ParentShipmentDto {
   @IsNumber()
   id: number;
@@ -110,6 +121,7 @@ export class ParentShipmentDto {
 
   @IsString()
   awbNumber: string;
+  
 
   @ValidateNested()
   @Type(() => DimensionsV2Dto)
@@ -134,6 +146,33 @@ export class ParentShipmentDto {
   @ValidateNested({ each: true })
   @Type(() => ItemDto)
   items: ItemDto[];
+}
+
+
+export class BreakdownDto {
+  @IsNumber()
+  id: number;
+
+  @IsNumber()
+  paymentId: number;
+
+  @IsString()
+  subTotal: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaxDto)
+  taxes: TaxDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DiscountDto)
+  discounts: DiscountDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OtherChargeDto)
+  otherCharges: OtherChargeDto[];
 }
 
 export class PaymentDto {
@@ -182,16 +221,6 @@ export class WorkflowContextDto {
 
 // --- Move dependencies for DTOs ---
 
-export class DimensionsV2Dto {
-  @IsNumber()
-  width: number;
-
-  @IsNumber()
-  height: number;
-
-  @IsNumber()
-  length: number;
-}
 
 export class ItemDto {
   @IsNumber()
@@ -235,31 +264,7 @@ export class ItemDto {
   discounts: DiscountDto[];
 }
 
-export class BreakdownDto {
-  @IsNumber()
-  id: number;
 
-  @IsNumber()
-  paymentId: number;
-
-  @IsString()
-  subTotal: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TaxDto)
-  taxes: TaxDto[];
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => DiscountDto)
-  discounts: DiscountDto[];
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => OtherChargeDto)
-  otherCharges: OtherChargeDto[];
-}
 
 // --- Move additional dependencies for DTOs ---
 
@@ -343,6 +348,15 @@ export class OtherChargeDto {
   @IsString()
   chargedAmount: string;
 }
+
+export class PartnerDto {
+  @IsString()
+  code: string;
+
+  @IsString()
+  id: string;
+}
+
 
 
 export class BaseOrderReqDtoV2 extends BaseReqDto {
@@ -435,6 +449,10 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   @ValidateNested()
   @Type(() => WorkflowContextDto)
   workflowContext: WorkflowContextDto;
+
+  @ValidateNested()
+  @Type(() => PartnerDto)
+  partner: PartnerDto;
 }
 
 
@@ -529,12 +547,14 @@ export class OrderDtov2 {
   @ValidateNested()
   @Type(() => WorkflowContextDto)
   workflowContext: WorkflowContextDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PartnerDto)
+  partner?: PartnerDto;
 }
 
-/**
- * Utility to extract all items from parentShipment and childShipments into a flat lineItems array
- * Usage: const lineItems = extractLineItems(data)
- */
+
 export function extractLineItems(data: any): any[] {
   const extract = (item: any) => ({
     name: item.name,
