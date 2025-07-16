@@ -10,16 +10,10 @@ import { DHLAuthService } from "./dhl-auth.service";
 import { SHIPYAARI_ENV_VARS } from "../shipyaari/shipyaari.enum";
 
 import {
-  BaseOrderReqDtoV2,
   BaseOrderResDto,
-  BaseReqDto,
-  BaseResDto,
-  BaseCancelOrderDto,
-  DRSPayloadDTO,
-  ManifestReqDto,
-  BaseOrderReqDto,
-  extractLineItems
+ 
 } from "src/common/dtos/base.dto";
+import { BaseOrderReqDtoV2,BaseReqDto,extractLineItems } from "src/common/dtos/base2.dto";
 
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { ENDPOINT_ID_ENUM, PARTNER_CODE_ENUM } from "src/common/enums/global.enum";

@@ -531,3 +531,25 @@ export class OrderDtov2 {
   workflowContext: WorkflowContextDto;
 }
 
+/**
+ * Utility to extract all items from parentShipment and childShipments into a flat lineItems array
+ * Usage: const lineItems = extractLineItems(data)
+ */
+export function extractLineItems(data: any): any[] {
+  const extract = (item: any) => ({
+    name: item.name,
+    quantity: item.quantity,
+    weight: item.weight,
+    unitPrice: item.unitPrice,
+    sku: item.sku,
+    hsnCode: item.hsnCode,
+    dimensions: item.dimensions,
+    description: item.description,
+    taxes: item.taxes,
+    discounts: item.discounts,
+  });
+  const parentItems = (data.parentShipment?.items || []).map(extract);
+  const childItems = (data.childShipments || []).flatMap((cs: any) => (cs.items || []).map(extract));
+  return [...parentItems, ...childItems];
+}
+

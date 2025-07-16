@@ -4,15 +4,15 @@ import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
 import {
   BaseCancelOrderDto,
   BaseOrderReqDto,
-  BaseOrderReqDtoV2,
   BaseOrderResDto,
   BaseReqDto,
   BaseResDto,
   DRSPayloadDTO,
   ManifestReqDto,
   OrderDto,
-  OrderDtov2,
 } from "src/common/dtos/base.dto";
+
+import { BaseOrderReqDtoV2,OrderDtov2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
 
