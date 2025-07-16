@@ -218,6 +218,11 @@ export class OrderDto {
   @IsNotEmpty()
   awbNumber: string;
 
+
+  @IsString()
+  @IsOptional()
+  clientIdSevasetu: string  
+
   /**
    * Carrier/partner AWB number (when applicable)
    */
@@ -446,6 +451,12 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @IsString({ message: "cAwbNumber must be a string" })
   cAwbNumber?: string;
+
+
+  @IsOptional()
+  @IsString()
+  clientIdSevasetu: string    
+
 
   @IsNotEmpty({ message: "Order status is required" })
   @IsEnum(ORDER_STATUS_ENUM, { message: "Invalid order status" })
