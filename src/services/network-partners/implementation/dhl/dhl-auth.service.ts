@@ -17,7 +17,7 @@ export class DHLAuthService implements AuthProvider {
   async getAuthHeaders(): Promise<Record<string, string>> {
     this.logger.debug('Getting DHL authentication headers');
     
-    const authToken = this.configService.get<string>('DHL_AUTH_TOKEN') || 'c2hyZWVtYXJ1dDlJTjpEJDZwUCM0blZAMmdCXjB6';
+    const authToken = this.configService.get<string>('DHL_AUTH_TOKEN') || "";
     
     return {
       'Authorization': `Basic ${authToken}`,
@@ -31,6 +31,6 @@ export class DHLAuthService implements AuthProvider {
    */
   async getToken(): Promise<string | null> {
     this.logger.debug('Getting DHL authentication token');
-    return this.configService.get<string>('DHL_AUTH_TOKEN') || 'c2hyZWVtYXJ1dDlJTjpEJDZwUCM0blZAMmdCXjB6';
+    return this.configService.get<string>('DHL_AUTH_TOKEN') || '';
   }
 } 
