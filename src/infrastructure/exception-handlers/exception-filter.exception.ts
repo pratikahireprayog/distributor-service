@@ -127,6 +127,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         "unknown";
       const partnerCode = body.partnerCode || "unknown";
 
+      // Extract priority and errorCode if available
+      const priority = body.priority || "P3";
+      const errorCode = body.errorCode || (errorResponse?.statusCode ? `ERR-${errorResponse.statusCode}` : "ERR-UNKNOWN");
+
+      // Extract userId if available
+      const userId = (request as any).user?.id || "anonymous";
+
+      // Compose traceId and requestId
+      const traceId = (request.headers['x-trace-id'] as string) || (request.headers['x-request-id'] as string) || "trace-unknown";
+      const requestId = (request.headers['x-request-id'] as string) || "req-unknown";
+
+      // Compose userAgent and ip
+      const userAgent = request.headers['user-agent'] || "unknown";
+      const ip = request.ip || (request.connection as any)?.remoteAddress || "unknown";
+
+      // Compose requestBody and queryParams
+      const requestBody = request.body ? JSON.stringify(request.body).substring(0, 500) : "No body";
+      const queryParams = request.query ? JSON.stringify(request.query) : "No query params";
+
       // Determine operation type from the URL
       let operationType = "UnknownOperation";
       if (request.url.includes("create-order")) operationType = "CreateOrder";
@@ -149,43 +168,58 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       else if (request.url.includes("push-order-to-hubops"))
         operationType = "PushOrderToHubOps";
 
-      const discordPayload = {
-        channel: { discord: {} },
-        traceId: "global-filter-" + Date.now(),
+      // Compose the new Discord payload with all fields (old and new)
+      const alertPayload = {
+        channel: {
+          discord: {
+            webhookUrl:process.env.DISCORD_WEBHOOK_URL
+          }
+        },
+        environment: process.env.ENV_TYPE || "development",
+        traceId: traceId,
         metaData: {
-          service: "Distributor-Service",
+          userId: userId,
+          service: "distributor-service",
           version: "1.0.0",
-          environment: process.env.NODE_ENV || "development",
+          endpoint: request.url,
+          method: request.method,
+          priority: priority,
+          operationType: operationType,
+          partnerCode: partnerCode,
+          awbNumber: awbNumber,
         },
         error: {
           status: status,
           statusText: this.getStatusText(status),
-          message: message,
+          message: `${priority} - ${message}`,
           endpoint: request.url,
           method: request.method,
           timestamp: new Date().toISOString(),
-          stack:
-            exception instanceof Error
-              ? exception.stack
-              : "No stack trace available",
-          requestId: awbNumber,
+          stack: exception instanceof Error ? exception.stack : "No stack trace available",
+          requestId: requestId,
+          errorCode: errorCode,
+          userAgent: userAgent,
+          ip: ip,
+          requestBody: requestBody,
+          queryParams: queryParams,
+          // Additional info from old structure
           additionalInfo: {
-            operationType,
-            awbNumber,
-            partnerCode,
+            operationType: operationType,
+            awbNumber: awbNumber,
+            partnerCode: partnerCode,
             caughtBy: "GlobalExceptionFilter",
             exceptionType: exception?.constructor?.name || "Unknown",
             requestBody: body,
             errorResponse: errorResponse,
           },
-        },
+        }
       };
 
       this.logger.log(
-        `📤 Sending Discord alert from GlobalExceptionFilter with payload: ${JSON.stringify(discordPayload, null, 2)}`
+        `📤 Sending Discord alert from GlobalExceptionFilter with payload: ${JSON.stringify(alertPayload, null, 2)}`
       );
 
-      const result = await alertService.sendToDiscord(discordPayload);
+      const result = await alertService.sendToDiscord(alertPayload);
       this.logger.log(
         `🔄 Discord API response from GlobalExceptionFilter: ${JSON.stringify(result)}`
       );
@@ -229,6 +263,7 @@ export class CustomHttpExceptionFilter implements ExceptionFilter {
   catch(exception: CustomHttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
+    const request = ctx.getRequest();
     const status = exception.getStatus();
     const message = exception.message;
     const data = exception.getData;
@@ -245,6 +280,99 @@ export class CustomHttpExceptionFilter implements ExceptionFilter {
         timestamp: new Date().toISOString(),
       },
     };
+
+    // Send Discord alert for CustomHttpException
+    (async () => {
+      try {
+        // Extract additional context from the request
+        const body = request.body || {};
+        const awbNumber =
+          body.order?.awbNumber ||
+          body.awbNumber ||
+          body.awbNumbers?.join(",") ||
+          "unknown";
+        const priority = body.priority || "P3";
+        const errorCode = body.errorCode || (status ? `ERR-${status}` : "ERR-UNKNOWN");
+        const userId = (request as any).user?.id || "anonymous";
+        const traceId = (request.headers['x-trace-id'] as string) || (request.headers['x-request-id'] as string) || "trace-unknown";
+        const requestId = (request.headers['x-request-id'] as string) || "req-unknown";
+        const userAgent = request.headers['user-agent'] || "unknown";
+        const ip = request.ip || (request.connection as any)?.remoteAddress || "unknown";
+        const requestBody = request.body ? JSON.stringify(request.body).substring(0, 500) : "No body";
+        const queryParams = request.query ? JSON.stringify(request.query) : "No query params";
+
+        // Determine operation type from the URL
+        let operationType = "UnknownOperation";
+        if (request.url.includes("create-order")) operationType = "CreateOrder";
+        else if (request.url.includes("create-manifest"))
+          operationType = "CreateManifest";
+        else if (request.url.includes("get-order-details"))
+          operationType = "GetOrderDetails";
+        else if (request.url.includes("cancel-order"))
+          operationType = "CancelOrder";
+        else if (request.url.includes("push-order-to-drs"))
+          operationType = "PushOrderToDRS";
+        else if (request.url.includes("push-orders-to-prs"))
+          operationType = "PushOrdersToPRS";
+        else if (request.url.includes("push-order-to-tracking"))
+          operationType = "PushOrderToTracking";
+        else if (request.url.includes("manifest-order-to-tracking"))
+          operationType = "ManifestOrderToTracking";
+        else if (request.url.includes("update-ecom-order"))
+          operationType = "UpdateEcomOrder";
+        else if (request.url.includes("push-order-to-hubops"))
+          operationType = "PushOrderToHubOps";
+
+        const alertPayload = {
+          channel: {
+            discord: {
+              webhookUrl:process.env.DISCORD_WEBHOOK_URL
+            }
+          },
+          environment: process.env.ENV_TYPE || "development",
+          traceId: traceId,
+          metaData: {
+            userId: userId,
+            service: "distributor-service",
+            version: "1.0.0",
+            endpoint: request.url,
+            method: request.method,
+            priority: priority,
+            operationType: operationType,
+            partnerCode: partnerCode,
+            awbNumber: awbNumber,
+          },
+          error: {
+            status: status,
+            statusText: (this as any).getStatusText ? (this as any).getStatusText(status) : "",
+            message: `${priority} - ${message}`,
+            endpoint: request.url,
+            method: request.method,
+            timestamp: new Date().toISOString(),
+            stack: exception instanceof Error ? exception.stack : "No stack trace available",
+            requestId: requestId,
+            errorCode: errorCode,
+            userAgent: userAgent,
+            ip: ip,
+            requestBody: requestBody,
+            queryParams: queryParams,
+            additionalInfo: {
+              operationType: operationType,
+              awbNumber: awbNumber,
+              partnerCode: partnerCode,
+              caughtBy: "CustomHttpExceptionFilter",
+              exceptionType: exception?.constructor?.name || "Unknown",
+              requestBody: body,
+              errorResponse: errorResponse,
+            },
+          }
+        };
+        const alertService = new AlertNotificationService();
+        await alertService.sendToDiscord(alertPayload);
+      } catch (alertError) {
+        // Optionally log alert sending errors
+      }
+    })();
 
     response.status(status).json(errorResponse);
   }

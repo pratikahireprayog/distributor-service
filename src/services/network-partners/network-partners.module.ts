@@ -10,6 +10,7 @@ import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { DefaultNetworkPartnerModule } from "./implementation/default/default-network-partner.module";
 import { ShipyaariModule } from "./implementation/shipyaari/shipyaari.module";
 import { DHLModule } from "./implementation/dhl/dhl.module";
+import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-hyperlocal.module";
 /**
  * Module for network partners
  */
@@ -23,6 +24,7 @@ import { DHLModule } from "./implementation/dhl/dhl.module";
     EndpointConfigModule,
     ShipyaariModule,
     DHLModule,
+    SmileHyperlocalModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

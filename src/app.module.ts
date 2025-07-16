@@ -25,7 +25,7 @@ import { ConfigModule } from '@nestjs/config';
     NetworkPartnersModule,
   ],
   controllers: [AppController],
-  providers: [AppService, Logger],
+  providers: [AppService],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

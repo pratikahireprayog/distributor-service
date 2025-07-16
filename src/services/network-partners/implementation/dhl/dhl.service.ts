@@ -66,31 +66,91 @@ export class DHLService extends BaseNetworkPartner {
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     try {
-      // const awbNumber = orderDetails?.awbNumber || "";
-      // this.logger.log(`Creating DHL order for AWB: ${awbNumber}`);
+      // 1. Extract pickup address zip
+      const pickupAddress: any = orderDetails.addresses?.find((a: any) => a.type === 'PICKUP') || {};
+      const pickupZip = pickupAddress.zip || pickupAddress.postalCode || pickupAddress.pincode || pickupAddress.pin || pickupAddress.PIN || pickupAddress.PINCODE;
+      if (!pickupZip) {
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, 'Pickup address zip is required for DHL account lookup');
+      }
 
-      // Get endpoint configuration
+      // 2. Fetch city code using helper
+      const cityCode = await this.fetchCityCodeFromZip(pickupZip);
+      if (!cityCode) {
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, 'Could not fetch city_code from nearest hub API');
+      }
+
+      // 3. Fetch partner_id
+      let partnerId: string | undefined = undefined;
+      if (eligiblePartners && Array.isArray(eligiblePartners.data) && eligiblePartners.data.length > 0) {
+        partnerId = String(eligiblePartners.data[0].id);
+      }
+      partnerId =this.configService.get<string>('DHL_PARTNER_ID');
+      if (!partnerId) {
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, 'partner_id is required for DHL partner-configs lookup');
+      }
+
+      // 4. Fetch account_id using helper
+      const accountId = await this.fetchAccountIdFromPartnerConfig(partnerId, cityCode);
+      if (!accountId) {
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, 'Could not fetch account_id from partner configs API');
+      }
+
+      // 5. Get endpoint configuration
       const endpoint = {
         url: this.configService.get<string>('DHL_CREATE_ORDER_URL'),
       }
 
-      // Transform the payload for DHL API
-      const transformedData = this.transformDHLPayload(orderDetails);
+      // 6. Transform the payload for DHL API, injecting the accountId
+      const transformedData = await this.transformCreateDHLPayload(orderDetails, accountId);
 
-      // Make API call
-       const response = await this.callDHLCreateOrderAPI(
-         endpoint,
-         transformedData,
-         
-       );
+      // 7. Make API call
+      const response = await this.callDHLCreateOrderAPI(
+        endpoint,
+        transformedData,
+      );
 
-       //Format and return response
+      // 8. Format and return response
       return this.formatCreateOrderResponse<any>(response);
-
-      return transformedData
     } catch (error) {
       this.logger.error(`DHL createOrder error: ${JSON.stringify(error.response)}`);
       throw error;
+    }
+  }
+
+  // Helper to fetch city code from nearest-hub-locations API
+  private async fetchCityCodeFromZip(zip: string): Promise<string | undefined> {
+    const url = this.configService.get<string>('SERVICEABILITY_HUB_CODE_URL');
+    const nearestHubUrl = `${url}/${zip}`;
+    const nearestHubResp = await firstValueFrom(this.httpService.get(nearestHubUrl));
+    return nearestHubResp?.data?.data?.international_hub_city_code;
+  }
+
+  // Helper to fetch account_id from partner-configs API
+  private async fetchAccountIdFromPartnerConfig(partnerId: string, cityCode: string): Promise<string | undefined> {
+    const url=this.configService.get<string>('PARTNER_CONFIG_URL');
+    const partnerConfigsUrl = `${url}/?partner_id=${partnerId}&city_code=${cityCode}`;
+    const partnerConfigsResp = await firstValueFrom(this.httpService.get(partnerConfigsUrl));
+    return partnerConfigsResp?.data?.data?.[0]?.account_id;
+  }
+
+
+  /**
+   * Fetch geo-location info for a postal code and validate country_code
+   * Throws error if country_code is not US or CA
+   */
+  private async fetchAndValidateCountryCode(postalCode: string): Promise<string> {
+    const geo_url = this.configService.get<string>('GEO_LOCATION_URL');
+    const url = `${geo_url}?&postal_codes=${postalCode}&offset=0&limit=1`;
+    try {
+      const resp = await firstValueFrom(this.httpService.get(url));
+      const data = resp?.data?.data?.[0];
+      const countryCode = data?.country_code?.trim();
+      if (!countryCode || (countryCode !== "US" && countryCode !== "CA")) {
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Country code for postal code ${postalCode} is not supported: ${countryCode}`);
+      }
+      return countryCode;
+    } catch (err) {
+      throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Failed to fetch geo-location for postal code ${postalCode}`);
     }
   }
 
@@ -99,7 +159,7 @@ export class DHLService extends BaseNetworkPartner {
    * - Extracts all line items from parent and child shipments
    * - Uses only addresses of type PICKUP and DELIVERY for shipper/receiver
    */
-  private transformDHLPayload<T extends BaseOrderReqDtoV2>(orderDetails: T): any {
+  private async transformCreateDHLPayload<T extends BaseOrderReqDtoV2>(orderDetails: T, accountId: string): Promise<any> {
     console.log("dhl payload", orderDetails);
     // Extract all line items from parent and child shipments
     const lineItems = extractLineItems(orderDetails);
@@ -133,6 +193,10 @@ export class DHLService extends BaseNetworkPartner {
     const pickupAddress: any = orderDetails.addresses?.find((a: any) => a.type === 'PICKUP') || {};
     const deliveryAddress: any = orderDetails.addresses?.find((a: any) => a.type === 'DELIVERY') || {};
 
+    // Fetch and validate country codes for pickup and delivery
+    const shipperCountryCode = await this.fetchAndValidateCountryCode(pickupAddress.zip || pickupAddress.postalCode || "");
+    const receiverCountryCode = await this.fetchAndValidateCountryCode(deliveryAddress.zip || deliveryAddress.postalCode || "");
+
     // Build DHL API payload
     const transformedData = {
       plannedShippingDateAndTime: moment(orderDetails.orderDate).utcOffset('+05:30').format('YYYY-MM-DDTHH:mm:ss [GMT+05:30]'),
@@ -145,7 +209,7 @@ export class DHLService extends BaseNetworkPartner {
       accounts: [
         {
           typeCode: "shipper",
-          number: "535911093"
+          number: accountId
         }
       ],
       content: {
@@ -241,9 +305,9 @@ export class DHLService extends BaseNetworkPartner {
           postalAddress: {
             postalCode: pickupAddress.zip || "",
             cityName: pickupAddress.city || "",
-            countryCode: pickupAddress.countryCode || "IN",
+            countryCode: shipperCountryCode,
             addressLine1: pickupAddress.street || "",
-            countryName: pickupAddress.country || "India"
+            countryName: pickupAddress.country || "United States"
           },
           contactInformation: {
             email: pickupAddress.email || "",
@@ -259,9 +323,9 @@ export class DHLService extends BaseNetworkPartner {
             postalCode: deliveryAddress.zip || "",
             cityName: deliveryAddress.city || "",
             countyName: deliveryAddress.state || "",
-            countryCode: deliveryAddress.countryCode || "IN",
+            countryCode: receiverCountryCode,
             addressLine1: deliveryAddress.street || "",
-            countryName: deliveryAddress.country || "India"
+            countryName: deliveryAddress.country || "United States"
           },
           contactInformation: {
             email: deliveryAddress.email || "",
@@ -413,4 +477,7 @@ export class DHLService extends BaseNetworkPartner {
       }
     } as R;
   }
+
+
+
 }
