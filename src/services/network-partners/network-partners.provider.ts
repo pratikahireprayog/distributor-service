@@ -6,6 +6,7 @@ import { BigshipService } from "./implementation/bigship/bigship.service";
 import { TsawService } from "./implementation/tsaw/tsaw.service";
 import { DefaultNetworkPartner } from "./implementation/default/default-network-partner.service";
 import { ShipyaariService } from "./implementation/shipyaari/shipyaari.service";
+import { DHLService } from "./implementation/dhl/dhl.service";
 import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-hyperlocal.service";
 
 export const networkPartnersProviders: Provider[] = [
@@ -23,6 +24,10 @@ export const networkPartnersProviders: Provider[] = [
     useClass: ShipyaariService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.DHL,
+    useClass: DHLService, 
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
     useClass: SmileHyperlocalService,
   },
@@ -38,6 +43,7 @@ export const networkPartnersProviders: Provider[] = [
       bigshipService: BigshipService,
       tsawService: TsawService,
       shipyaariService: ShipyaariService,
+      dhlService: DHLService,
       smileHyperlocalService: SmileHyperlocalService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
@@ -45,6 +51,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
       factory.registerPartner(PARTNER_CODE_ENUM.TSAW, tsawService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPYAARI, shipyaariService);
+      factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
 
       // Register the default partner
@@ -57,6 +64,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.BIGSHIP,
       NETWORK_PARTNER_PROVIDER_CONST.TSAW,
       NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
+      NETWORK_PARTNER_PROVIDER_CONST.DHL,
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     ],

@@ -9,6 +9,7 @@ import { TsawModule } from "./implementation/tsaw/tsaw.module";
 import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { DefaultNetworkPartnerModule } from "./implementation/default/default-network-partner.module";
 import { ShipyaariModule } from "./implementation/shipyaari/shipyaari.module";
+import { DHLModule } from "./implementation/dhl/dhl.module";
 import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-hyperlocal.module";
 /**
  * Module for network partners
@@ -22,6 +23,7 @@ import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-h
     DefaultNetworkPartnerModule,
     EndpointConfigModule,
     ShipyaariModule,
+    DHLModule,
     SmileHyperlocalModule,
   ],
   providers: [

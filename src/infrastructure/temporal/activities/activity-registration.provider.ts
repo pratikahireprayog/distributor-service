@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from "@nestjs/common";
 import {
   DistributorService,
   StandardRequestDto,
+  StandardRequestDtoV2,
 } from "../../../services/distributor/distributor.service";
 import { ActivityRegistryService } from "./activity-registry.service";
 import { BaseOrderReqDto, BaseOrderResDto } from "src/common/dtos/base.dto";
@@ -40,6 +41,11 @@ export class ActivityRegistrationProvider implements OnModuleInit {
           payload: StandardRequestDto
         ): Promise<BaseOrderResDto> => {
           return this.distributorService.createOrder(payload);
+        },
+        createOrderV2: async(
+          payload:StandardRequestDtoV2
+        ): Promise<BaseOrderResDto> => {
+          return this.distributorService.createOrderV2(payload)
         },
         retryCreateOrder: this.distributorService.retryCreateOrder.bind(
           this.distributorService
