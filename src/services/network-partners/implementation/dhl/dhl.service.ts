@@ -139,9 +139,6 @@ export class DHLService extends BaseNetworkPartner {
       const resp = await firstValueFrom(this.httpService.get(url));
       const data = resp?.data?.data?.[0];
       const countryCode = data?.country_code?.trim();
-      if (!countryCode || (countryCode !== "US" && countryCode !== "CA")) {
-        throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Country code for postal code ${postalCode} is not supported: ${countryCode}`);
-      }
       return countryCode;
     } catch (err) {
       throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Failed to fetch geo-location for postal code not CA or US ${postalCode}`);
@@ -190,6 +187,10 @@ export class DHLService extends BaseNetworkPartner {
     // Fetch and validate country codes for pickup and delivery
     const shipperCountryCode = await this.fetchAndValidateCountryCode(pickupAddress.zip || pickupAddress.postalCode || "");
     const receiverCountryCode = await this.fetchAndValidateCountryCode(deliveryAddress.zip || deliveryAddress.postalCode || "");
+
+      if (!receiverCountryCode || (receiverCountryCode !== "US" && receiverCountryCode !== "CA")) {
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Country code for postal code ${deliveryAddress.zip} is not supported: ${receiverCountryCode}`);
+      }
 
     // Build DHL API payload
     const transformedData = {
