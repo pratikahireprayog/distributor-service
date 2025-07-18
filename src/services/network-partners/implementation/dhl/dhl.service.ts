@@ -70,7 +70,7 @@ export class DHLService extends BaseNetworkPartner {
       // 2. Fetch city code using helper
       const cityCode = await this.fetchCityCodeFromZip(pickupZip);
       if (!cityCode) {
-        throw new CustomHttpException(HttpStatus.BAD_REQUEST, 'Could not fetch city_code from nearest hub API');
+        throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Could not fetch city_code from nearest hub API`);
       }
 
       // 3. Fetch partner_id
@@ -116,7 +116,7 @@ export class DHLService extends BaseNetworkPartner {
     const url = this.configService.get<string>('SERVICEABILITY_HUB_CODE_URL');
     const nearestHubUrl = `${url}/${zip}`;
     const nearestHubResp = await firstValueFrom(this.httpService.get(nearestHubUrl));
-    return nearestHubResp?.data?.data?.international_hub_city_code;
+    return nearestHubResp?.data?.data?.hub_city_code;
   }
 
   // Helper to fetch account_id from partner-configs API
@@ -144,7 +144,7 @@ export class DHLService extends BaseNetworkPartner {
       }
       return countryCode;
     } catch (err) {
-      throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Failed to fetch geo-location for postal code ${postalCode}`);
+      throw new CustomHttpException(HttpStatus.BAD_REQUEST, `Failed to fetch geo-location for postal code not CA or US ${postalCode}`);
     }
   }
 
