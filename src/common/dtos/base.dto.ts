@@ -532,6 +532,27 @@ export class BaseOrderReqDto extends BaseReqDto {
 
   @IsOptional()
   deliveryMode?: string;
+
+  /**
+   * Value of the shipment
+   */
+  @IsOptional()
+  @IsNumber()
+  shipmentValue?: number;
+
+  /**
+   * Remarks or description for the shipment
+   */
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  /**
+   * Source premise ID
+   */
+  @IsOptional()
+  @IsString()
+  cpId?: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {
