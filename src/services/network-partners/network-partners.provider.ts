@@ -8,6 +8,7 @@ import { DefaultNetworkPartner } from "./implementation/default/default-network-
 import { ShipyaariService } from "./implementation/shipyaari/shipyaari.service";
 import { DHLService } from "./implementation/dhl/dhl.service";
 import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-hyperlocal.service";
+import { PorterService } from "./implementation/porter/porter.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -32,6 +33,10 @@ export const networkPartnersProviders: Provider[] = [
     useClass: SmileHyperlocalService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.PORTER,
+    useClass: PorterService,
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     useClass: DefaultNetworkPartner,
   },
@@ -45,6 +50,7 @@ export const networkPartnersProviders: Provider[] = [
       shipyaariService: ShipyaariService,
       dhlService: DHLService,
       smileHyperlocalService: SmileHyperlocalService,
+      porterService: PorterService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
       // Register individual partners
@@ -53,6 +59,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPYAARI, shipyaariService);
       factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
+      factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -66,6 +73,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
       NETWORK_PARTNER_PROVIDER_CONST.DHL,
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
+      NETWORK_PARTNER_PROVIDER_CONST.PORTER,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     ],
   },
