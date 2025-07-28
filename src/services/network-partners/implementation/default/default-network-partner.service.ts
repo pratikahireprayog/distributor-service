@@ -3,6 +3,7 @@ import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import {
   PARTNER_CODE_ENUM,
   ENDPOINT_ID_ENUM,
+  ORDER_TYPE_ENUM,
 } from "src/common/enums/global.enum";
 import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { EndpointConfigRepository } from "src/common/repositories/endpoint-configs/endpoint-configs.repository";
@@ -349,7 +350,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       originalOrderId: data.awbNumber,
       type: data.type,
       weight: data.dimensions?.weight,
-      mcnOrder: data.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI ? true : false,
+      mcnOrder: this.determineMcnFlag(data),
       shippingAddress: {
         name: data.shippingAddress.name,
         phone: data.shippingAddress.mobile,
@@ -576,11 +577,11 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     this.logger.log(
       `Using base implementation for partner code: ${data.partnerCode}`
     );
-    (this as any).partnerCode = data.partnerCode;
+    // (this as any).partnerCode = data.partnerCode;
 
     try {
       const endpoint = await this.getEndpoint(
-        data.partnerCode,
+        PARTNER_CODE_ENUM.SMILE,
         ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
       );
 
@@ -663,7 +664,8 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         service: order?.serviceType || "",
         source: SOURCE_CONST.ORCHESTRATOR,
         // TODO: Make it dynamic based on the serviceability partner selection
-        mcn: order?.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI ? true : false,
+        mcn: this.determineMcnFlag(order),
+        partnerCode: order?.partnerCode || "",
         time: "",
         toPincode: parseInt(order?.shippingAddress?.zip) || 0,
         travelBy: order?.travelType || "",
@@ -1023,5 +1025,20 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Convert to ApplicationFailure for Temporal compatibility
       TemporalErrorHandler.throwAsApplicationFailure(customError);
     }
+  }
+
+  private determineMcnFlag(order: BaseOrderReqDto): boolean {
+    // Check if this is an international order (shipping outside India)
+    const isInternational = order.type === ORDER_TYPE_ENUM.INTERNATIONAL;
+
+    // Check if partner is SHIPYAARI (traditional MCN partner)
+    const isShipyaari = order?.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI;
+
+    // Business logic for MCN flag:
+    // 1. For SHIPYAARI: Always true for domestic orders, needs review for international
+    // 2. For DHL: Typically used for international, may need different MCN logic
+    // 3. For international orders: May have different MCN requirements regardless of partner
+
+    return isInternational || isShipyaari;
   }
 }

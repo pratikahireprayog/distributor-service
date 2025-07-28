@@ -58,4 +58,5 @@ export enum ORDER_TYPE_ENUM {
   ECOMM = "ECOMM",
   CARGO = "CARGO",
   COURIER = "COURIER",
+  INTERNATIONAL = "international",
 }
