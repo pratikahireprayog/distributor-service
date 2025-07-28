@@ -640,7 +640,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       {
         awbNumber: awbNum,
         bookingStatus: order.orderStatus,
-        bookingType: order.type,
+        bookingType: order.type === ORDER_TYPE_ENUM.INTERNATIONAL ? "cargo" : order.type,
         // ewayBillCreateDate: null,
         ewayBillNumber: order?.ewayBillNos?.[0] || "",
         docType: order?.type === "COURIER" ? order?.deliveryMode : "non-dox",
