@@ -223,6 +223,10 @@ export class OrderDto {
   @IsOptional()
   clientIdSevasetu: string  
 
+
+  @IsOptional()
+  childAwbs:string[]
+
   /**
    * Carrier/partner AWB number (when applicable)
    */
@@ -456,6 +460,9 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @IsString()
   clientIdSevasetu: string    
+
+  @IsOptional()
+  childAwbs:string[]
 
 
   @IsNotEmpty({ message: "Order status is required" })

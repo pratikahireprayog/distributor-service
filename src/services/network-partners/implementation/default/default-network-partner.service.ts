@@ -218,6 +218,8 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       trackingId: data.awbNumber,
       cAwbNumber: data.cAwbNumber,
       smileAwbNumber: data?.smileAwbNumber,
+      clientIdSevasetu: data?.clientIdSevasetu,
+      childTrackingIds: data?.childAwbs,
       type: data?.type,
       sourceLocation: {
         city: pickupAddress.city,
