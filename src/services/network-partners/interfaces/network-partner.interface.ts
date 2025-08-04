@@ -12,6 +12,7 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
   pushOrdersToPRSDto,
   StandardRequestDto,
+  StandardRequestDtoV2,
 } from "src/services/distributor/distributor.service";
 
 /**
@@ -31,8 +32,8 @@ export interface INetworkPartner {
   createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderDetails: T,
     partnerCode: string,
-    eligiblePartners?:EligiblePartnersData
-  ):Promise<R>
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R>;
 
   getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
     params: T
@@ -102,6 +103,15 @@ export interface INetworkPartner {
    * @returns Response from HubOps API
    */
   updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
+  /**
+   * Update partner details in HubOps system (V2)
+   * @param data Partner data for HubOps update
+   * @returns Response from HubOps API
+   */
+  updatePartnerToHubOpsV2?<T extends StandardRequestDtoV2, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 

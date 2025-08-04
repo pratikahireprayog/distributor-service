@@ -17,7 +17,7 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
-  ManifestReqDto
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
@@ -26,6 +26,7 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
   pushOrdersToPRSDto,
   StandardRequestDto,
+  StandardRequestDtoV2,
 } from "src/services/distributor/distributor.service";
 
 /**
@@ -149,10 +150,9 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderData: T,
     partnerCode: string,
-    eligiblePartners:EligiblePartnersData
+    eligiblePartners: EligiblePartnersData
   ): Promise<R> {
-
-   this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
+    this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
     let existingPartners: any;
     let attemptNumber = 1;
     let partnerType = partnerCode;
@@ -246,11 +246,6 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       throw error;
     }
   }
-
-    
-
-    
-  
 
   async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     data: T

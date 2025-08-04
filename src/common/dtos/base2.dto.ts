@@ -12,7 +12,6 @@ import {
   IsArray,
 } from "class-validator";
 
-
 export class BaseReqDto {
   @IsNotEmpty({ message: "AWB number is required" })
   @IsString({ message: "AWB number must be a string" })
@@ -22,7 +21,6 @@ export class BaseReqDto {
   @IsString({ message: "Partner code must be a string" })
   partnerCode: string;
 }
-
 
 // --- Moved from base.dto.ts ---
 
@@ -121,7 +119,10 @@ export class ParentShipmentDto {
 
   @IsString()
   awbNumber: string;
-  
+
+  @IsString()
+  @IsOptional()
+  partnerAwbNumber?: string;
 
   @ValidateNested()
   @Type(() => DimensionsV2Dto)
@@ -147,7 +148,6 @@ export class ParentShipmentDto {
   @Type(() => ItemDto)
   items: ItemDto[];
 }
-
 
 export class BreakdownDto {
   @IsNumber()
@@ -221,7 +221,6 @@ export class WorkflowContextDto {
 
 // --- Move dependencies for DTOs ---
 
-
 export class ItemDto {
   @IsNumber()
   id: number;
@@ -263,8 +262,6 @@ export class ItemDto {
   @Type(() => DiscountDto)
   discounts: DiscountDto[];
 }
-
-
 
 // --- Move additional dependencies for DTOs ---
 
@@ -356,8 +353,6 @@ export class PartnerDto {
   @IsString()
   id: string;
 }
-
-
 
 export class BaseOrderReqDtoV2 extends BaseReqDto {
   @IsString()
@@ -455,8 +450,6 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   partner: PartnerDto;
 }
 
-
-
 export class OrderDtov2 {
   @IsString()
   orderId: string;
@@ -520,7 +513,9 @@ export class OrderDtov2 {
   parentShipment: ParentShipmentDto;
 
   @IsArray()
-  childShipments: any[]; // Could be further typed if needed
+  @ValidateNested({ each: true })
+  @Type(() => ParentShipmentDto)
+  childShipments: ParentShipmentDto[];
 
   @IsArray()
   vehicles: any[]; // Could be further typed if needed
@@ -554,7 +549,6 @@ export class OrderDtov2 {
   partner?: PartnerDto;
 }
 
-
 export function extractLineItems(data: any): any[] {
   const extract = (item: any) => ({
     name: item.name,
@@ -569,7 +563,8 @@ export function extractLineItems(data: any): any[] {
     discounts: item.discounts,
   });
   const parentItems = (data.parentShipment?.items || []).map(extract);
-  const childItems = (data.childShipments || []).flatMap((cs: any) => (cs.items || []).map(extract));
+  const childItems = (data.childShipments || []).flatMap((cs: any) =>
+    (cs.items || []).map(extract)
+  );
   return [...parentItems, ...childItems];
 }
-

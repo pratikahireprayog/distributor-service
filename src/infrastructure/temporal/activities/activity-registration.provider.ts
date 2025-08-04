@@ -47,10 +47,6 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         ): Promise<BaseOrderResDto> => {
           return this.distributorService.createOrderV2(payload)
         },
-        retryCreateOrder: this.distributorService.retryCreateOrder.bind(
-          this.distributorService
-        ),
-        // distributorTrackOrder: this.distributorService.trackOrder.bind(this.distributorService),
         cancelOrder: this.distributorService.cancelOrder.bind(
           this.distributorService
         ),

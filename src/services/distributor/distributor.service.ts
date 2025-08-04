@@ -12,7 +12,7 @@ import {
   OrderDto,
 } from "src/common/dtos/base.dto";
 
-import { BaseOrderReqDtoV2,OrderDtov2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, OrderDtov2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
 
@@ -32,7 +32,6 @@ export class StandardRequestDto {
   partnerCode: PARTNER_CODE_ENUM | string;
   eligiblePartners?: EligiblePartnersData;
 }
-
 
 export class StandardRequestDtoV2 {
   order: OrderDtov2;
@@ -135,20 +134,21 @@ export class DistributorService {
     }
   }
 
-
   async createOrderV2<R extends BaseOrderResDto>(
-    requestDto:StandardRequestDtoV2
-  ):Promise<R> {
+    requestDto: StandardRequestDtoV2
+  ): Promise<R> {
     //this.logger.log(`Creating Order for ${requestDto.order.awbNumber || "unknown"}`);
 
     try {
-      const partnerActivity = this.networkPartnerFactory.getPartner(requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT);
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
       const result = await partnerActivity.createOrderV2<BaseOrderReqDtoV2, R>(
         requestDto.order as BaseOrderReqDtoV2,
-        requestDto.partnerCode as string, 
-        requestDto.eligiblePartners,
-      )
+        requestDto.partnerCode as string,
+        requestDto.eligiblePartners
+      );
 
       if (
         result &&
@@ -181,9 +181,7 @@ export class DistributorService {
         `✅ Order creation completed successfully for ${requestDto.order.awbNumber}`
       );
       return result;
-    }
-    catch (error) {
-
+    } catch (error) {
       this.logger.error(`🚨 ORDER CREATION ERROR CAUGHT: ${error.message}`);
       this.logger.error(`Error type: ${error.constructor.name}`);
       this.logger.error(`Error details: ${JSON.stringify(error)}`);
@@ -199,48 +197,8 @@ export class DistributorService {
         { eligiblePartners: requestDto.eligiblePartners }
       );
       throw error;
-      
-    }
-
-
-
-
-  }
-
-  /**
-   * Retry creating an order with the next available partner
-   */
-  async retryCreateOrder<R extends BaseOrderResDto>(
-    requestDto: StandardRequestDto
-  ): Promise<R> {
-    this.logger.log(
-      `Retrying order creation for ${requestDto.order.awbNumber || "unknown"}`
-    );
-
-    try {
-      // Get the default partner
-      const partnerActivity = this.networkPartnerFactory.getPartner(
-        PARTNER_CODE_ENUM.DEFAULT
-      );
-
-      // Execute the operation with the default partner
-      // This will use the partner helper to determine the next partner to try
-      return partnerActivity.createOrder<BaseOrderReqDto, R>(
-        requestDto.order as BaseOrderReqDto,
-        requestDto.partnerCode as string
-      );
-    } catch (error) {
-      await this.discordAlertService.sendOrderCreationErrorAlert(
-        error,
-        requestDto.order.awbNumber,
-        requestDto.partnerCode as string,
-        undefined,
-        { isRetry: true }
-      );
-      throw error;
     }
   }
-
   /**
    * Create a manifest with a network partner
    */
@@ -530,14 +488,57 @@ export class DistributorService {
       `Updating order in HubOps for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Get the appropriate partner implementation
-    const partnerActivity = this.networkPartnerFactory.getPartner(
-      requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      // Execute the operation with the selected partner
+      return partnerActivity.updateOrderToHubOps<StandardRequestDto, R>(
+        requestDto
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "UpdateOrderToHubOps",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Update partner details in HubOps system - Accepts the v2 standardized format
+   * @param requestDto Request data containing partner details for update
+   * @returns Response from HubOps API
+   */
+  async updatePartnerToHubOpsV2<R extends BaseResDto>(
+    requestDto: StandardRequestDtoV2
+  ): Promise<R> {
+    this.logger.log(
+      `Updating partner details in HubOps for ${requestDto.order.awbNumber || "unknown"}`
     );
 
-    // Execute the operation with the selected partner
-    return partnerActivity.updateOrderToHubOps<StandardRequestDto, R>(
-      requestDto
-    );
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      // Execute the operation with the selected partner
+      return partnerActivity.updatePartnerToHubOpsV2<StandardRequestDtoV2, R>(
+        requestDto
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "UpdatePartnerToHubOpsV2",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
   }
 }

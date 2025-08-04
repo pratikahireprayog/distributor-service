@@ -22,6 +22,7 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
   pushOrdersToPRSDto,
   StandardRequestDto,
+  StandardRequestDtoV2,
 } from "src/services/distributor/distributor.service";
 import { firstValueFrom } from "rxjs";
 import {
@@ -642,7 +643,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       {
         awbNumber: awbNum,
         bookingStatus: order.orderStatus,
-        bookingType: order.type === ORDER_TYPE_ENUM.INTERNATIONAL ? ORDER_TYPE_ENUM.CARGO : order.type,
+        bookingType: order.type.toUpperCase(),
         // ewayBillCreateDate: null,
         ewayBillNumber: order?.ewayBillNos?.[0] || "",
         docType: order?.type === "COURIER" ? order?.deliveryMode : "non-dox",
@@ -724,6 +725,105 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
+  async updatePartnerToHubOpsV2<
+    T extends StandardRequestDtoV2,
+    R extends BaseResDto,
+  >(data: T): Promise<R> {
+    this.logger.log(
+      `Updating partner order to HubOps for partner code: ${data.partnerCode}`
+    );
+    (this as any).partnerCode = data.partnerCode;
+
+    try {
+      // Get base URL from environment variable
+      const baseUrl = process.env.SMILE_HUBOPS_MCN_PARTNER_UPDATE_BASE_URL;
+
+      // Collect all shipments (parent + children) that need to be updated
+      const shipmentsToUpdate = [];
+
+      // Add parent shipment
+      if (data.order.parentShipment) {
+        shipmentsToUpdate.push({
+          shipment: data.order.parentShipment,
+          type: "parent",
+        });
+      }
+
+      // Add child shipments - handle both correct and typo property names
+      const childShipments =
+        data.order.childShipments || (data.order as any).chilShipments || [];
+      if (childShipments && childShipments.length > 0) {
+        childShipments.forEach((childShipment, index) => {
+          shipmentsToUpdate.push({
+            shipment: childShipment,
+            type: "child",
+            index,
+          });
+        });
+      }
+
+      if (shipmentsToUpdate.length === 0) {
+        throw new Error("No shipments found to update");
+      }
+
+      // Process each shipment
+      const updatePromises = shipmentsToUpdate.map(
+        async ({ shipment, type, index }) => {
+          const partnerAwbNumber = shipment.partnerAwbNumber;
+          const awbNumber = shipment.awbNumber;
+
+          // Build the URL - use partnerAwbNumber if available, otherwise use awbNumber
+          const url = `${baseUrl}/smcs-webapp/shipment-booking-service/v1/shipment/mcn/${awbNumber}`;
+
+          this.logger.log(
+            `Updating ${type} shipment${index !== undefined ? ` ${index}` : ""} in HubOps API: ${url}` +
+              `${partnerAwbNumber ? ` (using partnerAwbNumber: ${partnerAwbNumber})` : ` (using awbNumber: ${awbNumber})`}`
+          );
+
+          const body = this.buildHubOpsPartnerUpdatePayload(shipment);
+          this.logger.log(
+            `HubOps ${type} shipment update payload body sent to API`,
+            body
+          );
+
+          // Make PUT request with custom headers
+          return this.makeHubOpsPutApiCall(
+            url,
+            body,
+            `HubOps ${type} Shipment Update`
+          );
+        }
+      );
+
+      // Execute all updates in parallel
+      const responses = await Promise.all(updatePromises);
+
+      this.logger.log(
+        `Successfully updated ${responses.length} shipments in HubOps`
+      );
+
+      // Always return consistent aggregated response structure
+      const aggregatedData = {
+        totalShipments: responses.length,
+        successfulUpdates: responses.length,
+        shipmentResults: responses.map((response, index) => ({
+          shipmentType: shipmentsToUpdate[index].type,
+          awbNumber: shipmentsToUpdate[index].shipment.awbNumber,
+          partnerAwbNumber: shipmentsToUpdate[index].shipment.partnerAwbNumber,
+          result: response.data,
+        })),
+      };
+
+      return this.createSuccessResponse<R>(
+        aggregatedData as any,
+        `Successfully updated ${responses.length} shipment(s) in HubOps`
+      );
+    } catch (error) {
+      // Let the error propagate up, makeHubOpsPutApiCall already formats it properly
+      throw error;
+    }
+  }
+
   async updateEcomOrderWebhook<
     T extends StandardRequestDto,
     R extends BaseResDto,
@@ -776,6 +876,16 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       travelBy: order?.travelType || "",
       receiverAddressLine1: order?.shippingAddress?.address1 || "",
       receiverAddressLine2: order?.shippingAddress?.address2 || "",
+    };
+  }
+
+  /**
+   * Build payload for HubOps partner update operation
+   */
+  private buildHubOpsPartnerUpdatePayload(order: BaseOrderReqDto) {
+    return {
+      partnerCode: order.partnerCode,
+      mcnAwbNumber: order.cAwbNumber,
     };
   }
 
@@ -876,7 +986,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         "Content-Type": "application/json",
         // "SMCS-PREMISE-ID": process.env.HUBOPS_PREMISE_ID || "default-premise",
         // "USER-ID": process.env.HUBOPS_USER_ID || "default-user",
-        "x-api-key": process.env.HUBOPS_API_KEY,
+        // "x-api-key": process.env.HUBOPS_API_KEY,
       };
 
       this.logger.log(`🔑 HubOps PUT headers: ${JSON.stringify(headers)}`);

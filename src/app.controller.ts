@@ -15,7 +15,7 @@ import {
   pushOrdersToPRSDto,
   StandardRequestDto,
   pushOrdersToPRSRequestDto,
-  StandardRequestDtoV2
+  StandardRequestDtoV2,
 } from "./services/distributor/distributor.service";
 import {
   BaseReqDto,
@@ -54,10 +54,8 @@ export class AppController {
   }
 
   @Post("create-order-v2")
-  async createOrderV2(
-    @Body() requestDto:StandardRequestDtoV2
-  ): Promise<any> {
-    return this.distributorService.createOrderV2(requestDto)
+  async createOrderV2(@Body() requestDto: StandardRequestDtoV2): Promise<any> {
+    return this.distributorService.createOrderV2(requestDto);
   }
 
   @Post("create-manifest")
@@ -134,5 +132,12 @@ export class AppController {
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
     return this.distributorService.updateOrderToHubOps(requestDto);
+  }
+
+  @Post("update-partner-to-hubops")
+  async updatePartnerToHubOpsV2(
+    @Body() requestDto: StandardRequestDtoV2
+  ): Promise<BaseResDto> {
+    return this.distributorService.updatePartnerToHubOpsV2(requestDto);
   }
 }
