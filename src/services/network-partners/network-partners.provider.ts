@@ -9,6 +9,7 @@ import { ShipyaariService } from "./implementation/shipyaari/shipyaari.service";
 import { DHLService } from "./implementation/dhl/dhl.service";
 import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-hyperlocal.service";
 import { PorterService } from "./implementation/porter/porter.service";
+import { IndiaPostInternationalService } from "./implementation/india-post-international/india-post-international.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -37,6 +38,10 @@ export const networkPartnersProviders: Provider[] = [
     useClass: PorterService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
+    useClass: IndiaPostInternationalService,
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     useClass: DefaultNetworkPartner,
   },
@@ -51,6 +56,7 @@ export const networkPartnersProviders: Provider[] = [
       dhlService: DHLService,
       smileHyperlocalService: SmileHyperlocalService,
       porterService: PorterService,
+      indiaPostService: IndiaPostInternationalService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
       // Register individual partners
@@ -60,6 +66,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
+      factory.registerPartner(PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL, indiaPostService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -74,6 +81,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.DHL,
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
       NETWORK_PARTNER_PROVIDER_CONST.PORTER,
+      NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     ],
   },
