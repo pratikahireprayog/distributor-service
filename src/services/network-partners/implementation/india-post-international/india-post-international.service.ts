@@ -178,7 +178,21 @@ export class IndiaPostInternationalService extends BaseNetworkPartner {
       ...((orderDetails.childShipments || []).flatMap((s: any) => s.items || [])),
     ];
 
-    const sub_pieces = allItems.map((it: any) => ({
+    // Deduplicate items based on AWB number and SKU to avoid duplicate barcode errors
+    const uniqueItems = new Map();
+    allItems.forEach((it: any) => {
+      const key = `${it.sku || it.name}-${orderDetails.parentShipment?.awbNumber || ''}`;
+      if (!uniqueItems.has(key)) {
+        uniqueItems.set(key, it);
+      } else {
+        // If duplicate found, merge quantities
+        const existing = uniqueItems.get(key);
+        existing.quantity = (existing.quantity || 0) + (it.quantity || 0);
+        existing.weight = (existing.weight || 0) + (it.weight || 0);
+      }
+    });
+
+    const sub_pieces = Array.from(uniqueItems.values()).map((it: any) => ({
       hs_cd: it.hsnCode || '',
       cth_cd: 'CTHCode1',
       hs_description: 'HS Description',
@@ -247,6 +261,21 @@ export class IndiaPostInternationalService extends BaseNetworkPartner {
     const shippingCharge = (orderDetails.payment?.breakdown?.otherCharges || []).find((c: any) => (c.name || '').toLowerCase().includes('shipping'));
 
     const parentShipmentAny: any = (orderDetails as any).parentShipment || {};
+
+    // Build a unique 13-digit numeric article number from numeric IDs + timestamp
+    const numericSeed = [
+      parentShipmentAny.cAwbNumber,
+      parentShipmentAny.awbNumber,
+      parentShipmentAny.smileAwbNumber,
+      (orderDetails as any).referenceId,
+      (orderDetails as any).orderId,
+    ]
+      .filter(Boolean)
+      .join('');
+    const numericBase = (numericSeed + Date.now().toString()).replace(/\D/g, '');
+    const finalArticleNumber = (numericBase.length >= 13)
+      ? numericBase.slice(-13)
+      : (('0000000000000' + numericBase).slice(-13));
 
     const hasPickup = Array.isArray((orderDetails as any).addresses) && (orderDetails as any).addresses.some((a: any) => a?.type === 'PICKUP');
     const pickupSlot = (orderDetails as any).slots?.find((s: any) => s?.slotType === 'PICKUP');
@@ -328,7 +357,7 @@ export class IndiaPostInternationalService extends BaseNetworkPartner {
       address_ref_sender_alt: '',
       address_ref_receiver_akt_addr: '',
 
-      article_number: (parentShipmentAny.cAwbNumber || parentShipmentAny.awbNumber || parentShipmentAny.smileAwbNumber || '').padEnd(13, '0').substring(0, 13),
+      article_number: finalArticleNumber,
       subpiece_count: sub_pieces.length,
       base_tariff: toNumberOrEmpty(shippingCharge?.chargedAmount || 0),
       tax_amount: toNumberOrEmpty(tax_amount),
