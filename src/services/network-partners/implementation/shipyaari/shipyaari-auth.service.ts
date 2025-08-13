@@ -26,6 +26,77 @@ interface ShipyaariAuthResponse {
   data?: any[];
 }
 
+interface ShipyaariV2AuthResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: Array<{
+    name: string;
+    email: string;
+    sellerId: number;
+    companyId: string;
+    privateCompanyId: number;
+    token: string;
+    jwt: string;
+    privateCompany: {
+      name: string;
+      companyId: number;
+      address: string;
+      pincode: number;
+      city: string;
+      state: string;
+      logoUrl: string;
+      brandName: string;
+      businessType: string;
+      webSite: string;
+      facebookUrl: string;
+      instagramUrl: string;
+      whatsappUrl: string;
+      accountDetails: any[];
+      operationDetails: any[];
+    };
+    nextStep: {
+      qna: boolean;
+      kyc: boolean;
+      bank: boolean;
+      isChannelIntegrated: boolean;
+    };
+    contactNumber: number;
+    isWalletRechage: boolean;
+    isReturningUser: boolean;
+    isMigrated: boolean;
+    phpUserId: number;
+    phpParentId: number;
+    businessType: string;
+    kycDetails: {
+      gstNumber: string;
+      gstVerified: boolean;
+      gstFile: string;
+      panNumber: string;
+      panVerified: boolean;
+      panFile: string;
+      aadharNumber: number;
+      aadharVerified: boolean;
+      aadharFile: string;
+      address: {
+        plotNumber: string;
+        locality: string;
+        city: string;
+        district: string;
+        pincode: number;
+        state: string;
+        country: string;
+      };
+      fullAddress: string;
+      isKYCDone: boolean;
+      fullName: string;
+    };
+    isPostpaid: boolean;
+    isMaskedUser: boolean;
+    isWalletBlackListed: boolean;
+  }>;
+}
+
 // Custom error class for authentication errors
 class AuthenticationError extends Error {
   constructor(
@@ -262,7 +333,7 @@ export class ShipyaariAuthService implements AuthProvider {
         .build();
 
       // Execute request using the NestJS HttpService directly
-      const response = await this.executeRequest<ShipyaariAuthResponse>(request);
+      const response = await this.executeRequest<ShipyaariV2AuthResponse>(request);
       const { data } = response;
 
       this.logger.debug(`Auth response: ${JSON.stringify(data)}`);
