@@ -375,8 +375,8 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   @IsDateString()
   expectedDeliveryDate: string;
 
-  @IsString()
-  orderType: string;
+  @IsEnum(ORDER_TYPE_ENUM, { message: "Valid Order Type is B2B And B2C" })
+  orderType: ORDER_TYPE_ENUM;
 
   @IsArray()
   @IsString({ each: true })
