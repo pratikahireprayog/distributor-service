@@ -88,7 +88,11 @@ export class ShipyaariService extends BaseNetworkPartner {
       );
 
       // Format and return response
-      return this.formatCreateOrderResponse<R>(response);
+      return this.formatCreateOrderResponse<R>(
+        response,
+        endpoint.url,
+        transformedData
+      );
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -294,47 +298,27 @@ export class ShipyaariService extends BaseNetworkPartner {
    * Format Shipyaari API response into standard format
    */
   private formatCreateOrderResponse<R extends BaseOrderResDto>(
-    response: AxiosResponse<any>
+    response: AxiosResponse<any>,
+    requestUrl: string,
+    requestBody: any
   ): R {
     const result = new BaseOrderResDto() as R;
-
-    // Process successful response
-    const orderId = response.data?.data?.[0]?.orderId || "";
-    let apiMessage = response.data.message || "Order created successfully";
-    let responseAwbNumber = "";
-    let orderStatus = "";
-
-    // Extract awb number and status from the nested response
-    if (response.data?.data?.[0]?.awbs?.[0]?.tracking) {
-      const trackingInfo = response.data.data[0].awbs[0].tracking;
-      responseAwbNumber = trackingInfo.awb || "";
-
-      // Get the current status from the first status entry
-      if (trackingInfo.status && trackingInfo.status.length > 0) {
-        orderStatus = trackingInfo.status[0].currentStatus || "";
-      }
-    }
 
     // Use API status code for successful responses too
     result.statusCode = response.data?.statusCode || 200;
     // Set generic success message at root level
     result.message = "Shipyaari Create Order API success";
-    // Add partner code at root level
-    result.partnerCode = this.partnerCode;
 
-    // Create a simplified data structure with only essential fields
+    // Create consistent data structure
     result.data = {
-      success: true,
-      orderId: orderId,
-      cAwbNumber: responseAwbNumber || "",
-      status: orderStatus,
-      message: apiMessage, // Add the API message here
+      originalResponse: response.data,
+      requestUrl: requestUrl,
+      requestBody: requestBody,
     };
 
     result.trace = {
       timestamp: new Date().toISOString(),
       partnerCode: this.partnerCode,
-      operation: "CREATE_ORDER",
     };
 
     return result;
@@ -382,7 +366,11 @@ export class ShipyaariService extends BaseNetworkPartner {
       );
 
       // Format and return response
-      return this.formatCreateManifestResponse<R>(response, referenceAwb);
+      return this.formatCreateManifestResponse<R>(
+        response,
+        endpoint.url,
+        transformedData
+      );
     } catch (error) {
       // If this is a CustomHttpException, just rethrow it
       if (error instanceof CustomHttpException) {
@@ -498,37 +486,26 @@ export class ShipyaariService extends BaseNetworkPartner {
    */
   private formatCreateManifestResponse<R extends BaseResDto>(
     response: AxiosResponse<any>,
-    awbNumber?: string
+    requestUrl: string,
+    requestBody: any
   ): R {
     const result = new BaseResDto() as R;
-
-    // Process response
-    const manifestId = response.data?.data?.manifestId || "";
-    const manifestUrl = response.data?.data?.manifestUrl || "";
-    const apiMessage = response.data.message || "Manifest created successfully";
-
-    // Convert comma-separated awbNumber string to array
-    const awbNumbers = awbNumber ? awbNumber.split(",") : [];
 
     // Set standard response fields
     result.statusCode = response.data?.statusCode || 200;
     result.message = "Shipyaari Create Manifest API success";
-    result.partnerCode = this.partnerCode;
 
-    // Create standardized data structure
+    // Create consistent data structure
     result.data = {
-      success: true,
-      manifestId: manifestId,
-      manifestUrl: manifestUrl,
-      awbNumbers: awbNumbers,
-      message: apiMessage,
-      // Include original API response for reference
-      apiResponse: response.data,
+      originalResponse: response.data,
+      requestUrl: requestUrl,
+      requestBody: requestBody,
     };
 
     // Add minimal trace information
     result.trace = {
       timestamp: new Date().toISOString(),
+      partnerCode: this.partnerCode,
       operation: "CREATE_MANIFEST",
     };
 
@@ -580,7 +557,11 @@ export class ShipyaariService extends BaseNetworkPartner {
       );
 
       // Format and return response
-      return this.formatCancelOrderResponse<R>(response, data);
+      return this.formatCancelOrderResponse<R>(
+        response,
+        endpoint.url,
+        transformedData
+      );
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -690,30 +671,26 @@ export class ShipyaariService extends BaseNetworkPartner {
    */
   private formatCancelOrderResponse<R extends BaseResDto>(
     response: AxiosResponse<any>,
-    originalData: BaseCancelOrderDto
+    requestUrl: string,
+    requestBody: any
   ): R {
     const result = new BaseResDto() as R;
-
-    // Extract key information from the response
-    const apiMessage = response.data.message || "Order cancelled successfully";
 
     // Use API status code for successful responses too
     result.statusCode = response.data?.statusCode || 200;
     // Set generic success message at root level
     result.message = "Shipyaari Cancel Order API success";
-    // Add partner code at root level
-    result.partnerCode = this.partnerCode;
 
-    // Create a simplified data structure with only essential fields
+    // Create consistent data structure
     result.data = {
-      success: true,
-      status: "CANCELLED",
-      message: apiMessage,
-      cAwbNumbers: originalData.cAwbNumbers,
+      originalResponse: response.data,
+      requestUrl: requestUrl,
+      requestBody: requestBody,
     };
 
     result.trace = {
       timestamp: new Date().toISOString(),
+      partnerCode: this.partnerCode,
       operation: "CANCEL_ORDER",
     };
 
