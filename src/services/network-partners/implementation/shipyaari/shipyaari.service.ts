@@ -733,7 +733,7 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token
-      const authHeaders = await this.authService.getAuthHeaders();
+      const authHeaders = await this.authService.getAuthHeadersV2();
 
       // Transform the payload for V2
       const transformedData = this.transformShipyaariCreateOrderV2Payload(orderDetails);
