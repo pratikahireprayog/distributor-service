@@ -8,7 +8,7 @@ import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { ShipyaariAuthService } from "./shipyaari-auth.service";
 import { SHIPYAARI_ENV_VARS } from "./shipyaari.enum";
 import { ShipyaariErrorHelper } from "./shipyaari-error.helper";
-import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2,extractLineItems } from "src/common/dtos/base2.dto";
 import {
   BaseOrderReqDto,
   BaseOrderResDto,
@@ -26,6 +26,7 @@ import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { AxiosResponse } from "axios";
 import { EndpointConfigModel } from "src/common/repositories/endpoint-configs/endpoint-configs.schema";
+
 
 @Injectable()
 export class ShipyaariService extends BaseNetworkPartner {
