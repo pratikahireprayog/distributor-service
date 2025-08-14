@@ -785,7 +785,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         name: `box_${idx + 1}`,
         type: "parcel",
         weightUnit: "Kg",
-        deadWeight: parseFloat(shipment.physicalWeight || "1") / 1000, // Convert to kg
+        deadWeight: parseFloat(shipment.physicalWeight || "2") / 1000, // Convert to kg
         length: parseFloat(shipment.dimensions?.length || "1"),
         breadth: parseFloat(shipment.dimensions?.width || "1"),
         height: parseFloat(shipment.dimensions?.height || "1"),
@@ -805,10 +805,10 @@ export class ShipyaariService extends BaseNetworkPartner {
           totalDiscount: parseFloat(item.discount || "0"),
           totalPrice: parseFloat(item.unitPrice || "0"),
           weightUnit: "kg",
-          deadWeight: parseFloat(item.weight || "0") / 1000,
-          length: parseFloat(item.dimensions?.length || "0"),
-          breadth: parseFloat(item.dimensions?.width || "0"),
-          height: parseFloat(item.dimensions?.height || "0"),
+          deadWeight: parseFloat(item.weight || "2") / 1000,
+          length: parseFloat(item.dimensions?.length || "1"),
+          breadth: parseFloat(item.dimensions?.width || "1"),
+          height: parseFloat(item.dimensions?.height || "1"),
           measureUnit: "cm",
           images: []
         })),
