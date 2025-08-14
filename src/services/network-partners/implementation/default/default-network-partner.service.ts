@@ -352,7 +352,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       originalOrderId: data.awbNumber,
       type: data.type,
       weight: data.dimensions?.weight,
-      mcnOrder: this.determineMcnFlag(data),
+      mcnOrder: this.determineMcnFlag(data, data.partnerCode),
       shippingAddress: {
         name: data.shippingAddress.name,
         phone: data.shippingAddress.mobile,
@@ -589,7 +589,10 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
 
-      const body = this.buildHubOpsPayload(data.order as BaseOrderReqDto);
+      const body = this.buildHubOpsPayload(
+        data.order as BaseOrderReqDto,
+        data.partnerCode
+      );
       this.logger.log("HubOps payload body sent to API", body);
 
       const response = await this.makeApiCall(endpoint.url, body, "HubOps");
@@ -623,29 +626,34 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
-  private buildHubOpsPayload(order: BaseOrderReqDto) {
+  private buildHubOpsPayload(order: BaseOrderReqDto, partnerCode: string) {
     // Determine AWB number based on priority
-    let awbNum;
-    if (order.smileAwbNumber) {
-      awbNum = order.smileAwbNumber;
-    } else if (
-      order.partnerCode === PARTNER_CODE_ENUM.SMILE &&
-      order.cAwbNumber
-    ) {
-      awbNum = order.cAwbNumber;
-    } else {
-      awbNum = order.awbNumber;
-    }
+    // let awbNum;
+    // if (order.smileAwbNumber) {
+    //   awbNum = order.smileAwbNumber;
+    // } else if (
+    //   order.partnerCode === PARTNER_CODE_ENUM.SMILE &&
+    //   order.cAwbNumber
+    // ) {
+    //   awbNum = order.cAwbNumber;
+    // } else {
+    //   awbNum = order.awbNumber;
+    // }
 
     // Create the booking payload and wrap it in an array
     return [
       {
-        awbNumber: awbNum,
+        awbNumber: order.awbNumber,
         bookingStatus: order.orderStatus,
-        bookingType: order.type === ORDER_TYPE_ENUM.INTERNATIONAL ? ORDER_TYPE_ENUM.CARGO : order.type,
+        bookingType: order.type.toUpperCase(),
         // ewayBillCreateDate: null,
-        ewayBillNumber: order?.ewayBillNos?.[0] || "",
-        docType: order?.type === "COURIER" ? order?.deliveryMode : "non-dox",
+        ewayBillNumber: Array.isArray(order?.ewayBillNos)
+          ? order.ewayBillNos.filter((n: any) => !!n).join(",")
+          : order?.ewayBillNos || "",
+        docType:
+          order?.type.toUpperCase() === "COURIER"
+            ? order?.deliveryMode
+            : "non-dox",
         // expiryDate: null,
         extendEwayBillCount: 0,
         fromPincode: parseInt(order?.pickupAddress?.zip),
@@ -666,7 +674,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         service: order?.serviceType || "",
         source: SOURCE_CONST.ORCHESTRATOR,
         // TODO: Make it dynamic based on the serviceability partner selection
-        mcn: this.determineMcnFlag(order),
+        mcn: this.determineMcnFlag(order, partnerCode),
         partnerCode: order?.partnerCode || "",
         time: "",
         toPincode: parseInt(order?.shippingAddress?.zip) || 0,
@@ -1029,18 +1037,23 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
-  private determineMcnFlag(order: BaseOrderReqDto): boolean {
+  private determineMcnFlag(
+    order: BaseOrderReqDto,
+    partnerCode: string
+  ): boolean {
     // Check if this is an international order (shipping outside India)
     const isInternational = order.type === ORDER_TYPE_ENUM.INTERNATIONAL;
 
     // Check if partner is SHIPYAARI (traditional MCN partner)
-    const isShipyaari = order?.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI;
+    const isShipyaari = partnerCode === PARTNER_CODE_ENUM.SHIPYAARI;
+
+    const isDelhivery = partnerCode === PARTNER_CODE_ENUM.DELHIVERY;
 
     // Business logic for MCN flag:
     // 1. For SHIPYAARI: Always true for domestic orders, needs review for international
     // 2. For DHL: Typically used for international, may need different MCN logic
     // 3. For international orders: May have different MCN requirements regardless of partner
 
-    return isInternational || isShipyaari;
+    return isInternational || isShipyaari || isDelhivery;
   }
 }
