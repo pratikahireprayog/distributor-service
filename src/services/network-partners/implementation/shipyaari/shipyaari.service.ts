@@ -909,8 +909,7 @@ export class ShipyaariService extends BaseNetworkPartner {
 
     try {
       // Get the endpoint URL from environment variable
-      const apiUrl = this.configService.get<string>("SHIPYAARI_CREATE_ORDER_URL") || 
-                    "https://api-seller.shipyaari.com/api/v1/order/placeOrderApiV3";
+      const apiUrl = this.configService.get<string>("SHIPYAARI_CREATE_ORDER_URL")
 
       const response = await firstValueFrom(
         this.httpService.post(apiUrl, payload, {
