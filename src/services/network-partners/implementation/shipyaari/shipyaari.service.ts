@@ -81,7 +81,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         this.transformShipyaariCreateOrderPayload(orderDetails);
 
       // Make API call
-      const response = await this.callShipyaariCreateOrderAPI(
+      const { response, requestUrl, requestBody } = await this.callShipyaariCreateOrderAPI(
         endpoint,
         transformedData,
         authHeaders,
@@ -89,7 +89,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       );
 
       // Format and return response
-      return this.formatCreateOrderResponse<R>(response);
+      return this.formatCreateOrderResponse<R>(response, requestUrl, requestBody);
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -200,7 +200,7 @@ export class ShipyaariService extends BaseNetworkPartner {
           insurance: false,
         },
       ],
-      orderType: (orderDetails as any).orderType || "B2C",
+      orderType:  "B2C",
       transit: (orderDetails as any).shippingType || "FORWARD",
       courierPartner: "",
       source: "",
@@ -231,7 +231,7 @@ export class ShipyaariService extends BaseNetworkPartner {
     payload: any,
     authHeaders: Record<string, string>,
     awbNumber: string
-  ): Promise<AxiosResponse<any>> {
+  ): Promise<{ response: AxiosResponse<any>; requestUrl: string; requestBody: any }> {
     // Log request
     this.logger.log(
       `[Shipyaari createOrder] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
@@ -271,7 +271,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         );
       }
 
-      return response;
+      return { response, requestUrl: endpoint.url, requestBody: payload };
     } catch (error) {
       // Log all errors, not just network-related ones
       const errorData = {
@@ -295,50 +295,40 @@ export class ShipyaariService extends BaseNetworkPartner {
    * Format Shipyaari API response into standard format
    */
   private formatCreateOrderResponse<R extends BaseOrderResDto>(
-    response: AxiosResponse<any>
+    response: AxiosResponse<any>,
+    requestUrl?: string,
+    requestBody?: any
   ): R {
-    const result = new BaseOrderResDto() as R;
+    const responseData = response.data;
 
-    // Process successful response
-    const orderId = response.data?.data?.[0]?.orderId || "";
-    let apiMessage = response.data.message || "Order created successfully";
-    let responseAwbNumber = "";
-    let orderStatus = "";
+    // Extract key fields from Shipyaari response
+    const orderData = responseData?.data?.[0] || {};
+    const awbData = orderData?.awbs?.[0] || {};
+    const trackingInfo = awbData?.tracking || {};
+    const primaryAwbNumber = trackingInfo?.awb || "";
+    const referenceNumber = orderData?.orderId?.toString?.() || "";
+    const labelUrl = awbData?.labelUrl || awbData?.documents?.[0]?.url || "";
 
-    // Extract awb number and status from the nested response
-    if (response.data?.data?.[0]?.awbs?.[0]?.tracking) {
-      const trackingInfo = response.data.data[0].awbs[0].tracking;
-      responseAwbNumber = trackingInfo.awb || "";
-
-      // Get the current status from the first status entry
-      if (trackingInfo.status && trackingInfo.status.length > 0) {
-        orderStatus = trackingInfo.status[0].currentStatus || "";
-      }
-    }
-
-    // Use API status code for successful responses too
-    result.statusCode = response.data?.statusCode || 200;
-    // Set generic success message at root level
-    result.message = "Shipyaari Create Order API success";
-    // Add partner code at root level
-    result.partnerCode = this.partnerCode;
-
-    // Create a simplified data structure with only essential fields
-    result.data = {
-      success: true,
-      orderId: orderId,
-      cAwbNumber: responseAwbNumber || "",
-      status: orderStatus,
-      message: apiMessage, // Add the API message here
-    };
-
-    result.trace = {
-      timestamp: new Date().toISOString(),
+    return {
+      statusCode: responseData?.statusCode || 200,
+      message: "Order created successfully with Shipyaari",
       partnerCode: this.partnerCode,
-      operation: "CREATE_ORDER",
-    };
-
-    return result;
+      metadata: {
+        transporterId: "06AAPCS9575E1ZR",
+      },
+      data: {
+        originalResponse: responseData,
+        trackingId: primaryAwbNumber,
+        referenceNumber: referenceNumber,
+        labelUrl: labelUrl,
+        requestUrl: requestUrl,
+        requestBody: requestBody,
+      },
+      trace: {
+        timestamp: new Date().toISOString(),
+        partnerCode: this.partnerCode,
+      },
+    } as unknown as R;
   }
 
   /**
@@ -739,14 +729,14 @@ export class ShipyaariService extends BaseNetworkPartner {
       const transformedData = this.transformShipyaariCreateOrderV2Payload(orderDetails);
 
       // Make API call to new Shipyaari API endpoint
-      const response = await this.callShipyaariCreateOrderV2API(
+      const { response, requestUrl, requestBody } = await this.callShipyaariCreateOrderV2API(
         transformedData,
         authHeaders,
         orderDetails.awbNumber || ""
       );
 
       // Format and return response
-      return this.formatCreateOrderV2Response<R>(response);
+      return this.formatCreateOrderResponse<R>(response, requestUrl, requestBody);
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -911,7 +901,7 @@ export class ShipyaariService extends BaseNetworkPartner {
     payload: any,
     authHeaders: Record<string, string>,
     awbNumber: string
-  ): Promise<AxiosResponse<any>> {
+  ): Promise<{ response: AxiosResponse<any>; requestUrl: string; requestBody: any }> {
     // Log request
     this.logger.log(
       `[Shipyaari createOrderV2] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
@@ -955,7 +945,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         );
       }
 
-      return response;
+      return { response, requestUrl: apiUrl, requestBody: payload };
     } catch (error) {
       // Log all errors, not just network-related ones
       const errorData = {
@@ -975,62 +965,7 @@ export class ShipyaariService extends BaseNetworkPartner {
     }
   }
 
-  /**
-   * Format Shipyaari V2 API response into standard format
-   */
-  private formatCreateOrderV2Response<R extends BaseOrderResDto>(
-    response: AxiosResponse<any>
-  ): R {
-    const result = new BaseOrderResDto() as R;
-
-    // Use API status code for successful responses too
-    result.statusCode = response.data?.statusCode || 200;
-    // Set generic success message at root level
-    result.message = "Shipyaari Create Order V2 API success";
-    // Add partner code at root level
-    result.partnerCode = this.partnerCode;
-
-    // Extract data from the actual Shipyaari response structure
-    const orderData = response.data?.data?.[0]; // First order in the array
-    const allAwbs = orderData?.awbs || [];
-    const firstAwbData = allAwbs[0]; // First AWB in the array
-    const trackingData = firstAwbData?.tracking;
-    const statusData = trackingData?.status?.[0]; // First status entry
-
-    // Extract all AWB numbers
-    const allAwbNumbers = allAwbs.map((awb: any) => awb.tracking?.awb).filter(Boolean);
-    const primaryAwbNumber = allAwbNumbers[0] || "";
-
-    // Create a simplified data structure with only essential fields
-    result.data = {
-      success: response.data?.success || true,
-      orderId: orderData?.orderId?.toString() || "",
-      awbNumber: primaryAwbNumber, // Primary AWB (first one)
-      allAwbNumbers: allAwbNumbers, // All AWB numbers
-      status: statusData?.currentStatus || "CREATED",
-      message: response.data?.message || "Order created successfully",
-      shipyaariId: orderData?.shipyaariId || "",
-      orderType: orderData?.orderType || "",
-      zone: orderData?.zone || "",
-      charges: firstAwbData?.charges || {},
-      codInfo: firstAwbData?.codInfo || {},
-      pickupAddress: orderData?.pickupAddress || {},
-      deliveryAddress: orderData?.deliveryAddress || {},
-      awbs: allAwbs, // All AWB data
-      originalResponse: response.data
-    };
-
-    // Add tracking information
-    result.trackingId = primaryAwbNumber;
-    result.referenceNumber = orderData?.orderId?.toString() || "";
-
-    result.trace = {
-      timestamp: new Date().toISOString(),
-      operation: "CREATE_ORDER_V2",
-    };
-
-    return result;
-  }
+  
 
   /**
    * Format Shipyaari API response into standard format
