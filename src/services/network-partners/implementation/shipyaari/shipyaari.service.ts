@@ -314,7 +314,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       message: "Order created successfully with Shipyaari",
       partnerCode: this.partnerCode,
       metadata: {
-        transporterId: "06AAPCS9575E1ZR",
+        transporterId: "06AAPCS9575EIZR",
       },
       data: {
         originalResponse: responseData,
