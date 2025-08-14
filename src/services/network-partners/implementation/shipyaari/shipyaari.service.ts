@@ -723,13 +723,15 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token
-      const authHeaders = await this.authService.getAuthHeadersV2();
+       const authHeaders = await this.authService.getAuthHeaders();
+       const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
 
       // Transform the payload for V2
       const transformedData = this.transformShipyaariCreateOrderV2Payload(orderDetails);
 
       // Make API call to new Shipyaari API endpoint
       const { response, requestUrl, requestBody } = await this.callShipyaariCreateOrderV2API(
+        endpoint,
         transformedData,
         authHeaders,
         orderDetails.awbNumber || ""
@@ -785,7 +787,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         name: `box_${idx + 1}`,
         type: "parcel",
         weightUnit: "Kg",
-        deadWeight: parseFloat(shipment.physicalWeight || "1") / 1000, // Convert to kg
+        deadWeight: parseFloat(shipment.physicalWeight || "2") / 1000, // Convert to kg
         length: parseFloat(shipment.dimensions?.length || "1"),
         breadth: parseFloat(shipment.dimensions?.width || "1"),
         height: parseFloat(shipment.dimensions?.height || "1"),
@@ -805,10 +807,10 @@ export class ShipyaariService extends BaseNetworkPartner {
           totalDiscount: parseFloat(item.discount || "0"),
           totalPrice: parseFloat(item.unitPrice || "0"),
           weightUnit: "kg",
-          deadWeight: parseFloat(item.weight || "0") / 1000,
-          length: parseFloat(item.dimensions?.length || "0"),
-          breadth: parseFloat(item.dimensions?.width || "0"),
-          height: parseFloat(item.dimensions?.height || "0"),
+          deadWeight: parseFloat(item.weight || "2") / 1000,
+          length: parseFloat(item.dimensions?.length || "1"),
+          breadth: parseFloat(item.dimensions?.width || "1"),
+          height: parseFloat(item.dimensions?.height || "1"),
           measureUnit: "cm",
           images: []
         })),
@@ -898,6 +900,7 @@ export class ShipyaariService extends BaseNetworkPartner {
    * Make API call to Shipyaari V2 order API
    */
   private async callShipyaariCreateOrderV2API(
+    endpoint: EndpointConfigModel,
     payload: any,
     authHeaders: Record<string, string>,
     awbNumber: string
@@ -908,11 +911,8 @@ export class ShipyaariService extends BaseNetworkPartner {
     );
 
     try {
-      // Get the endpoint URL from environment variable
-      const apiUrl = this.configService.get<string>("SHIPYAARI_CREATE_ORDER_URL")
-
       const response = await firstValueFrom(
-        this.httpService.post(apiUrl, payload, {
+        this.httpService.post(endpoint.url, payload, {
           headers: {
             "Content-Type": "application/json",
             Authorization: authHeaders["Authorization"],
@@ -944,7 +944,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         );
       }
 
-      return { response, requestUrl: apiUrl, requestBody: payload };
+      return { response, requestUrl: endpoint.url, requestBody: payload };
     } catch (error) {
       // Log all errors, not just network-related ones
       const errorData = {
