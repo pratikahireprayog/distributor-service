@@ -314,7 +314,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       message: "Order created successfully with Shipyaari",
       partnerCode: this.partnerCode,
       metadata: {
-        transporterId: "06AAPCS9575E1ZR",
+        transporterId: "06AAPCS9575EIZR",
       },
       data: {
         originalResponse: responseData,
@@ -723,13 +723,15 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token
-      const authHeaders = await this.authService.getAuthHeadersV2();
+       const authHeaders = await this.authService.getAuthHeaders();
+       const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
 
       // Transform the payload for V2
       const transformedData = this.transformShipyaariCreateOrderV2Payload(orderDetails);
 
       // Make API call to new Shipyaari API endpoint
       const { response, requestUrl, requestBody } = await this.callShipyaariCreateOrderV2API(
+        endpoint,
         transformedData,
         authHeaders,
         orderDetails.awbNumber || ""
@@ -898,6 +900,7 @@ export class ShipyaariService extends BaseNetworkPartner {
    * Make API call to Shipyaari V2 order API
    */
   private async callShipyaariCreateOrderV2API(
+    endpoint: EndpointConfigModel,
     payload: any,
     authHeaders: Record<string, string>,
     awbNumber: string
@@ -908,11 +911,8 @@ export class ShipyaariService extends BaseNetworkPartner {
     );
 
     try {
-      // Get the endpoint URL from environment variable
-      const apiUrl = this.configService.get<string>("SHIPYAARI_CREATE_ORDER_URL")
-
       const response = await firstValueFrom(
-        this.httpService.post(apiUrl, payload, {
+        this.httpService.post(endpoint.url, payload, {
           headers: {
             "Content-Type": "application/json",
             Authorization: authHeaders["Authorization"],
@@ -944,7 +944,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         );
       }
 
-      return { response, requestUrl: apiUrl, requestBody: payload };
+      return { response, requestUrl: endpoint.url, requestBody: payload };
     } catch (error) {
       // Log all errors, not just network-related ones
       const errorData = {
