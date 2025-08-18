@@ -31,8 +31,8 @@ export interface INetworkPartner {
   createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderDetails: T,
     partnerCode: string,
-    eligiblePartners?:EligiblePartnersData
-  ):Promise<R>
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R>;
 
   getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
     params: T
@@ -103,6 +103,15 @@ export interface INetworkPartner {
    */
   updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
+  ): Promise<R>;
+
+  /**
+   * Update partner information to HubOps for multiple shipments
+   * @param requestDto Request data containing shipmentDetails array
+   * @returns Combined response for all shipment updates
+   */
+  updatePartnerToHubOps<T extends any, R extends BaseResDto>(
+    requestDto: T
   ): Promise<R>;
 
   // cancelOrder(orderId: string): Promise<any>;

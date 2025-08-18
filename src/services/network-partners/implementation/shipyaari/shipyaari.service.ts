@@ -8,7 +8,7 @@ import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { ShipyaariAuthService } from "./shipyaari-auth.service";
 import { SHIPYAARI_ENV_VARS } from "./shipyaari.enum";
 import { ShipyaariErrorHelper } from "./shipyaari-error.helper";
-import { BaseOrderReqDtoV2,extractLineItems } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, extractLineItems } from "src/common/dtos/base2.dto";
 import {
   BaseOrderReqDto,
   BaseOrderResDto,
@@ -26,7 +26,6 @@ import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { AxiosResponse } from "axios";
 import { EndpointConfigModel } from "src/common/repositories/endpoint-configs/endpoint-configs.schema";
-
 
 @Injectable()
 export class ShipyaariService extends BaseNetworkPartner {
@@ -81,15 +80,22 @@ export class ShipyaariService extends BaseNetworkPartner {
         this.transformShipyaariCreateOrderPayload(orderDetails);
 
       // Make API call
-      const { response, requestUrl, requestBody } = await this.callShipyaariCreateOrderAPI(
-        endpoint,
-        transformedData,
-        authHeaders,
-        orderDetails.awbNumber || ""
-      );
+      const { response, requestUrl, requestBody } =
+        await this.callShipyaariCreateOrderAPI(
+          endpoint,
+          transformedData,
+          authHeaders,
+          orderDetails.awbNumber ||
+            (orderDetails as any).parentShipment?.awbNumber ||
+            ""
+        );
 
       // Format and return response
-      return this.formatCreateOrderResponse<R>(response, requestUrl, requestBody);
+      return this.formatCreateOrderResponse<R>(
+        response,
+        requestUrl,
+        requestBody
+      );
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -99,7 +105,9 @@ export class ShipyaariService extends BaseNetworkPartner {
       // For other errors, use the error helper to handle them properly
       return this.errorHelper.handleHttpError(
         error,
-        orderDetails.awbNumber || "",
+        orderDetails.awbNumber ||
+          (orderDetails as any).parentShipment?.awbNumber ||
+          "",
         "CREATE_ORDER"
       );
     }
@@ -200,13 +208,13 @@ export class ShipyaariService extends BaseNetworkPartner {
           insurance: false,
         },
       ],
-      orderType:  "B2C",
+      orderType: "B2C",
       transit: (orderDetails as any).shippingType || "FORWARD",
       courierPartner: "",
       source: "",
       pickupDate: "",
       gstNumber: "",
-      orderId: (orderDetails as any).awbNumber || "",
+      orderId: (orderDetails as any).orderId || "",
       eWayBillNo:
         (orderDetails as any).ewayBillNos &&
         (orderDetails as any).ewayBillNos.length > 0
@@ -231,7 +239,11 @@ export class ShipyaariService extends BaseNetworkPartner {
     payload: any,
     authHeaders: Record<string, string>,
     awbNumber: string
-  ): Promise<{ response: AxiosResponse<any>; requestUrl: string; requestBody: any }> {
+  ): Promise<{
+    response: AxiosResponse<any>;
+    requestUrl: string;
+    requestBody: any;
+  }> {
     // Log request
     this.logger.log(
       `[Shipyaari createOrder] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
@@ -309,6 +321,12 @@ export class ShipyaariService extends BaseNetworkPartner {
     const referenceNumber = orderData?.orderId?.toString?.() || "";
     const labelUrl = awbData?.labelUrl || awbData?.documents?.[0]?.url || "";
 
+    // Enhanced mapping for V2 orders with multiple shipments
+    const shipmentDetails = this.createShipmentDetailsMapping(
+      orderData,
+      requestBody
+    );
+
     return {
       statusCode: responseData?.statusCode || 200,
       message: "Order created successfully with Shipyaari",
@@ -323,12 +341,151 @@ export class ShipyaariService extends BaseNetworkPartner {
         labelUrl: labelUrl,
         requestUrl: requestUrl,
         requestBody: requestBody,
+        ...(shipmentDetails.length > 0 && { shipmentDetails }),
       },
       trace: {
         timestamp: new Date().toISOString(),
         partnerCode: this.partnerCode,
       },
     } as unknown as R;
+  }
+
+  /**
+   * Format Shipyaari API response for V2 orders with proper AWB mapping
+   */
+  private formatCreateOrderV2Response<R extends BaseOrderResDto>(
+    response: AxiosResponse<any>,
+    requestUrl?: string,
+    requestBody?: any,
+    originalOrderDetails?: BaseOrderReqDtoV2
+  ): R {
+    const responseData = response.data;
+
+    // Extract key fields from Shipyaari response
+    const orderData = responseData?.data?.[0] || {};
+    const awbData = orderData?.awbs?.[0] || {};
+    const trackingInfo = awbData?.tracking || {};
+    const primaryAwbNumber = trackingInfo?.awb || "";
+    const referenceNumber = orderData?.orderId?.toString?.() || "";
+    const labelUrl = awbData?.labelUrl || awbData?.documents?.[0]?.url || "";
+
+    // Enhanced mapping for V2 orders with multiple shipments
+    const shipmentDetails = this.createShipmentDetailsV2Mapping(
+      orderData,
+      originalOrderDetails
+    );
+
+    return {
+      statusCode: responseData?.statusCode || 200,
+      message: "Order created successfully with Shipyaari",
+      partnerCode: this.partnerCode,
+      metadata: {
+        transporterId: "06AAPCS9575EIZR",
+      },
+      data: {
+        originalResponse: responseData,
+        trackingId: primaryAwbNumber,
+        referenceNumber: referenceNumber,
+        labelUrl: labelUrl,
+        requestUrl: requestUrl,
+        requestBody: requestBody,
+        ...(shipmentDetails.length > 0 && { shipmentDetails }),
+      },
+      trace: {
+        timestamp: new Date().toISOString(),
+        partnerCode: this.partnerCode,
+      },
+    } as unknown as R;
+  }
+
+  /**
+   * Create shipment details mapping for V2 orders between our AWB numbers and Shipyaari AWB numbers
+   * Maps parent and child shipments in sequence with Shipyaari response AWBs
+   */
+  private createShipmentDetailsV2Mapping(
+    orderData: any,
+    originalOrderDetails?: BaseOrderReqDtoV2
+  ): any[] {
+    if (!originalOrderDetails) {
+      return [];
+    }
+
+    const shipmentDetails: any[] = [];
+    const shipyaariAwbs = orderData?.awbs || [];
+
+    // Gather all shipments: parent + children in sequence
+    const allShipments = [
+      originalOrderDetails.parentShipment,
+      ...(originalOrderDetails.childShipments || []),
+    ].filter(Boolean);
+
+    // Map each shipment AWB to corresponding Shipyaari AWB in sequence
+    allShipments.forEach((shipment, index) => {
+      const shipyaariAwb = shipyaariAwbs[index];
+
+      if (shipment?.awbNumber && shipyaariAwb?.tracking?.awb) {
+        shipmentDetails.push({
+          awbNumber: shipment.awbNumber,
+          partnerAwbNumber: shipyaariAwb.tracking.awb,
+          partnerName: shipyaariAwb.charges?.partnerName || "DELHIVERY",
+          transporterId: "06AAPCS9575EIZR",
+        });
+      }
+    });
+
+    return shipmentDetails;
+  }
+
+  /**
+   * Create shipment details mapping between our AWB numbers and Shipyaari AWB numbers
+   * Maps parent and child shipments in sequence with Shipyaari response AWBs
+   */
+  private createShipmentDetailsMapping(
+    orderData: any,
+    requestBody?: any
+  ): any[] {
+    // Check if this is a V2 request with multiple shipments (boxInfo)
+    if (
+      !requestBody?.boxInfo ||
+      !Array.isArray(requestBody.boxInfo) ||
+      requestBody.boxInfo.length <= 1
+    ) {
+      return [];
+    }
+
+    const shipmentDetails: any[] = [];
+    const shipyaariAwbs = orderData?.awbs || [];
+
+    // Extract AWB numbers from original request in sequence
+    // First box corresponds to parent shipment, subsequent boxes to child shipments
+    requestBody.boxInfo.forEach((box: any, index: number) => {
+      const shipyaariAwb = shipyaariAwbs[index];
+
+      if (shipyaariAwb?.tracking?.awb) {
+        // For the first box (parent shipment), we need to map from the original V2 payload
+        // For subsequent boxes (child shipments), map accordingly
+        let ourAwbNumber = "";
+
+        if (index === 0) {
+          // This is the parent shipment - extract from parentShipment.awbNumber
+          // Since we don't have direct access to original V2 payload here,
+          // we'll use orderId as reference for now
+          ourAwbNumber = requestBody.orderId || `parent_${index + 1}`;
+        } else {
+          // This is a child shipment
+          ourAwbNumber = `child_${index}`;
+        }
+
+        shipmentDetails.push({
+          awbNumber: ourAwbNumber,
+          partnerAwbNumber: shipyaariAwb.tracking.awb,
+          partnerName: shipyaariAwb.charges?.partnerName || "DELHIVERY",
+          transporterId: "06AAPCS9575EIZR",
+        });
+      }
+    });
+
+    return shipmentDetails;
   }
 
   /**
@@ -541,7 +698,9 @@ export class ShipyaariService extends BaseNetworkPartner {
       }
       this.errorHelper.handleHttpError(
         error,
-        (params as any).awbNumber || "",
+        (params as any).awbNumber ||
+          (params as any).parentShipment?.awbNumber ||
+          "",
         "GET_ORDER_DETAILS"
       );
     }
@@ -711,7 +870,6 @@ export class ShipyaariService extends BaseNetworkPartner {
     return result;
   }
 
-
   /**
    * Create an order with Shipyaari using V2 payload
    * Direct implementation for createOrderV2
@@ -723,22 +881,29 @@ export class ShipyaariService extends BaseNetworkPartner {
   ): Promise<R> {
     try {
       // Get auth token
-       const authHeaders = await this.authService.getAuthHeaders();
-       const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
+      const authHeaders = await this.authService.getAuthHeaders();
+      const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
 
       // Transform the payload for V2
-      const transformedData = this.transformShipyaariCreateOrderV2Payload(orderDetails);
+      const transformedData =
+        this.transformShipyaariCreateOrderV2Payload(orderDetails);
 
       // Make API call to new Shipyaari API endpoint
-      const { response, requestUrl, requestBody } = await this.callShipyaariCreateOrderV2API(
-        endpoint,
-        transformedData,
-        authHeaders,
-        orderDetails.awbNumber || ""
-      );
+      const { response, requestUrl, requestBody } =
+        await this.callShipyaariCreateOrderV2API(
+          endpoint,
+          transformedData,
+          authHeaders,
+          orderDetails.orderId || ""
+        );
 
-      // Format and return response
-      return this.formatCreateOrderResponse<R>(response, requestUrl, requestBody);
+      // Format and return response with original order details for proper AWB mapping
+      return this.formatCreateOrderV2Response<R>(
+        response,
+        requestUrl,
+        requestBody,
+        orderDetails
+      );
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -748,15 +913,11 @@ export class ShipyaariService extends BaseNetworkPartner {
       // For other errors, use the error helper to handle them properly
       return this.errorHelper.handleHttpError(
         error,
-        orderDetails.awbNumber || "",
+        orderDetails.orderId || "",
         "CREATE_ORDER_V2"
       );
     }
   }
-
-
-
-  
 
   /**
    * Transform V2 order request into Shipyaari API format
@@ -769,8 +930,12 @@ export class ShipyaariService extends BaseNetworkPartner {
     const lineItems = extractLineItems(orderDetails);
 
     // Find pickup and delivery addresses
-    const pickupAddress = orderDetails.addresses?.find((a: any) => a.type === "PICKUP") || {} as any;
-    const deliveryAddress = orderDetails.addresses?.find((a: any) => a.type === "DELIVERY") || {} as any;
+    const pickupAddress =
+      orderDetails.addresses?.find((a: any) => a.type === "PICKUP") ||
+      ({} as any);
+    const deliveryAddress =
+      orderDetails.addresses?.find((a: any) => a.type === "DELIVERY") ||
+      ({} as any);
 
     // Gather all shipments: parent + children
     const shipments = [
@@ -782,12 +947,12 @@ export class ShipyaariService extends BaseNetworkPartner {
     const boxInfo = shipments.map((shipment, idx) => {
       // Find line items for this specific shipment
       const shipmentItems = shipment.items || [];
-      
+
       return {
         name: `box_${idx + 1}`,
         type: "parcel",
         weightUnit: "Kg",
-        deadWeight: parseFloat(shipment.physicalWeight || "2") / 1000, // Convert to kg
+        deadWeight: parseFloat(shipment.physicalWeight || "2000") / 1000, // Convert to kg
         length: parseFloat(shipment.dimensions?.length || "1"),
         breadth: parseFloat(shipment.dimensions?.width || "1"),
         height: parseFloat(shipment.dimensions?.height || "1"),
@@ -807,24 +972,25 @@ export class ShipyaariService extends BaseNetworkPartner {
           totalDiscount: parseFloat(item.discount || "0"),
           totalPrice: parseFloat(item.unitPrice || "0"),
           weightUnit: "kg",
-          deadWeight: parseFloat(item.weight || "2") / 1000,
+          deadWeight: parseFloat(item.weight || "2000") / 1000,
           length: parseFloat(item.dimensions?.length || "1"),
           breadth: parseFloat(item.dimensions?.width || "1"),
           height: parseFloat(item.dimensions?.height || "1"),
           measureUnit: "cm",
-          images: []
+          images: [],
         })),
         codInfo: {
           isCod: orderDetails.payment?.type === "COD",
-          collectableAmount: orderDetails.payment?.type === "COD" 
-            ? parseFloat(orderDetails.payment.finalAmount || "0") 
-            : 0,
-          invoiceValue: parseFloat(orderDetails.payment?.finalAmount || "0")
+          collectableAmount:
+            orderDetails.payment?.type === "COD"
+              ? parseFloat(orderDetails.payment.finalAmount || "0")
+              : 0,
+          invoiceValue: parseFloat(orderDetails.payment?.finalAmount || "0"),
         },
         podInfo: {
-          isPod: false
+          isPod: false,
         },
-        insurance: false
+        insurance: false,
       };
     });
 
@@ -839,38 +1005,56 @@ export class ShipyaariService extends BaseNetworkPartner {
         longitude: pickupAddress.longitude || "0",
         contact: {
           name: pickupAddress.name || "",
-          mobileNo: parseInt(pickupAddress.mobile || pickupAddress.phone || "0"),
-          alternateMobileNo: parseInt(pickupAddress.alternateMobile || pickupAddress.phone || "0")
-        }
+          mobileNo: parseInt(
+            pickupAddress.mobile || pickupAddress.phone || "0"
+          ),
+          alternateMobileNo: parseInt(
+            pickupAddress.alternateMobile || pickupAddress.phone || "0"
+          ),
+        },
       },
       deliveryDetails: {
         addressType: "warehouse",
         fullAddress: `${deliveryAddress.address1 || ""} ${deliveryAddress.address2 ? deliveryAddress.address2 + ", " : ""}${deliveryAddress.city || ""}, ${deliveryAddress.state || ""} ${deliveryAddress.zip || deliveryAddress.postalCode || ""}`,
-        pincode: parseInt(deliveryAddress.zip || deliveryAddress.postalCode || "0"),
+        pincode: parseInt(
+          deliveryAddress.zip || deliveryAddress.postalCode || "0"
+        ),
         startTime: "10",
         endTime: "11",
         latitude: deliveryAddress.latitude || "0",
         longitude: deliveryAddress.longitude || "0",
         contact: {
           name: deliveryAddress.name || "",
-          mobileNo: parseInt(deliveryAddress.mobile || deliveryAddress.phone || "0"),
-          alternateMobileNo: parseInt(deliveryAddress.alternateMobile || deliveryAddress.phone || "0")
+          mobileNo: parseInt(
+            deliveryAddress.mobile || deliveryAddress.phone || "0"
+          ),
+          alternateMobileNo: parseInt(
+            deliveryAddress.alternateMobile || deliveryAddress.phone || "0"
+          ),
         },
-        gstNumber: deliveryAddress.gstNumber || ""
+        gstNumber: deliveryAddress.gstNumber || "",
       },
       boxInfo: boxInfo,
       orderType: "B2C",
-      transit: "FORWARD",
+      transit: orderDetails?.orderType || "FORWARD",
       courierPartner: "",
       courierPartnerServices: "",
-      serviceMode: "AIR",
-      giftCharges: parseFloat((orderDetails.metadata as any)?.giftCharges || "0"),
-      shippingCharges: parseFloat((orderDetails.metadata as any)?.shippingCharges || "0"),
-      transactionCharges: parseFloat((orderDetails.metadata as any)?.transactionCharges || "0"),
-      advanceAmountPaid: parseFloat((orderDetails.metadata as any)?.advanceAmountPaid || "0"),
-      servicePriority: "cheapest",
+      serviceMode: orderDetails?.deliveryMode.toUpperCase || "",
+      giftCharges: parseFloat(
+        (orderDetails.metadata as any)?.giftCharges || "0"
+      ),
+      shippingCharges: parseFloat(
+        (orderDetails.metadata as any)?.shippingCharges || "0"
+      ),
+      transactionCharges: parseFloat(
+        (orderDetails.metadata as any)?.transactionCharges || "0"
+      ),
+      advanceAmountPaid: parseFloat(
+        (orderDetails.metadata as any)?.advanceAmountPaid || "0"
+      ),
+      servicePriority: "",
       source: "",
-      qcType: "DoorStep",
+      qcType: "",
       returnReason: (orderDetails.metadata as any)?.returnReason || "",
       orderFutureDate: (orderDetails.metadata as any)?.orderFutureDate || "",
       pickupDate: new Date().getTime().toString(),
@@ -880,8 +1064,11 @@ export class ShipyaariService extends BaseNetworkPartner {
       childId: 2,
       orderId: orderDetails.orderId || "",
       eWayBillNo: orderDetails.eWaybills?.[0] || "",
-      brandName: (orderDetails.metadata as any)?.brandName || orderDetails.metadata?.source || "",
-      brandLogo: (orderDetails.metadata as any)?.brandLogo || ""
+      brandName:
+        (orderDetails.metadata as any)?.brandName ||
+        orderDetails.metadata?.source ||
+        "",
+      brandLogo: (orderDetails.metadata as any)?.brandLogo || "",
     };
 
     this.logger.log(
@@ -894,7 +1081,6 @@ export class ShipyaariService extends BaseNetworkPartner {
   /**
    * Make API call to Shipyaari order API
    */
-  
 
   /**
    * Make API call to Shipyaari V2 order API
@@ -903,11 +1089,15 @@ export class ShipyaariService extends BaseNetworkPartner {
     endpoint: EndpointConfigModel,
     payload: any,
     authHeaders: Record<string, string>,
-    awbNumber: string
-  ): Promise<{ response: AxiosResponse<any>; requestUrl: string; requestBody: any }> {
+    orderId: string
+  ): Promise<{
+    response: AxiosResponse<any>;
+    requestUrl: string;
+    requestBody: any;
+  }> {
     // Log request
     this.logger.log(
-      `[Shipyaari createOrderV2] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
+      `[Shipyaari createOrderV2] Request for OrderId: ${orderId} - Payload: ${JSON.stringify(payload)}`
     );
 
     try {
@@ -925,7 +1115,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       );
 
       this.logger.log(
-        `[Shipyaari createOrderV2] Response for AWB: ${awbNumber} - ${JSON.stringify(response.data)}`
+        `[Shipyaari createOrderV2] Response for OrderId: ${orderId} - ${JSON.stringify(response.data)}`
       );
 
       // Check if the response contains an API-level error despite HTTP success status
@@ -939,7 +1129,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       if (isResponseError) {
         this.errorHelper.handleApiError(
           response.data,
-          awbNumber,
+          orderId,
           "CREATE_ORDER_V2"
         );
       }
@@ -956,21 +1146,17 @@ export class ShipyaariService extends BaseNetworkPartner {
       };
 
       this.logger.error(
-        `[Shipyaari createOrderV2] Error for AWB: ${awbNumber} - ${JSON.stringify(errorData)}`,
+        `[Shipyaari createOrderV2] Error for OrderId: ${orderId} - ${JSON.stringify(errorData)}`,
         error.stack
       );
 
-      this.errorHelper.handleHttpError(error, awbNumber, "CREATE_ORDER_V2");
+      this.errorHelper.handleHttpError(error, orderId, "CREATE_ORDER_V2");
     }
   }
-
-  
 
   /**
    * Format Shipyaari API response into standard format
    */
- 
-
 
   /**
    * Override validation method if needed for Shipyaari-specific validation

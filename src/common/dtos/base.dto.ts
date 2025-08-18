@@ -218,14 +218,12 @@ export class OrderDto {
   @IsNotEmpty()
   awbNumber: string;
 
-
   @IsString()
   @IsOptional()
-  clientIdSevasetu: string  
-
+  clientIdSevasetu: string;
 
   @IsOptional()
-  childAwbs:string[]
+  childAwbs: string[];
 
   /**
    * Carrier/partner AWB number (when applicable)
@@ -456,14 +454,12 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsString({ message: "cAwbNumber must be a string" })
   cAwbNumber?: string;
 
-
   @IsOptional()
   @IsString()
-  clientIdSevasetu: string    
+  clientIdSevasetu: string;
 
   @IsOptional()
-  childAwbs:string[]
-
+  childAwbs: string[];
 
   @IsNotEmpty({ message: "Order status is required" })
   @IsEnum(ORDER_STATUS_ENUM, { message: "Invalid order status" })
@@ -560,11 +556,40 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @IsString()
   cpId?: string;
+
+  /**
+   * MCN (Multi-Carrier Network) flag
+   */
+  @IsOptional()
+  @IsBoolean()
+  mcn?: boolean;
+}
+
+export class ShipmentDetailsDto {
+  @IsString()
+  awbNumber: string;
+
+  @IsString()
+  partnerAwbNumber: string;
+
+  @IsString()
+  partnerName: string;
+
+  @IsString()
+  transporterId: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {
   trackingId?: string;
   referenceNumber?: string;
+  shipmentDetails?: ShipmentDetailsDto[];
+}
+
+export class UpdatePartnerToHubOpsRequestDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShipmentDetailsDto)
+  shipmentDetails: ShipmentDetailsDto[];
 }
 
 export class BaseCancelOrderDto {

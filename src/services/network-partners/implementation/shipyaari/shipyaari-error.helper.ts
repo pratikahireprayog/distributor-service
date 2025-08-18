@@ -114,7 +114,7 @@ export class ShipyaariErrorHelper {
 
     // Log the error first
     this.logger.error(
-      `[Shipyaari ${operation}] HTTP Error for AWBs: ${awbArray.join(", ")} - ${error.response?.status || 500} - ${JSON.stringify(error.response?.data || {})}`,
+      `[Shipyaari ${operation}] HTTP Error for orderId / AWBs: ${awbArray.join(", ")} - ${error.response?.status || 500} - ${JSON.stringify(error.response?.data || {})}`,
       error.stack
     );
 
