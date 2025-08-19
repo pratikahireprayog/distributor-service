@@ -920,6 +920,22 @@ export class ShipyaariService extends BaseNetworkPartner {
   }
 
   /**
+   * Ensures a value meets the minimum threshold, otherwise returns the default
+   * @param value - The value to check
+   * @param minThreshold - Minimum allowed value
+   * @param defaultValue - Default value to use if threshold not met
+   * @returns The validated value or default
+   */
+  private ensureMinimumValue(
+    value: string | number | undefined | null,
+    minThreshold: number,
+    defaultValue: number
+  ): number {
+    const numValue = typeof value === "string" ? parseFloat(value) : value || 0;
+    return numValue >= minThreshold ? numValue : defaultValue;
+  }
+
+  /**
    * Transform V2 order request into Shipyaari API format
    * Maps parentShipment and childShipments to boxInfo structure
    */
@@ -952,10 +968,11 @@ export class ShipyaariService extends BaseNetworkPartner {
         name: `box_${idx + 1}`,
         type: "parcel",
         weightUnit: "Kg",
-        deadWeight: parseFloat(shipment.physicalWeight || "2000") / 1000, // Convert to kg
-        length: parseFloat(shipment.dimensions?.length || "1"),
-        breadth: parseFloat(shipment.dimensions?.width || "1"),
-        height: parseFloat(shipment.dimensions?.height || "1"),
+        deadWeight:
+          this.ensureMinimumValue(shipment.physicalWeight, 2000, 2000) / 1000, // Convert to kg, min 2kg
+        length: this.ensureMinimumValue(shipment.dimensions?.length, 1, 1),
+        breadth: this.ensureMinimumValue(shipment.dimensions?.width, 1, 1),
+        height: this.ensureMinimumValue(shipment.dimensions?.height, 1, 1),
         qty: 1,
         discount: parseFloat(shipment.discount || "0"),
         measureUnit: "cm",
@@ -964,18 +981,18 @@ export class ShipyaariService extends BaseNetworkPartner {
           category: item.category || "",
           sku: item.sku || "",
           hsnCode: item.hsnCode || "",
-          qty: item.quantity || 1,
-          unitPrice: parseFloat(item.unitPrice || "0"),
-          discount: parseFloat(item.discount || "0"),
-          unitTax: parseFloat(item.taxes?.[0]?.amount || "0"),
-          sellingPrice: parseFloat(item.unitPrice || "0"),
-          totalDiscount: parseFloat(item.discount || "0"),
-          totalPrice: parseFloat(item.unitPrice || "0"),
+          qty: Math.max(item.quantity || 1, 1), // Ensure minimum qty of 1
+          unitPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
+          discount: Math.max(parseFloat(item.discount || "0"), 0),
+          unitTax: Math.max(parseFloat(item.taxes?.[0]?.amount || "0"), 0),
+          sellingPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
+          totalDiscount: Math.max(parseFloat(item.discount || "0"), 0),
+          totalPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
           weightUnit: "kg",
-          deadWeight: parseFloat(item.weight || "2000") / 1000,
-          length: parseFloat(item.dimensions?.length || "1"),
-          breadth: parseFloat(item.dimensions?.width || "1"),
-          height: parseFloat(item.dimensions?.height || "1"),
+          deadWeight: this.ensureMinimumValue(item.weight, 2000, 2000) / 1000, // Convert to kg, min 2kg
+          length: this.ensureMinimumValue(item.dimensions?.length, 1, 1),
+          breadth: this.ensureMinimumValue(item.dimensions?.width, 1, 1),
+          height: this.ensureMinimumValue(item.dimensions?.height, 1, 1),
           measureUnit: "cm",
           images: [],
         })),
