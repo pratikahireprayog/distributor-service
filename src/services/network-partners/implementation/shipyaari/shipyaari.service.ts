@@ -968,8 +968,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         name: `box_${idx + 1}`,
         type: "parcel",
         weightUnit: "Kg",
-        deadWeight:
-          this.ensureMinimumValue(shipment.physicalWeight, 2000, 2000) / 1000, // Convert to kg, min 2kg
+        deadWeight: this.ensureMinimumValue(shipment.physicalWeight, 0.001, 0.001), // kg, min 1 g
         length: this.ensureMinimumValue(shipment.dimensions?.length, 1, 1),
         breadth: this.ensureMinimumValue(shipment.dimensions?.width, 1, 1),
         height: this.ensureMinimumValue(shipment.dimensions?.height, 1, 1),
@@ -989,7 +988,7 @@ export class ShipyaariService extends BaseNetworkPartner {
           totalDiscount: Math.max(parseFloat(item.discount || "0"), 0),
           totalPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
           weightUnit: "kg",
-          deadWeight: this.ensureMinimumValue(item.weight, 2000, 2000) / 1000, // Convert to kg, min 2kg
+          deadWeight: this.ensureMinimumValue(item.weight, 0.001, 0.001), // kg, min 1 g
           length: this.ensureMinimumValue(item.dimensions?.length, 1, 1),
           breadth: this.ensureMinimumValue(item.dimensions?.width, 1, 1),
           height: this.ensureMinimumValue(item.dimensions?.height, 1, 1),
