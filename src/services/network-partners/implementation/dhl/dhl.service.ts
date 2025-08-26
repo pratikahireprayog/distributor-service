@@ -321,7 +321,7 @@ export class DHLService extends BaseNetworkPartner {
             return {
               number: idx + 1,
               description: item.description,
-              price: item.unitPrice,
+              price: Number(item.unitPrice) || 0,
               quantity: {
                 value: item.quantity,
                 unitOfMeasurement: "KG",
@@ -335,8 +335,8 @@ export class DHLService extends BaseNetworkPartner {
               exportReasonType: "permanent",
               manufacturerCountry: "IN",
               weight: {
-                netValue: item.weight,
-                grossValue: item.weight,
+                netValue: Number(item.weight) || 0,
+                grossValue: Number(item.weight) || 0,
               },
               isTaxesPaid: true,
               customerReferences: [
@@ -354,11 +354,11 @@ export class DHLService extends BaseNetworkPartner {
               .format("YYYY-MM-DD"),
             instructions: [orderDetails.parentShipment?.note || ""],
             totalNetWeight: lineItems.reduce(
-              (sum, item) => sum + (item.weight || 0),
+              (sum, item) => sum + (Number(item.weight) || 0),
               0
             ),
             totalGrossWeight: lineItems.reduce(
-              (sum, item) => sum + (item.weight || 0),
+              (sum, item) => sum + (Number(item.weight) || 0),
               0
             ),
           },
@@ -410,7 +410,7 @@ export class DHLService extends BaseNetworkPartner {
             email: pickupAddress.email || "",
             phone: pickupAddress.phone || "",
             mobilePhone: pickupAddress.phone || "",
-            companyName: pickupAddress.addressName || "",
+            companyName: pickupAddress.name || "",
             fullName: pickupAddress.name || "",
           },
           typeCode: "business",
@@ -428,7 +428,7 @@ export class DHLService extends BaseNetworkPartner {
             email: deliveryAddress.email || "",
             phone: deliveryAddress.phone || "",
             mobilePhone: deliveryAddress.phone || "",
-            companyName: deliveryAddress.addressName || "",
+            companyName: deliveryAddress.name || "",
             fullName: deliveryAddress.name || "",
           },
           typeCode: "business",
