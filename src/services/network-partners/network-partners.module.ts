@@ -12,6 +12,7 @@ import { ShipyaariModule } from "./implementation/shipyaari/shipyaari.module";
 import { DHLModule } from "./implementation/dhl/dhl.module";
 import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-hyperlocal.module";
 import { PorterModule } from "./implementation/porter/porter.module";
+import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
 
 /**
  * Module for network partners
@@ -28,6 +29,7 @@ import { PorterModule } from "./implementation/porter/porter.module";
     DHLModule,
     SmileHyperlocalModule,
     PorterModule,
+    SmileHubopsModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

@@ -38,6 +38,7 @@ export enum PARTNER_CODE_ENUM {
   SMILE_HYPERLOCAL = "SMILE_HYPERLOCAL",
   PORTER = "PORTER",
   DELHIVERY = "DELHIVERY",
+  SMILE_HUBOPS = "smile_hubops",
 }
 
 export enum ENDPOINT_ID_ENUM {
