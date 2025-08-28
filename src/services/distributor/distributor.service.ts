@@ -555,7 +555,10 @@ export class DistributorService {
       );
 
       // Execute the operation with the selected partner
-      return partnerActivity.updatePartnerToHubOps<UpdatePartnerToHubOpsRequestDto, R>(requestDto);
+      return partnerActivity.updatePartnerToHubOps<
+        UpdatePartnerToHubOpsRequestDto,
+        R
+      >(requestDto);
     } catch (error) {
       await this.discordAlertService.sendPushOrderErrorAlert(
         error,

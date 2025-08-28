@@ -999,9 +999,9 @@ export class ShipyaariService extends BaseNetworkPartner {
           isCod: orderDetails.payment?.type === "COD",
           collectableAmount:
             orderDetails.payment?.type === "COD"
-              ? parseFloat(orderDetails.payment.finalAmount || "0")
+              ? orderDetails.payment.finalAmount || 0
               : 0,
-          invoiceValue: parseFloat(orderDetails.payment?.finalAmount || "0"),
+          invoiceValue: orderDetails.payment?.finalAmount || 0,
         },
         podInfo: {
           isPod: false,
