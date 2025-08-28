@@ -36,7 +36,7 @@ export enum PARTNER_CODE_ENUM {
   DEFAULT = "DEFAULT",
   DHL = "DHL",
   SMILE_HYPERLOCAL = "SMILE_HYPERLOCAL",
-  PORTER = "PORTER",
+  PORTER = "porter_2w",
   DELHIVERY = "DELHIVERY",
   SMILE_HUBOPS = "smile_hubops",
 }
