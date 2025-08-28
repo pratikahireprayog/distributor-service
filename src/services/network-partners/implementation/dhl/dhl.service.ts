@@ -382,7 +382,7 @@ export class DHLService extends BaseNetworkPartner {
             date: moment(orderDetails.orderDate)
               .utcOffset("+05:30")
               .format("YYYY-MM-DD"),
-            instructions: [orderDetails.parentShipment?.note || ""],
+            instructions: ["Instructions"],
             totalNetWeight: lineItems.reduce(
               (sum, item) => sum + (Number(item.weight) || 0),
               0
