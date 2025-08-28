@@ -235,24 +235,54 @@ export class DHLService extends BaseNetworkPartner {
       ...(orderDetails.childShipments || []),
     ].filter(Boolean);
 
-    // Map each shipment to a DHL package object
-    const packages = shipments.map((shipment, idx) => ({
-      typeCode: "2BP",
-      weight: shipment.physicalWeight,
-      dimensions: {
-        length: shipment.dimensions.length,
-        width: shipment.dimensions.width,
-        height: shipment.dimensions.height,
+    // Calculate combined items weight across parent and child shipments (for fallback)
+    const totalItemWeightAllShipments = shipments.reduce(
+      (grandTotal: number, shp: any) => {
+        const perShipmentItems = shp?.items || [];
+        const perShipmentSum = perShipmentItems.reduce(
+          (totalWeight: number, item: any) => {
+            const itemWeight = Number(item?.weight) || 0;
+            const itemQuantity = Number(item?.quantity) || 1;
+            return totalWeight + itemWeight * itemQuantity;
+          },
+          0
+        );
+        return grandTotal + perShipmentSum;
       },
-      customerReferences: [
-        {
-          value: shipment.awbNumber || orderDetails.awbNumber,
-          typeCode: "CU",
+      0
+    );
+
+    // Map each shipment to a DHL package object
+    const packages = shipments.map((shipment, idx) => {
+      const itemWeightSum = (shipment.items || []).reduce(
+        (totalWeight: number, item: any) => {
+          const itemWeight = Number(item?.weight) || 0;
+          const itemQuantity = Number(item?.quantity) || 1;
+          return totalWeight + itemWeight * itemQuantity;
         },
-      ],
-      description: shipment.items?.[0]?.description || "No description",
-      labelDescription: shipment.items?.[0]?.description || "No description",
-    }));
+        0
+      );
+
+      return {
+        typeCode: "2BP",
+        // Use shipment physicalWeight; if missing/zero/invalid, fallback to per-shipment items sum,
+        // and finally fallback to total items sum across parent + child shipments
+        weight: (Number(shipment.physicalWeight)  ||  totalItemWeightAllShipments),
+        dimensions: {
+          length: shipment.dimensions.length,
+          width: shipment.dimensions.width,
+          height: shipment.dimensions.height,
+        },
+        customerReferences: [
+          {
+            value: shipment.awbNumber || orderDetails.awbNumber,
+            typeCode: "CU",
+          },
+        ],
+        description: shipment.items?.[0]?.description || "No description",
+        labelDescription: shipment.items?.[0]?.description || "No description",
+      };
+    });
 
     // Find pickup and delivery addresses for DHL API
     const pickupAddress: any =
