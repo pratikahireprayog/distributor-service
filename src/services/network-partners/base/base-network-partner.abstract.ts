@@ -20,7 +20,7 @@ import {
   ManifestReqDto
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
-import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2 } from "src/common/dtos/base2.dto";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
@@ -247,10 +247,155 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     }
   }
 
-    
+  async updateOrderV2<T extends BaseUpdateOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Updating Order V2 with partner ${this.partnerCode}`);
+    let existingPartners: any;
+    let attemptNumber = 1;
+    let partnerType = partnerCode;
+    const startTime = Date.now();
 
-    
-  
+    try {
+      const endpointConfig = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.UPDATE_ORDER,
+        partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.UPDATE_ORDER,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for update order operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.UPDATE_ORDER,
+        data,
+        partnerCode,
+        endpointConfig
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.UPDATE_ORDER,
+        response
+      ) as R;
+
+      // Calculate response time
+      const responseTimeMs = Date.now() - startTime;
+
+      this.logger.debug(`Order updated successfully in ${responseTimeMs}ms`);
+
+      return result;
+    } catch (error) {
+      // Calculate response time for error tracking
+      error.responseTimeMs = Date.now() - startTime;
+
+      throw error;
+    }
+  }
+
+  async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Creating Pickup V2 with partner ${this.partnerCode}`);
+    const startTime = Date.now();
+
+    try {
+      const endpointConfig = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CREATE_PICKUP,
+        partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.CREATE_PICKUP,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for create pickup operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.CREATE_PICKUP,
+        data,
+        partnerCode,
+        endpointConfig
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.CREATE_PICKUP,
+        response
+      ) as R;
+
+      // Calculate response time
+      const responseTimeMs = Date.now() - startTime;
+
+      this.logger.debug(`Pickup created successfully in ${responseTimeMs}ms`);
+
+      return result;
+    } catch (error) {
+      // Calculate response time for error tracking
+      error.responseTimeMs = Date.now() - startTime;
+
+      throw error;
+    }
+  }
+
+  async cancelPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Cancelling Pickup V2 with partner ${this.partnerCode}`);
+    const startTime = Date.now();
+
+    try {
+      const endpointConfig = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CANCEL_PICKUP,
+        partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.CANCEL_PICKUP,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for cancel pickup operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.CANCEL_PICKUP,
+        data,
+        partnerCode,
+        endpointConfig
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.CANCEL_PICKUP,
+        response
+      ) as R;
+
+      // Calculate response time
+      const responseTimeMs = Date.now() - startTime;
+
+      this.logger.debug(`Pickup cancelled successfully in ${responseTimeMs}ms`);
+
+      return result;
+    } catch (error) {
+      // Calculate response time for error tracking
+      error.responseTimeMs = Date.now() - startTime;
+
+      throw error;
+    }
+  }
 
   async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
     data: T
@@ -383,6 +528,58 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     } catch (error) {
       // Add timing to error for tracking
       error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Cancelling Order V2 with partner ${this.partnerCode}`);
+    let existingPartners: any;
+    let attemptNumber = 1;
+    let partnerType = partnerCode;
+    const startTime = Date.now();
+
+    try {
+      const endpointConfig = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.CANCEL_ORDER,
+        partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.CANCEL_ORDER,
+          data
+        )
+      ) {
+        throw new Error("Invalid input data for cancel order operation");
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.CANCEL_ORDER,
+        data,
+        partnerCode,
+        endpointConfig
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.CANCEL_ORDER,
+        response
+      ) as R;
+
+      // Calculate response time
+      const responseTimeMs = Date.now() - startTime;
+
+      this.logger.debug(`Order cancelled successfully in ${responseTimeMs}ms`);
+
+      return result;
+    } catch (error) {
+      // Calculate response time for error tracking
+      error.responseTimeMs = Date.now() - startTime;
+
       throw error;
     }
   }

@@ -13,6 +13,7 @@ import { DHLModule } from "./implementation/dhl/dhl.module";
 import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-hyperlocal.module";
 import { PorterModule } from "./implementation/porter/porter.module";
 import { IndiaPostInternationalModule } from "./implementation/india-post-international/india-post-international.module";
+import { UniuniModule } from "./implementation/uniuni/uniuni.module";
 
 /**
  * Module for network partners
@@ -30,6 +31,7 @@ import { IndiaPostInternationalModule } from "./implementation/india-post-intern
     SmileHyperlocalModule,
     PorterModule,
     IndiaPostInternationalModule,
+    UniuniModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

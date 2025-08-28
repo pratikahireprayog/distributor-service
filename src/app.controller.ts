@@ -8,6 +8,7 @@ import {
   Patch,
   Put,
   Headers,
+  Delete,
 } from "@nestjs/common";
 import { AppService } from "./app.service";
 import {
@@ -15,7 +16,9 @@ import {
   pushOrdersToPRSDto,
   StandardRequestDto,
   pushOrdersToPRSRequestDto,
-  StandardRequestDtoV2
+  StandardRequestDtoV2,
+  StandardCancelRequestDtoV2,
+  StandardUpdateRequestDtoV2
 } from "./services/distributor/distributor.service";
 import {
   BaseReqDto,
@@ -87,6 +90,20 @@ export class AppController {
     return this.distributorService.cancelOrder(requestDto);
   }
 
+  @Post("cancel-order-v2")
+  async cancelOrderV2(
+    @Body() requestDto: StandardCancelRequestDtoV2
+  ): Promise<BaseResDto> {
+    return this.distributorService.cancelOrderV2(requestDto);
+  }
+
+  @Post("update-order-v2")
+  async updateOrderV2(
+    @Body() requestDto: StandardUpdateRequestDtoV2
+  ): Promise<BaseResDto> {
+    return this.distributorService.updateOrderV2(requestDto);
+  }
+
   @Post("push-order-to-drs")
   async pushOrderToDRS(
     @Body() requestDto: StandardRequestDto
@@ -134,5 +151,21 @@ export class AppController {
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
     return this.distributorService.updateOrderToHubOps(requestDto);
+  }
+
+  @Post("create-pickup-v2")
+  async createPickupV2(
+    @Body() requestDto: any,
+    @Query('partnerCode') partnerCode: string = 'DHL'
+  ): Promise<BaseResDto> {
+    return this.distributorService.createPickupV2(requestDto, partnerCode);
+  }
+
+  @Delete("cancel-pickup-v2")
+  async cancelPickupV2(
+    @Body() requestDto: any,
+    @Query('partnerCode') partnerCode: string = 'DHL'
+  ): Promise<BaseResDto> {
+    return this.distributorService.cancelPickupV2(requestDto, partnerCode);
   }
 }

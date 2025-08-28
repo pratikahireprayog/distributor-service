@@ -13,7 +13,7 @@ import {
   BaseCancelOrderDto,
   BaseResDto,
 } from "src/common/dtos/base.dto";
-import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2 } from "src/common/dtos/base2.dto";
 
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
@@ -531,11 +531,24 @@ export class IndiaPostInternationalService extends BaseNetworkPartner {
       statusCode: 200,
       message: "Order created successfully with India Post International",
       partnerCode: this.partnerCode,
+      metadata: {
+        transporterId: responseData.transporter_id || responseData.transporterId || 'INDIA_POST_TRANSPORTER'
+      },
       data: {
+        originalResponse: responseData,
         trackingId: trackingNumber,
         referenceNumber: orderId,
-        labelUrl: labelUrl,
-        rawResponse: responseData
+        labelUrl: labelUrl || '',
+        requestUrl: this.configService.get<string>('INDIA_POST_CREATE_ORDER_URL') || 'INDIA_POST_API',
+        requestBody: responseData.request_body || responseData.requestBody || {},
+        shipmentDetails: [
+          {
+            awbNumber: orderId || 'UNKNOWN',
+            partnerAwbNumber: trackingNumber || 'UNKNOWN',
+            partnerName: 'INDIA_POST_INTERNATIONAL',
+            transporterId: responseData.transporter_id || responseData.transporterId || 'INDIA_POST_TRANSPORTER'
+          }
+        ]
       }
     } as R;
   }
@@ -567,11 +580,42 @@ export class IndiaPostInternationalService extends BaseNetworkPartner {
       return {
         statusCode: 200,
         message: "Order cancelled successfully",
+        partnerCode: this.partnerCode,
+        metadata: {
+          transporterId: 'INDIA_POST_TRANSPORTER'
+        },
         data: response.data
       } as R;
     } catch (error) {
       this.logger.error(`India Post International cancelOrder error: ${JSON.stringify(error)}`);
       throw error;
+    }
+  }
+
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    return this.cancelOrder<T, R>(data);
+  }
+
+  async updateOrderV2<T extends BaseUpdateOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      this.logger.debug(`India Post International updateOrderV2 called with order: ${data.orderId}`);
+      
+      // For now, throw an error as India Post International update order is not implemented
+      throw new Error('India Post International updateOrderV2 not implemented');
+    } catch (error) {
+      this.logger.error(`India Post International updateOrderV2 failed: ${error.message}`);
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `India Post International updateOrderV2 failed: ${error.message}`
+      );
     }
   }
 
@@ -601,6 +645,10 @@ export class IndiaPostInternationalService extends BaseNetworkPartner {
       return {
         statusCode: 200,
         message: "Tracking information retrieved successfully",
+        partnerCode: this.partnerCode,
+        metadata: {
+          transporterId: 'INDIA_POST_TRANSPORTER'
+        },
         data: response.data
       };
     } catch (error) {

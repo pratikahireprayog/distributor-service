@@ -10,6 +10,7 @@ import { DHLService } from "./implementation/dhl/dhl.service";
 import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-hyperlocal.service";
 import { PorterService } from "./implementation/porter/porter.service";
 import { IndiaPostInternationalService } from "./implementation/india-post-international/india-post-international.service";
+import { UniuniService } from "./implementation/uniuni/uniuni.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -42,6 +43,10 @@ export const networkPartnersProviders: Provider[] = [
     useClass: IndiaPostInternationalService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
+    useClass: UniuniService,
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     useClass: DefaultNetworkPartner,
   },
@@ -57,6 +62,7 @@ export const networkPartnersProviders: Provider[] = [
       smileHyperlocalService: SmileHyperlocalService,
       porterService: PorterService,
       indiaPostService: IndiaPostInternationalService,
+      uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
       // Register individual partners
@@ -67,6 +73,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
       factory.registerPartner(PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL, indiaPostService);
+      factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -82,6 +89,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
       NETWORK_PARTNER_PROVIDER_CONST.PORTER,
       NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
+      NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     ],
   },

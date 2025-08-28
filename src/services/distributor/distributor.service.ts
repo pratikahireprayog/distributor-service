@@ -12,7 +12,7 @@ import {
   OrderDto,
 } from "src/common/dtos/base.dto";
 
-import { BaseOrderReqDtoV2,OrderDtov2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2, OrderDtov2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
 
@@ -36,6 +36,18 @@ export class StandardRequestDto {
 
 export class StandardRequestDtoV2 {
   order: OrderDtov2;
+  partnerCode: PARTNER_CODE_ENUM | string;
+  eligiblePartners?: EligiblePartnersData;
+}
+
+export class StandardCancelRequestDtoV2 {
+  order: BaseCancelOrderDtoV2;
+  partnerCode: PARTNER_CODE_ENUM | string;
+  eligiblePartners?: EligiblePartnersData;
+}
+
+export class StandardUpdateRequestDtoV2 {
+  order: BaseUpdateOrderDtoV2;
   partnerCode: PARTNER_CODE_ENUM | string;
   eligiblePartners?: EligiblePartnersData;
 }
@@ -328,6 +340,132 @@ export class DistributorService {
   }
 
   /**
+   * Cancel an order V2 with a network partner
+   */
+  async cancelOrderV2<R extends BaseResDto>(
+    requestDto: StandardCancelRequestDtoV2
+  ): Promise<R> {
+    const awbDisplay = requestDto.order.cAwbNumbers?.join(",") || "unknown";
+    this.logger.debug(`Cancelling Order V2 for ${awbDisplay}`);
+
+    try {
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      const result = await partnerActivity.cancelOrderV2<BaseCancelOrderDtoV2, R>(
+        requestDto.order,
+        requestDto.partnerCode as string,
+        requestDto.eligiblePartners
+      );
+
+      if (
+        result &&
+        (result as any).statusCode &&
+        (result as any).statusCode >= 400
+      ) {
+        this.logger.error(
+          `🚨 ORDER CANCELLATION RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
+        );
+
+        // Create a custom error object for Discord alerting
+        const errorForAlert = {
+          message: (result as any).message || "Order cancellation failed",
+          status: (result as any).statusCode,
+          statusText: "API Error Response",
+          stack: "No stack trace - API response error",
+          response: result,
+        };
+
+        await this.discordAlertService.sendOrderCancellationErrorAlert(
+          errorForAlert,
+          requestDto.order.cAwbNumbers,
+          requestDto.partnerCode as string
+        );
+      }
+
+      this.logger.log(
+        `✅ Order cancellation completed successfully for ${awbDisplay}`
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`🚨 ORDER CANCELLATION ERROR CAUGHT: ${error.message}`);
+      this.logger.error(`Error type: ${error.constructor.name}`);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
+
+      await this.discordAlertService.sendOrderCancellationErrorAlert(
+        error,
+        requestDto.order.cAwbNumbers,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Update an order V2 with a network partner
+   */
+  async updateOrderV2<R extends BaseResDto>(
+    requestDto: StandardUpdateRequestDtoV2
+  ): Promise<R> {
+    const awbDisplay = requestDto.order.awbNumber || "unknown";
+    this.logger.debug(`Updating Order V2 for ${awbDisplay}`);
+
+    try {
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      const result = await partnerActivity.updateOrderV2<BaseUpdateOrderDtoV2, R>(
+        requestDto.order,
+        requestDto.partnerCode as string,
+        requestDto.eligiblePartners
+      );
+
+      if (
+        result &&
+        (result as any).statusCode &&
+        (result as any).statusCode >= 400
+      ) {
+        this.logger.error(
+          `🚨 ORDER UPDATE RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
+        );
+
+        // Create a custom error object for Discord alerting
+        const errorForAlert = {
+          message: (result as any).message || "Order update failed",
+          status: (result as any).statusCode,
+          statusText: "API Error Response",
+          stack: "No stack trace - API response error",
+          response: result,
+        };
+
+        await this.discordAlertService.sendOrderDetailsErrorAlert(
+          errorForAlert,
+          requestDto.order.awbNumber,
+          requestDto.partnerCode as string
+        );
+      }
+
+      this.logger.log(
+        `✅ Order update completed successfully for ${awbDisplay}`
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`🚨 ORDER UPDATE ERROR CAUGHT: ${error.message}`);
+      this.logger.error(`Error type: ${error.constructor.name}`);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
+
+      await this.discordAlertService.sendOrderDetailsErrorAlert(
+        error,
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Push orders to DRS
    */
   async pushOrderToDRS<R extends BaseResDto>(
@@ -539,5 +677,73 @@ export class DistributorService {
     return partnerActivity.updateOrderToHubOps<StandardRequestDto, R>(
       requestDto
     );
+  }
+
+  /**
+   * Create pickup request V2 with network partner
+   * @param requestDto Request data containing pickup details
+   * @param partnerCode Partner code for the network partner
+   * @returns Response from pickup creation API
+   */
+  async createPickupV2<R extends BaseResDto>(
+    requestDto: any,
+    partnerCode: string = PARTNER_CODE_ENUM.DHL
+  ): Promise<R> {
+    this.logger.log(
+      `Creating Pickup V2 for partner: ${partnerCode}`
+    );
+
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(partnerCode);
+
+      // Execute the operation with the selected partner
+      return partnerActivity.createPickupV2<any, R>(
+        requestDto,
+        partnerCode
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "CreatePickupV2",
+        "pickup-request",
+        partnerCode
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel pickup request V2 with network partner
+   * @param requestDto Request data containing pickup cancellation details
+   * @param partnerCode Partner code for the network partner
+   * @returns Response from pickup cancellation API
+   */
+  async cancelPickupV2<R extends BaseResDto>(
+    requestDto: any,
+    partnerCode: string = PARTNER_CODE_ENUM.DHL
+  ): Promise<R> {
+    this.logger.log(
+      `Cancelling Pickup V2 for partner: ${partnerCode}`
+    );
+
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(partnerCode);
+
+      // Execute the operation with the selected partner
+      return partnerActivity.cancelPickupV2<any, R>(
+        requestDto,
+        partnerCode
+      );
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "CancelPickupV2",
+        "pickup-cancellation",
+        partnerCode
+      );
+      throw error;
+    }
   }
 }
