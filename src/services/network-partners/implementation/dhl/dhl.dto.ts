@@ -51,10 +51,24 @@ export class DHLPickupShipperDetailsDto {
   contactInformation: DHLPickupContactDto;
 }
 
+export class DHLPickupBillingDetailsDto {
+  @ValidateNested()
+  @Type(() => DHLPickupAddressDto)
+  postalAddress: DHLPickupAddressDto;
+
+  @ValidateNested()
+  @Type(() => DHLPickupContactDto)
+  contactInformation: DHLPickupContactDto;
+}
+
 export class DHLPickupCustomerDetailsDto {
   @ValidateNested()
   @Type(() => DHLPickupShipperDetailsDto)
   shipperDetails: DHLPickupShipperDetailsDto;
+
+  @ValidateNested()
+  @Type(() => DHLPickupBillingDetailsDto)
+  billingDetails: DHLPickupBillingDetailsDto;
 }
 
 export class DHLPickupShipmentDetailsDto {
