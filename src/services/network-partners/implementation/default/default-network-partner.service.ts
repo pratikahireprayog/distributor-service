@@ -352,7 +352,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       originalOrderId: data.awbNumber,
       type: data.type,
       weight: data.dimensions?.weight,
-      mcnOrder: this.determineMcnFlag(data),
+      mcnOrder: this.determineMcnFlag(data, data.partnerCode),
       shippingAddress: {
         name: data.shippingAddress.name,
         phone: data.shippingAddress.mobile,
@@ -589,7 +589,10 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
       this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
 
-      const body = this.buildHubOpsPayload(data.order as BaseOrderReqDto);
+      const body = this.buildHubOpsPayload(
+        data.order as BaseOrderReqDto,
+        data.partnerCode
+      );
       this.logger.log("HubOps payload body sent to API", body);
 
       const response = await this.makeApiCall(endpoint.url, body, "HubOps");
@@ -623,29 +626,34 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
-  private buildHubOpsPayload(order: BaseOrderReqDto) {
+  private buildHubOpsPayload(order: BaseOrderReqDto, partnerCode: string) {
     // Determine AWB number based on priority
-    let awbNum;
-    if (order.smileAwbNumber) {
-      awbNum = order.smileAwbNumber;
-    } else if (
-      order.partnerCode === PARTNER_CODE_ENUM.SMILE &&
-      order.cAwbNumber
-    ) {
-      awbNum = order.cAwbNumber;
-    } else {
-      awbNum = order.awbNumber;
-    }
+    // let awbNum;
+    // if (order.smileAwbNumber) {
+    //   awbNum = order.smileAwbNumber;
+    // } else if (
+    //   order.partnerCode === PARTNER_CODE_ENUM.SMILE &&
+    //   order.cAwbNumber
+    // ) {
+    //   awbNum = order.cAwbNumber;
+    // } else {
+    //   awbNum = order.awbNumber;
+    // }
 
     // Create the booking payload and wrap it in an array
     return [
       {
-        awbNumber: awbNum,
+        awbNumber: order.awbNumber,
         bookingStatus: order.orderStatus,
-        bookingType: order.type === ORDER_TYPE_ENUM.INTERNATIONAL ? ORDER_TYPE_ENUM.CARGO : order.type,
+        bookingType: order.type.toUpperCase(),
         // ewayBillCreateDate: null,
-        ewayBillNumber: order?.ewayBillNos?.[0] || "",
-        docType: order?.type === "COURIER" ? order?.deliveryMode : "non-dox",
+        ewayBillNumber: Array.isArray(order?.ewayBillNos)
+          ? order.ewayBillNos.filter((n: any) => !!n).join(",")
+          : order?.ewayBillNos || "",
+        docType:
+          order?.type.toUpperCase() === "COURIER"
+            ? order?.deliveryMode
+            : "non-dox",
         // expiryDate: null,
         extendEwayBillCount: 0,
         fromPincode: parseInt(order?.pickupAddress?.zip),
@@ -665,8 +673,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         senderState: order?.pickupAddress?.state || "",
         service: order?.serviceType || "",
         source: SOURCE_CONST.ORCHESTRATOR,
+        childAwbs: order?.childShipments || [],
         // TODO: Make it dynamic based on the serviceability partner selection
-        mcn: this.determineMcnFlag(order),
+        mcn: this.determineMcnFlag(order, partnerCode),
         partnerCode: order?.partnerCode || "",
         time: "",
         toPincode: parseInt(order?.shippingAddress?.zip) || 0,
@@ -1029,18 +1038,137 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     }
   }
 
-  private determineMcnFlag(order: BaseOrderReqDto): boolean {
+  private determineMcnFlag(
+    order: BaseOrderReqDto,
+    partnerCode: string
+  ): boolean {
+    if (order?.mcn !== undefined) {
+      return order.mcn;
+    }
+
     // Check if this is an international order (shipping outside India)
     const isInternational = order.type === ORDER_TYPE_ENUM.INTERNATIONAL;
 
     // Check if partner is SHIPYAARI (traditional MCN partner)
-    const isShipyaari = order?.partnerCode === PARTNER_CODE_ENUM.SHIPYAARI;
+    const isShipyaari = partnerCode === PARTNER_CODE_ENUM.SHIPYAARI;
+
+    const isDelhivery = partnerCode === PARTNER_CODE_ENUM.DELHIVERY;
 
     // Business logic for MCN flag:
     // 1. For SHIPYAARI: Always true for domestic orders, needs review for international
     // 2. For DHL: Typically used for international, may need different MCN logic
     // 3. For international orders: May have different MCN requirements regardless of partner
 
-    return isInternational || isShipyaari;
+    return isInternational || isShipyaari || isDelhivery;
+  }
+
+  /**
+   * Update partner information to HubOps for multiple shipments
+   * Makes PUT requests for each shipment in the shipmentDetails array
+   */
+  async updatePartnerToHubOps<T extends any, R extends BaseResDto>(
+    requestDto: T
+  ): Promise<R> {
+    this.logger.log(
+      `Updating partner information to HubOps for multiple shipments`
+    );
+
+    try {
+      // Extract shipmentDetails from the request data
+      const shipmentDetails = (requestDto as any)?.shipmentDetails;
+
+      if (!shipmentDetails || !Array.isArray(shipmentDetails)) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "No shipmentDetails found in request data"
+        );
+      }
+
+      this.logger.log(
+        `Processing ${shipmentDetails.length} shipments for partner update`
+      );
+
+      const results = [];
+      const errors = [];
+
+      // Process each shipment
+      for (const shipment of shipmentDetails) {
+        try {
+          const result = await this.updateSinglePartnerToHubOps(shipment);
+          results.push({
+            awbNumber: shipment.awbNumber,
+            status: "success",
+            result,
+          });
+
+          this.logger.log(
+            `✅ Successfully updated partner info for AWB: ${shipment.awbNumber}`
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Failed to update partner info for AWB: ${shipment.awbNumber}`,
+            error.message
+          );
+
+          errors.push({
+            awbNumber: shipment.awbNumber,
+            status: "failed",
+            error: error.message,
+          });
+        }
+      }
+
+      // Return combined response
+      return this.createSuccessResponse<R>(
+        {
+          totalShipments: shipmentDetails.length,
+          successCount: results.length,
+          errorCount: errors.length,
+          results,
+          errors,
+        },
+        `Partner information updated for ${results.length}/${shipmentDetails.length} shipments`
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to update partner information to HubOps: ${error.message}`,
+        error.stack
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Update partner information for a single shipment
+   */
+  private async updateSinglePartnerToHubOps(shipment: any): Promise<any> {
+    // Construct the URL directly using environment variable
+    const baseUrl = process.env.SMILE_HUBOPS_BASE_URL;
+    const url = `${baseUrl}/smcs-webapp/shipment-booking-service/v1/shipment/mcn/${shipment.awbNumber}`;
+
+    this.logger.log(
+      `Updating partner info for AWB ${shipment.awbNumber} at URL: ${url}`
+    );
+
+    // Build the request payload
+    const body = {
+      partnerCode: shipment.partnerName,
+      mcnAwbNumber: shipment.partnerAwbNumber,
+      tplTransporterId: shipment.transporterId,
+    };
+
+    this.logger.log(
+      `Partner update payload for AWB ${shipment.awbNumber}:`,
+      body
+    );
+
+    // Make the PUT request
+    const response = await this.makeHubOpsPutApiCall(
+      url,
+      body,
+      "Partner Update"
+    );
+
+    return response.data;
   }
 }

@@ -77,6 +77,9 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         updateOrderToHubOps: this.distributorService.updateOrderToHubOps.bind(
           this.distributorService
         ),
+        updatePartnerToHubOps: this.distributorService.updatePartnerToHubOps.bind(
+          this.distributorService
+        ),
       });
     });
   }

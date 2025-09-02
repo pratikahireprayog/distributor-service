@@ -28,6 +28,7 @@ import {
   BaseCancelOrderDto,
   DRSPayloadDTO,
   ManifestReqDto,
+  UpdatePartnerToHubOpsRequestDto,
 } from "./common/dtos/base.dto";
 import { EligiblePartnersData } from "./common/dtos/global.dto";
 import { PARTNER_CODE_ENUM } from "./common/enums/global.enum";
@@ -57,10 +58,8 @@ export class AppController {
   }
 
   @Post("create-order-v2")
-  async createOrderV2(
-    @Body() requestDto:StandardRequestDtoV2
-  ): Promise<any> {
-    return this.distributorService.createOrderV2(requestDto)
+  async createOrderV2(@Body() requestDto: StandardRequestDtoV2): Promise<any> {
+    return this.distributorService.createOrderV2(requestDto);
   }
 
   @Post("create-manifest")
@@ -168,4 +167,15 @@ export class AppController {
   ): Promise<BaseResDto> {
     return this.distributorService.cancelPickupV2(requestDto, partnerCode);
   }
+  /**
+   * Update partner information to HubOps for multiple shipments
+   * Accepts an array of shipment details and updates partner info
+   * for each shipment via HubOps API
+   */
+  // @Post("update-partner-to-hubops")
+  // async updatePartnerToHubOps(
+  //   @Body() responseData: UpdatePartnerToHubOpsRequestDto
+  // ): Promise<BaseResDto> {
+  //   return this.distributorService.updatePartnerToHubOps(responseData);
+  // }
 }

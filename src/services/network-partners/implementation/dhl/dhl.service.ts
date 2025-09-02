@@ -417,24 +417,54 @@ export class DHLService extends BaseNetworkPartner {
       ...(orderDetails.childShipments || []),
     ].filter(Boolean);
 
-    // Map each shipment to a DHL package object
-    const packages = shipments.map((shipment, idx) => ({
-      typeCode: "2BP",
-      weight: shipment.physicalWeight,
-      dimensions: {
-        length: shipment.dimensions.length,
-        width: shipment.dimensions.width,
-        height: shipment.dimensions.height,
+    // Calculate combined items weight across parent and child shipments (for fallback)
+    const totalItemWeightAllShipments = shipments.reduce(
+      (grandTotal: number, shp: any) => {
+        const perShipmentItems = shp?.items || [];
+        const perShipmentSum = perShipmentItems.reduce(
+          (totalWeight: number, item: any) => {
+            const itemWeight = Number(item?.weight) || 0;
+            const itemQuantity = Number(item?.quantity) || 1;
+            return totalWeight + itemWeight * itemQuantity;
+          },
+          0
+        );
+        return grandTotal + perShipmentSum;
       },
-      customerReferences: [
-        {
-          value: shipment.awbNumber || orderDetails.awbNumber,
-          typeCode: "CU",
+      0
+    );
+
+    // Map each shipment to a DHL package object
+    const packages = shipments.map((shipment, idx) => {
+      const itemWeightSum = (shipment.items || []).reduce(
+        (totalWeight: number, item: any) => {
+          const itemWeight = Number(item?.weight) || 0;
+          const itemQuantity = Number(item?.quantity) || 1;
+          return totalWeight + itemWeight * itemQuantity;
         },
-      ],
-      description: shipment.items?.[0]?.description || "No description",
-      labelDescription: shipment.items?.[0]?.description || "No description",
-    }));
+        0
+      );
+
+      return {
+        typeCode: "2BP",
+        // Use shipment physicalWeight; if missing/zero/invalid, fallback to per-shipment items sum,
+        // and finally fallback to total items sum across parent + child shipments
+        weight: (Number(shipment.physicalWeight)  ||  totalItemWeightAllShipments),
+        dimensions: {
+          length: shipment.dimensions.length,
+          width: shipment.dimensions.width,
+          height: shipment.dimensions.height,
+        },
+        customerReferences: [
+          {
+            value: shipment.awbNumber || orderDetails.awbNumber,
+            typeCode: "CU",
+          },
+        ],
+        description: shipment.items?.[0]?.description || "No description",
+        labelDescription: shipment.items?.[0]?.description || "No description",
+      };
+    });
 
     // Find pickup and delivery addresses for DHL API
     const pickupAddress: any =
@@ -503,7 +533,7 @@ export class DHLService extends BaseNetworkPartner {
             return {
               number: idx + 1,
               description: item.description,
-              price: item.unitPrice,
+              price: Number(item.unitPrice) || 0,
               quantity: {
                 value: item.quantity,
                 unitOfMeasurement: "KG",
@@ -517,8 +547,8 @@ export class DHLService extends BaseNetworkPartner {
               exportReasonType: "permanent",
               manufacturerCountry: "IN",
               weight: {
-                netValue: item.weight,
-                grossValue: item.weight,
+                netValue: Number(item.weight) || 0,
+                grossValue: Number(item.weight) || 0,
               },
               isTaxesPaid: true,
               customerReferences: [
@@ -534,13 +564,13 @@ export class DHLService extends BaseNetworkPartner {
             date: moment(orderDetails.orderDate)
               .utcOffset("+05:30")
               .format("YYYY-MM-DD"),
-            instructions: [orderDetails.parentShipment?.note || ""],
+            instructions: ["Instructions"],
             totalNetWeight: lineItems.reduce(
-              (sum, item) => sum + (item.weight || 0),
+              (sum, item) => sum + (Number(item.weight) || 0),
               0
             ),
             totalGrossWeight: lineItems.reduce(
-              (sum, item) => sum + (item.weight || 0),
+              (sum, item) => sum + (Number(item.weight) || 0),
               0
             ),
           },
@@ -592,7 +622,7 @@ export class DHLService extends BaseNetworkPartner {
             email: pickupAddress.email || "",
             phone: pickupAddress.phone || "",
             mobilePhone: pickupAddress.phone || "",
-            companyName: pickupAddress.addressName || "",
+            companyName: pickupAddress.name || "",
             fullName: pickupAddress.name || "",
           },
           typeCode: "business",
@@ -610,7 +640,7 @@ export class DHLService extends BaseNetworkPartner {
             email: deliveryAddress.email || "",
             phone: deliveryAddress.phone || "",
             mobilePhone: deliveryAddress.phone || "",
-            companyName: deliveryAddress.addressName || "",
+            companyName: deliveryAddress.name || "",
             fullName: deliveryAddress.name || "",
           },
           typeCode: "business",

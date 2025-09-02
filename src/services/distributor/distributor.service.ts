@@ -10,6 +10,7 @@ import {
   DRSPayloadDTO,
   ManifestReqDto,
   OrderDto,
+  UpdatePartnerToHubOpsRequestDto,
 } from "src/common/dtos/base.dto";
 
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2, OrderDtov2 } from "src/common/dtos/base2.dto";
@@ -32,7 +33,6 @@ export class StandardRequestDto {
   partnerCode: PARTNER_CODE_ENUM | string;
   eligiblePartners?: EligiblePartnersData;
 }
-
 
 export class StandardRequestDtoV2 {
   order: OrderDtov2;
@@ -147,20 +147,21 @@ export class DistributorService {
     }
   }
 
-
   async createOrderV2<R extends BaseOrderResDto>(
-    requestDto:StandardRequestDtoV2
-  ):Promise<R> {
+    requestDto: StandardRequestDtoV2
+  ): Promise<R> {
     //this.logger.log(`Creating Order for ${requestDto.order.awbNumber || "unknown"}`);
 
     try {
-      const partnerActivity = this.networkPartnerFactory.getPartner(requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT);
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
 
       const result = await partnerActivity.createOrderV2<BaseOrderReqDtoV2, R>(
         requestDto.order as BaseOrderReqDtoV2,
-        requestDto.partnerCode as string, 
-        requestDto.eligiblePartners,
-      )
+        requestDto.partnerCode as string,
+        requestDto.eligiblePartners
+      );
 
       if (
         result &&
@@ -193,9 +194,7 @@ export class DistributorService {
         `✅ Order creation completed successfully for ${requestDto.order.awbNumber}`
       );
       return result;
-    }
-    catch (error) {
-
+    } catch (error) {
       this.logger.error(`🚨 ORDER CREATION ERROR CAUGHT: ${error.message}`);
       this.logger.error(`Error type: ${error.constructor.name}`);
       this.logger.error(`Error details: ${JSON.stringify(error)}`);
@@ -205,18 +204,13 @@ export class DistributorService {
 
       await this.discordAlertService.sendOrderCreationErrorAlert(
         error,
-        requestDto.order.awbNumber,
+        requestDto.order.orderId,
         requestDto.partnerCode as string,
         undefined,
         { eligiblePartners: requestDto.eligiblePartners }
       );
       throw error;
-      
     }
-
-
-
-
   }
 
   /**

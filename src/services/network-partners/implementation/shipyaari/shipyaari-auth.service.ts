@@ -26,6 +26,8 @@ interface ShipyaariAuthResponse {
   data?: any[];
 }
 
+
+
 // Custom error class for authentication errors
 class AuthenticationError extends Error {
   constructor(
@@ -234,4 +236,6 @@ export class ShipyaariAuthService implements AuthProvider {
     this.tokenData = null;
     await this.getValidToken();
   }
+
+ 
 }

@@ -17,7 +17,7 @@ import {
   BaseResDto,
   BaseCancelOrderDto,
   DRSPayloadDTO,
-  ManifestReqDto
+  ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2 } from "src/common/dtos/base2.dto";
@@ -149,10 +149,9 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderData: T,
     partnerCode: string,
-    eligiblePartners:EligiblePartnersData
+    eligiblePartners: EligiblePartnersData
   ): Promise<R> {
-
-   this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
+    this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
     let existingPartners: any;
     let attemptNumber = 1;
     let partnerType = partnerCode;
@@ -966,6 +965,26 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       error.responseTimeMs = Date.now() - startTime;
       throw error;
     }
+  }
+
+  /**
+   * Update partner information to HubOps for multiple shipments
+   * Default implementation - can be overridden by specific partner implementations
+   * @param requestDto Request data containing shipmentDetails array
+   * @returns Combined response for all shipment updates
+   */
+  async updatePartnerToHubOps<T extends any, R extends BaseResDto>(
+    requestDto: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Partner ${this.partnerCode} does not implement updatePartnerToHubOps`
+    );
+
+    // Default implementation throws an error
+    throw new CustomHttpException(
+      HttpStatus.NOT_IMPLEMENTED,
+      `updatePartnerToHubOps not implemented for partner ${this.partnerCode}`
+    );
   }
 
   // TODO: Create response mapper object for specific partner

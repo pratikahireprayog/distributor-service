@@ -14,6 +14,7 @@ import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-h
 import { PorterModule } from "./implementation/porter/porter.module";
 import { IndiaPostInternationalModule } from "./implementation/india-post-international/india-post-international.module";
 import { UniuniModule } from "./implementation/uniuni/uniuni.module";
+import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
 
 /**
  * Module for network partners
@@ -32,6 +33,7 @@ import { UniuniModule } from "./implementation/uniuni/uniuni.module";
     PorterModule,
     IndiaPostInternationalModule,
     UniuniModule,
+    SmileHubopsModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

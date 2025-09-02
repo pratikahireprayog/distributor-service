@@ -12,7 +12,6 @@ import {
   IsArray,
 } from "class-validator";
 
-
 export class BaseReqDto {
   @IsNotEmpty({ message: "AWB number is required" })
   @IsString({ message: "AWB number must be a string" })
@@ -23,7 +22,6 @@ export class BaseReqDto {
   partnerCode: string;
 }
 
-
 // --- Moved from base.dto.ts ---
 
 export class MetadataDto {
@@ -32,14 +30,22 @@ export class MetadataDto {
 
   @IsString()
   createdBy: string;
+
+  @IsString()
+  sourcePremiseId: string;
+
+  @IsString()
+  destinationPremiseId: string;
 }
 
 export class AddressV2Dto {
+  @IsOptional()
   @IsNumber()
-  id: number;
+  id?: number;
 
+  @IsOptional()
   @IsNumber()
-  orderId: number;
+  orderId?: number;
 
   @IsString()
   type: string;
@@ -74,22 +80,24 @@ export class AddressV2Dto {
   @IsOptional()
   countryCode?: string;
 
-  @IsString()
-  latitude: string;
+  @IsNumber()
+  latitude: number;
 
-  @IsString()
-  longitude: string;
+  @IsNumber()
+  longitude: number;
 
   @IsString()
   addressName: string;
 }
 
 export class DocumentDto {
+  @IsOptional()
   @IsNumber()
-  id: number;
+  id?: number;
 
+  @IsOptional()
   @IsNumber()
-  orderId: number;
+  orderId?: number;
 
   @IsString()
   type: string;
@@ -112,52 +120,77 @@ export class DimensionsV2Dto {
   length: number;
 }
 
-export class ParentShipmentDto {
-  @IsNumber()
-  id: number;
+export class PackagingDto {
+  @IsString()
+  type: string;
 
+  @IsArray()
+  @IsString({ each: true })
+  materials: string[];
+
+  @IsBoolean()
+  fragileHandling: boolean;
+}
+
+export class ParentShipmentDto {
+  @IsOptional()
   @IsNumber()
-  orderId: number;
+  id?: number;
+
+  @IsOptional()
+  @IsNumber()
+  orderId?: number;
 
   @IsString()
   awbNumber: string;
-  
+
+  @IsString()
+  documentType: string;
+
+  @IsString()
+  cAwbNumber: string;
 
   @ValidateNested()
   @Type(() => DimensionsV2Dto)
   dimensions: DimensionsV2Dto;
 
-  @IsString()
-  physicalWeight: string;
+  @IsNumber()
+  physicalWeight: number;
 
-  @IsString()
-  volumetricWeight: string;
+  @IsNumber()
+  volumetricWeight: number;
 
   @IsString()
   note: string;
 
-  @IsOptional()
-  specialService?: any;
+  @IsArray()
+  specialService: any[];
 
-  @IsOptional()
-  packaging?: any;
+  @ValidateNested()
+  @Type(() => PackagingDto)
+  packaging: PackagingDto;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemDto)
   items: ItemDto[];
+
+  @IsOptional()
+  @IsString()
+  discount?: string;
 }
 
-
 export class BreakdownDto {
+  @IsOptional()
   @IsNumber()
-  id: number;
+  id?: number;
+
+  @IsOptional()
+  @IsNumber()
+  paymentId?: number;
 
   @IsNumber()
-  paymentId: number;
-
-  @IsString()
-  subTotal: string;
+  subTotal: number;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -176,14 +209,15 @@ export class BreakdownDto {
 }
 
 export class PaymentDto {
+  @IsOptional()
   @IsNumber()
-  id: number;
+  id?: number;
 
+  @IsOptional()
   @IsNumber()
-  orderId: number;
+  orderId?: number;
 
-  @IsString()
-  finalAmount: string;
+  finalAmount: number;
 
   @IsString()
   type: string;
@@ -221,13 +255,22 @@ export class WorkflowContextDto {
 
 // --- Move dependencies for DTOs ---
 
-
 export class ItemDto {
+  @IsOptional()
   @IsNumber()
-  id: number;
+  id?: number;
 
+  @IsOptional()
   @IsNumber()
-  shipmentId: number;
+  shipmentId?: number;
+
+  @IsOptional()
+  @IsString()
+  _shipmentType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  _shipmentIndex?: number;
 
   @IsString()
   name: string;
@@ -235,11 +278,11 @@ export class ItemDto {
   @IsNumber()
   quantity: number;
 
-  @IsString()
-  weight: string;
+  @IsNumber()
+  weight: number;
 
-  @IsString()
-  unitPrice: string;
+  @IsNumber()
+  unitPrice: number;
 
   @IsString()
   sku: string;
@@ -263,8 +306,6 @@ export class ItemDto {
   @Type(() => DiscountDto)
   discounts: DiscountDto[];
 }
-
-
 
 // --- Move additional dependencies for DTOs ---
 
@@ -347,6 +388,52 @@ export class OtherChargeDto {
 
   @IsString()
   chargedAmount: string;
+}
+
+export class ShipmentDto {
+  @IsString()
+  awbNumber: string;
+
+  @IsString()
+  documentType: string;
+
+  @IsString()
+  cAwbNumber: string;
+
+  @IsString()
+  smileAwbNumber: string;
+
+  @IsBoolean()
+  isParent: boolean;
+
+  @ValidateNested()
+  @Type(() => DimensionsV2Dto)
+  dimensions: DimensionsV2Dto;
+
+  @IsNumber()
+  physicalWeight: number;
+
+  @IsNumber()
+  volumetricWeight: number;
+
+  @IsString()
+  note: string;
+
+  @IsArray()
+  specialService: any[];
+
+  @ValidateNested()
+  @Type(() => PackagingDto)
+  packaging: PackagingDto;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemDto)
+  items: ItemDto[];
+
+  @IsOptional()
+  @IsString()
+  discount?: string;
 }
 
 export class PartnerDto {
@@ -448,6 +535,10 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   @IsString()
   referenceId: string;
 
+  @IsOptional()
+  @IsBoolean()
+  mcn?: boolean;
+
   @IsString()
   parcelCategory: string;
 
@@ -458,11 +549,15 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   expectedDeliveryDate: string;
 
   @IsString()
+  documentType: string;
+
+  @IsString()
   orderType: string;
 
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  eWaybills: string[];
+  eWaybills?: string[];
 
   @IsBoolean()
   autoManifest: boolean;
@@ -504,7 +599,9 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   parentShipment: ParentShipmentDto;
 
   @IsArray()
-  childShipments: any[];
+  @ValidateNested({ each: true })
+  @Type(() => ShipmentDto)
+  childShipments: ShipmentDto[];
 
   @IsArray()
   vehicles: any[];
@@ -537,14 +634,16 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   partner: PartnerDto;
 }
 
-
-
 export class OrderDtov2 {
   @IsString()
   orderId: string;
 
   @IsString()
   referenceId: string;
+
+  @IsOptional()
+  @IsBoolean()
+  mcn?: boolean;
 
   @IsString()
   parcelCategory: string;
@@ -556,11 +655,15 @@ export class OrderDtov2 {
   expectedDeliveryDate: string;
 
   @IsString()
+  documentType: string;
+
+  @IsString()
   orderType: string;
 
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  eWaybills: string[];
+  eWaybills?: string[];
 
   @IsBoolean()
   autoManifest: boolean;
@@ -602,7 +705,9 @@ export class OrderDtov2 {
   parentShipment: ParentShipmentDto;
 
   @IsArray()
-  childShipments: any[]; // Could be further typed if needed
+  @ValidateNested({ each: true })
+  @Type(() => ShipmentDto)
+  childShipments: ShipmentDto[];
 
   @IsArray()
   vehicles: any[]; // Could be further typed if needed
@@ -614,31 +719,36 @@ export class OrderDtov2 {
   @Type(() => PaymentDto)
   payment: PaymentDto;
 
+  @IsOptional()
   @IsString()
-  awbNumber: string;
+  awbNumber?: string;
 
+  @IsOptional()
   @IsString()
-  partnerCode: string;
+  partnerCode?: string;
 
+  @IsOptional()
   @IsString()
-  workflowId: string;
+  workflowId?: string;
 
+  @IsOptional()
   @IsString()
-  operation: string;
-
-  @ValidateNested()
-  @Type(() => WorkflowContextDto)
-  workflowContext: WorkflowContextDto;
+  operation?: string;
 
   @IsOptional()
   @ValidateNested()
+  @Type(() => WorkflowContextDto)
+  workflowContext?: WorkflowContextDto;
+
+  @ValidateNested()
   @Type(() => PartnerDto)
-  partner?: PartnerDto;
+  partner: PartnerDto;
 }
 
-
-export function extractLineItems(data: any): any[] {
-  const extract = (item: any) => ({
+export function extractLineItems(
+  data: OrderDtov2 | BaseOrderReqDtoV2
+): ItemDto[] {
+  const extract = (item: ItemDto): Partial<ItemDto> => ({
     name: item.name,
     quantity: item.quantity,
     weight: item.weight,
@@ -651,7 +761,8 @@ export function extractLineItems(data: any): any[] {
     discounts: item.discounts,
   });
   const parentItems = (data.parentShipment?.items || []).map(extract);
-  const childItems = (data.childShipments || []).flatMap((cs: any) => (cs.items || []).map(extract));
-  return [...parentItems, ...childItems];
+  const childItems = (data.childShipments || []).flatMap((cs: ShipmentDto) =>
+    (cs.items || []).map(extract)
+  );
+  return [...parentItems, ...childItems] as ItemDto[];
 }
-

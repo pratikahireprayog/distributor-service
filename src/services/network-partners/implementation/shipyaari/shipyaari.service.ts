@@ -8,7 +8,7 @@ import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { ShipyaariAuthService } from "./shipyaari-auth.service";
 import { SHIPYAARI_ENV_VARS } from "./shipyaari.enum";
 import { ShipyaariErrorHelper } from "./shipyaari-error.helper";
-
+import { BaseOrderReqDtoV2, extractLineItems } from "src/common/dtos/base2.dto";
 import {
   BaseOrderReqDto,
   BaseOrderResDto,
@@ -80,15 +80,22 @@ export class ShipyaariService extends BaseNetworkPartner {
         this.transformShipyaariCreateOrderPayload(orderDetails);
 
       // Make API call
-      const response = await this.callShipyaariCreateOrderAPI(
-        endpoint,
-        transformedData,
-        authHeaders,
-        orderDetails.awbNumber || ""
-      );
+      const { response, requestUrl, requestBody } =
+        await this.callShipyaariCreateOrderAPI(
+          endpoint,
+          transformedData,
+          authHeaders,
+          orderDetails.awbNumber ||
+            (orderDetails as any).parentShipment?.awbNumber ||
+            ""
+        );
 
       // Format and return response
-      return this.formatCreateOrderResponse<R>(response);
+      return this.formatCreateOrderResponse<R>(
+        response,
+        requestUrl,
+        requestBody
+      );
     } catch (error) {
       // If this is a CustomHttpException, throw it with HTTP error
       if (error instanceof CustomHttpException) {
@@ -98,7 +105,9 @@ export class ShipyaariService extends BaseNetworkPartner {
       // For other errors, use the error helper to handle them properly
       return this.errorHelper.handleHttpError(
         error,
-        orderDetails.awbNumber || "",
+        orderDetails.awbNumber ||
+          (orderDetails as any).parentShipment?.awbNumber ||
+          "",
         "CREATE_ORDER"
       );
     }
@@ -155,8 +164,8 @@ export class ShipyaariService extends BaseNetworkPartner {
           name: "box_1",
           weightUnit: "Kg",
           deadWeight:
-            parseFloat((orderDetails as any).dimensions?.weight || "0") / 1000, // Convert to kg
-          length: parseFloat((orderDetails as any).dimensions?.length || "0"),
+            parseFloat((orderDetails as any).dimensions?.weight || "1") / 1000, // Convert to kg
+          length: parseFloat((orderDetails as any).dimensions?.length || "1"),
           breadth: parseFloat((orderDetails as any).dimensions?.breadth || "0"),
           height: parseFloat((orderDetails as any).dimensions?.height || "0"),
           measureUnit: "cm",
@@ -199,13 +208,13 @@ export class ShipyaariService extends BaseNetworkPartner {
           insurance: false,
         },
       ],
-      orderType: (orderDetails as any).orderType || "B2C",
+      orderType: "B2C",
       transit: (orderDetails as any).shippingType || "FORWARD",
       courierPartner: "",
       source: "",
       pickupDate: "",
       gstNumber: "",
-      orderId: (orderDetails as any).awbNumber || "",
+      orderId: (orderDetails as any).orderId || "",
       eWayBillNo:
         (orderDetails as any).ewayBillNos &&
         (orderDetails as any).ewayBillNos.length > 0
@@ -230,7 +239,11 @@ export class ShipyaariService extends BaseNetworkPartner {
     payload: any,
     authHeaders: Record<string, string>,
     awbNumber: string
-  ): Promise<AxiosResponse<any>> {
+  ): Promise<{
+    response: AxiosResponse<any>;
+    requestUrl: string;
+    requestBody: any;
+  }> {
     // Log request
     this.logger.log(
       `[Shipyaari createOrder] Request for AWB: ${awbNumber} - Payload: ${JSON.stringify(payload)}`
@@ -270,7 +283,7 @@ export class ShipyaariService extends BaseNetworkPartner {
         );
       }
 
-      return response;
+      return { response, requestUrl: endpoint.url, requestBody: payload };
     } catch (error) {
       // Log all errors, not just network-related ones
       const errorData = {
@@ -294,50 +307,185 @@ export class ShipyaariService extends BaseNetworkPartner {
    * Format Shipyaari API response into standard format
    */
   private formatCreateOrderResponse<R extends BaseOrderResDto>(
-    response: AxiosResponse<any>
+    response: AxiosResponse<any>,
+    requestUrl?: string,
+    requestBody?: any
   ): R {
-    const result = new BaseOrderResDto() as R;
+    const responseData = response.data;
 
-    // Process successful response
-    const orderId = response.data?.data?.[0]?.orderId || "";
-    let apiMessage = response.data.message || "Order created successfully";
-    let responseAwbNumber = "";
-    let orderStatus = "";
+    // Extract key fields from Shipyaari response
+    const orderData = responseData?.data?.[0] || {};
+    const awbData = orderData?.awbs?.[0] || {};
+    const trackingInfo = awbData?.tracking || {};
+    const primaryAwbNumber = trackingInfo?.awb || "";
+    const referenceNumber = orderData?.orderId?.toString?.() || "";
+    const labelUrl = awbData?.labelUrl || awbData?.documents?.[0]?.url || "";
 
-    // Extract awb number and status from the nested response
-    if (response.data?.data?.[0]?.awbs?.[0]?.tracking) {
-      const trackingInfo = response.data.data[0].awbs[0].tracking;
-      responseAwbNumber = trackingInfo.awb || "";
+    // Enhanced mapping for V2 orders with multiple shipments
+    const shipmentDetails = this.createShipmentDetailsMapping(
+      orderData,
+      requestBody
+    );
 
-      // Get the current status from the first status entry
-      if (trackingInfo.status && trackingInfo.status.length > 0) {
-        orderStatus = trackingInfo.status[0].currentStatus || "";
-      }
+    return {
+      statusCode: responseData?.statusCode || 200,
+      message: "Order created successfully with Shipyaari",
+      partnerCode: this.partnerCode,
+      metadata: {
+        transporterId: "06AAPCS9575EIZR",
+      },
+      data: {
+        originalResponse: responseData,
+        trackingId: primaryAwbNumber,
+        referenceNumber: referenceNumber,
+        labelUrl: labelUrl,
+        requestUrl: requestUrl,
+        requestBody: requestBody,
+        ...(shipmentDetails.length > 0 && { shipmentDetails }),
+      },
+      trace: {
+        timestamp: new Date().toISOString(),
+        partnerCode: this.partnerCode,
+      },
+    } as unknown as R;
+  }
+
+  /**
+   * Format Shipyaari API response for V2 orders with proper AWB mapping
+   */
+  private formatCreateOrderV2Response<R extends BaseOrderResDto>(
+    response: AxiosResponse<any>,
+    requestUrl?: string,
+    requestBody?: any,
+    originalOrderDetails?: BaseOrderReqDtoV2
+  ): R {
+    const responseData = response.data;
+
+    // Extract key fields from Shipyaari response
+    const orderData = responseData?.data?.[0] || {};
+    const awbData = orderData?.awbs?.[0] || {};
+    const trackingInfo = awbData?.tracking || {};
+    const primaryAwbNumber = trackingInfo?.awb || "";
+    const referenceNumber = orderData?.orderId?.toString?.() || "";
+    const labelUrl = awbData?.labelUrl || awbData?.documents?.[0]?.url || "";
+
+    // Enhanced mapping for V2 orders with multiple shipments
+    const shipmentDetails = this.createShipmentDetailsV2Mapping(
+      orderData,
+      originalOrderDetails
+    );
+
+    return {
+      statusCode: responseData?.statusCode || 200,
+      message: "Order created successfully with Shipyaari",
+      partnerCode: this.partnerCode,
+      metadata: {
+        transporterId: "06AAPCS9575EIZR",
+      },
+      data: {
+        originalResponse: responseData,
+        trackingId: primaryAwbNumber,
+        referenceNumber: referenceNumber,
+        labelUrl: labelUrl,
+        requestUrl: requestUrl,
+        requestBody: requestBody,
+        ...(shipmentDetails.length > 0 && { shipmentDetails }),
+      },
+      trace: {
+        timestamp: new Date().toISOString(),
+        partnerCode: this.partnerCode,
+      },
+    } as unknown as R;
+  }
+
+  /**
+   * Create shipment details mapping for V2 orders between our AWB numbers and Shipyaari AWB numbers
+   * Maps parent and child shipments in sequence with Shipyaari response AWBs
+   */
+  private createShipmentDetailsV2Mapping(
+    orderData: any,
+    originalOrderDetails?: BaseOrderReqDtoV2
+  ): any[] {
+    if (!originalOrderDetails) {
+      return [];
     }
 
-    // Use API status code for successful responses too
-    result.statusCode = response.data?.statusCode || 200;
-    // Set generic success message at root level
-    result.message = "Shipyaari Create Order API success";
-    // Add partner code at root level
-    result.partnerCode = this.partnerCode;
+    const shipmentDetails: any[] = [];
+    const shipyaariAwbs = orderData?.awbs || [];
 
-    // Create a simplified data structure with only essential fields
-    result.data = {
-      success: true,
-      orderId: orderId,
-      cAwbNumber: responseAwbNumber || "",
-      status: orderStatus,
-      message: apiMessage, // Add the API message here
-    };
+    // Gather all shipments: parent + children in sequence
+    const allShipments = [
+      originalOrderDetails.parentShipment,
+      ...(originalOrderDetails.childShipments || []),
+    ].filter(Boolean);
 
-    result.trace = {
-      timestamp: new Date().toISOString(),
-      partnerCode: this.partnerCode,
-      operation: "CREATE_ORDER",
-    };
+    // Map each shipment AWB to corresponding Shipyaari AWB in sequence
+    allShipments.forEach((shipment, index) => {
+      const shipyaariAwb = shipyaariAwbs[index];
 
-    return result;
+      if (shipment?.awbNumber && shipyaariAwb?.tracking?.awb) {
+        shipmentDetails.push({
+          awbNumber: shipment.awbNumber,
+          partnerAwbNumber: shipyaariAwb.tracking.awb,
+          partnerName: shipyaariAwb.charges?.partnerName || "DELHIVERY",
+          transporterId: "06AAPCS9575EIZR",
+        });
+      }
+    });
+
+    return shipmentDetails;
+  }
+
+  /**
+   * Create shipment details mapping between our AWB numbers and Shipyaari AWB numbers
+   * Maps parent and child shipments in sequence with Shipyaari response AWBs
+   */
+  private createShipmentDetailsMapping(
+    orderData: any,
+    requestBody?: any
+  ): any[] {
+    // Check if this is a V2 request with multiple shipments (boxInfo)
+    if (
+      !requestBody?.boxInfo ||
+      !Array.isArray(requestBody.boxInfo) ||
+      requestBody.boxInfo.length <= 1
+    ) {
+      return [];
+    }
+
+    const shipmentDetails: any[] = [];
+    const shipyaariAwbs = orderData?.awbs || [];
+
+    // Extract AWB numbers from original request in sequence
+    // First box corresponds to parent shipment, subsequent boxes to child shipments
+    requestBody.boxInfo.forEach((box: any, index: number) => {
+      const shipyaariAwb = shipyaariAwbs[index];
+
+      if (shipyaariAwb?.tracking?.awb) {
+        // For the first box (parent shipment), we need to map from the original V2 payload
+        // For subsequent boxes (child shipments), map accordingly
+        let ourAwbNumber = "";
+
+        if (index === 0) {
+          // This is the parent shipment - extract from parentShipment.awbNumber
+          // Since we don't have direct access to original V2 payload here,
+          // we'll use orderId as reference for now
+          ourAwbNumber = requestBody.orderId || `parent_${index + 1}`;
+        } else {
+          // This is a child shipment
+          ourAwbNumber = `child_${index}`;
+        }
+
+        shipmentDetails.push({
+          awbNumber: ourAwbNumber,
+          partnerAwbNumber: shipyaariAwb.tracking.awb,
+          partnerName: shipyaariAwb.charges?.partnerName || "DELHIVERY",
+          transporterId: "06AAPCS9575EIZR",
+        });
+      }
+    });
+
+    return shipmentDetails;
   }
 
   /**
@@ -550,7 +698,9 @@ export class ShipyaariService extends BaseNetworkPartner {
       }
       this.errorHelper.handleHttpError(
         error,
-        (params as any).awbNumber || "",
+        (params as any).awbNumber ||
+          (params as any).parentShipment?.awbNumber ||
+          "",
         "GET_ORDER_DETAILS"
       );
     }
@@ -719,6 +869,310 @@ export class ShipyaariService extends BaseNetworkPartner {
 
     return result;
   }
+
+  /**
+   * Create an order with Shipyaari using V2 payload
+   * Direct implementation for createOrderV2
+   */
+  async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
+    orderDetails: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      // Get auth token
+      const authHeaders = await this.authService.getAuthHeaders();
+      const endpoint = await this.fetchEndpointConfig("CREATE_ORDER");
+
+      // Transform the payload for V2
+      const transformedData =
+        this.transformShipyaariCreateOrderV2Payload(orderDetails);
+
+      // Make API call to new Shipyaari API endpoint
+      const { response, requestUrl, requestBody } =
+        await this.callShipyaariCreateOrderV2API(
+          endpoint,
+          transformedData,
+          authHeaders,
+          orderDetails.orderId || ""
+        );
+
+      // Format and return response with original order details for proper AWB mapping
+      return this.formatCreateOrderV2Response<R>(
+        response,
+        requestUrl,
+        requestBody,
+        orderDetails
+      );
+    } catch (error) {
+      // If this is a CustomHttpException, throw it with HTTP error
+      if (error instanceof CustomHttpException) {
+        throw error;
+      }
+
+      // For other errors, use the error helper to handle them properly
+      return this.errorHelper.handleHttpError(
+        error,
+        orderDetails.orderId || "",
+        "CREATE_ORDER_V2"
+      );
+    }
+  }
+
+  /**
+   * Ensures a value meets the minimum threshold, otherwise returns the default
+   * @param value - The value to check
+   * @param minThreshold - Minimum allowed value
+   * @param defaultValue - Default value to use if threshold not met
+   * @returns The validated value or default
+   */
+  private ensureMinimumValue(
+    value: string | number | undefined | null,
+    minThreshold: number,
+    defaultValue: number
+  ): number {
+    const numValue = typeof value === "string" ? parseFloat(value) : value || 0;
+    return numValue >= minThreshold ? numValue : defaultValue;
+  }
+
+  /**
+   * Transform V2 order request into Shipyaari API format
+   * Maps parentShipment and childShipments to boxInfo structure
+   */
+  private transformShipyaariCreateOrderV2Payload<T extends BaseOrderReqDtoV2>(
+    orderDetails: T
+  ): any {
+    // Extract all line items from parent and child shipments
+    const lineItems = extractLineItems(orderDetails);
+
+    // Find pickup and delivery addresses
+    const pickupAddress =
+      orderDetails.addresses?.find((a: any) => a.type === "PICKUP") ||
+      ({} as any);
+    const deliveryAddress =
+      orderDetails.addresses?.find((a: any) => a.type === "DELIVERY") ||
+      ({} as any);
+
+    // Gather all shipments: parent + children
+    const shipments = [
+      orderDetails.parentShipment,
+      ...(orderDetails.childShipments || []),
+    ].filter(Boolean);
+
+    // Map each shipment to a box
+    const boxInfo = shipments.map((shipment, idx) => {
+      // Find line items for this specific shipment
+      const shipmentItems = shipment.items || [];
+
+      return {
+        name: `box_${idx + 1}`,
+        type: "parcel",
+        weightUnit: "Kg",
+        deadWeight: this.ensureMinimumValue(shipment.physicalWeight, 0.001, 0.001), // kg, min 1 g
+        length: this.ensureMinimumValue(shipment.dimensions?.length, 1, 1),
+        breadth: this.ensureMinimumValue(shipment.dimensions?.width, 1, 1),
+        height: this.ensureMinimumValue(shipment.dimensions?.height, 1, 1),
+        qty: 1,
+        discount: parseFloat(shipment.discount || "0"),
+        measureUnit: "cm",
+        products: shipmentItems.map((item: any) => ({
+          name: item.name || "Product",
+          category: item.category || "",
+          sku: item.sku || "",
+          hsnCode: item.hsnCode || "",
+          qty: Math.max(item.quantity || 1, 1), // Ensure minimum qty of 1
+          unitPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
+          discount: Math.max(parseFloat(item.discount || "0"), 0),
+          unitTax: Math.max(parseFloat(item.taxes?.[0]?.amount || "0"), 0),
+          sellingPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
+          totalDiscount: Math.max(parseFloat(item.discount || "0"), 0),
+          totalPrice: Math.max(parseFloat(item.unitPrice || "0"), 0),
+          weightUnit: "kg",
+          deadWeight: this.ensureMinimumValue(item.weight, 0.001, 0.001), // kg, min 1 g
+          length: this.ensureMinimumValue(item.dimensions?.length, 1, 1),
+          breadth: this.ensureMinimumValue(item.dimensions?.width, 1, 1),
+          height: this.ensureMinimumValue(item.dimensions?.height, 1, 1),
+          measureUnit: "cm",
+          images: [],
+        })),
+        codInfo: {
+          isCod: orderDetails.payment?.type === "COD",
+          collectableAmount:
+            orderDetails.payment?.type === "COD"
+              ? orderDetails.payment.finalAmount || 0
+              : 0,
+          invoiceValue: orderDetails.payment?.finalAmount || 0,
+        },
+        podInfo: {
+          isPod: false,
+        },
+        insurance: false,
+      };
+    });
+
+    const transformedData = {
+      pickupDetails: {
+        addressType: "warehouse",
+        fullAddress: `${pickupAddress.address1 || ""} ${pickupAddress.address2 ? pickupAddress.address2 + ", " : ""}${pickupAddress.city || ""}, ${pickupAddress.state || ""} ${pickupAddress.zip || pickupAddress.postalCode || ""}`,
+        pincode: parseInt(pickupAddress.zip || pickupAddress.postalCode || "0"),
+        startTime: "08",
+        endTime: "09",
+        latitude: pickupAddress.latitude || "0",
+        longitude: pickupAddress.longitude || "0",
+        contact: {
+          name: pickupAddress.name || "",
+          mobileNo: parseInt(
+            pickupAddress.mobile || pickupAddress.phone || "0"
+          ),
+          alternateMobileNo: parseInt(
+            pickupAddress.alternateMobile || pickupAddress.phone || "0"
+          ),
+        },
+      },
+      deliveryDetails: {
+        addressType: "warehouse",
+        fullAddress: `${deliveryAddress.address1 || ""} ${deliveryAddress.address2 ? deliveryAddress.address2 + ", " : ""}${deliveryAddress.city || ""}, ${deliveryAddress.state || ""} ${deliveryAddress.zip || deliveryAddress.postalCode || ""}`,
+        pincode: parseInt(
+          deliveryAddress.zip || deliveryAddress.postalCode || "0"
+        ),
+        startTime: "10",
+        endTime: "11",
+        latitude: deliveryAddress.latitude || "0",
+        longitude: deliveryAddress.longitude || "0",
+        contact: {
+          name: deliveryAddress.name || "",
+          mobileNo: parseInt(
+            deliveryAddress.mobile || deliveryAddress.phone || "0"
+          ),
+          alternateMobileNo: parseInt(
+            deliveryAddress.alternateMobile || deliveryAddress.phone || "0"
+          ),
+        },
+        gstNumber: deliveryAddress.gstNumber || "",
+      },
+      boxInfo: boxInfo,
+      orderType: "B2C",
+      transit: orderDetails?.orderType || "FORWARD",
+      courierPartner: "",
+      courierPartnerServices: "",
+      serviceMode: orderDetails?.deliveryMode.toUpperCase || "",
+      giftCharges: parseFloat(
+        (orderDetails.metadata as any)?.giftCharges || "0"
+      ),
+      shippingCharges: parseFloat(
+        (orderDetails.metadata as any)?.shippingCharges || "0"
+      ),
+      transactionCharges: parseFloat(
+        (orderDetails.metadata as any)?.transactionCharges || "0"
+      ),
+      advanceAmountPaid: parseFloat(
+        (orderDetails.metadata as any)?.advanceAmountPaid || "0"
+      ),
+      servicePriority: "",
+      source: "",
+      qcType: "",
+      returnReason: (orderDetails.metadata as any)?.returnReason || "",
+      orderFutureDate: (orderDetails.metadata as any)?.orderFutureDate || "",
+      pickupDate: new Date().getTime().toString(),
+      gstNumber: deliveryAddress.gstNumber || "",
+      childGstNumber: deliveryAddress.gstNumber || "",
+      parentId: 1,
+      childId: 2,
+      orderId: orderDetails.orderId || "",
+      eWayBillNo: orderDetails.eWaybills?.[0] || "",
+      brandName:
+        (orderDetails.metadata as any)?.brandName ||
+        orderDetails.metadata?.source ||
+        "",
+      brandLogo: (orderDetails.metadata as any)?.brandLogo || "",
+    };
+
+    this.logger.log(
+      `[Shipyaari createOrderV2] Transformed request payload: ${JSON.stringify(transformedData)}`
+    );
+
+    return transformedData;
+  }
+
+  /**
+   * Make API call to Shipyaari order API
+   */
+
+  /**
+   * Make API call to Shipyaari V2 order API
+   */
+  private async callShipyaariCreateOrderV2API(
+    endpoint: EndpointConfigModel,
+    payload: any,
+    authHeaders: Record<string, string>,
+    orderId: string
+  ): Promise<{
+    response: AxiosResponse<any>;
+    requestUrl: string;
+    requestBody: any;
+  }> {
+    // Log request
+    this.logger.log(
+      `[Shipyaari createOrderV2] Request for OrderId: ${orderId} - Payload: ${JSON.stringify(payload)}`
+    );
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(endpoint.url, payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authHeaders["Authorization"],
+          },
+          // Use HTTPS agent for secure connections
+          httpsAgent: this.httpsAgent,
+          // Set timeout to avoid long-running requests
+          timeout: 30000,
+        })
+      );
+
+      this.logger.log(
+        `[Shipyaari createOrderV2] Response for OrderId: ${orderId} - ${JSON.stringify(response.data)}`
+      );
+
+      // Check if the response contains an API-level error despite HTTP success status
+      const apiStatusCode = response.data?.statusCode;
+      const isResponseError =
+        response.data?.success === false ||
+        apiStatusCode >= 400 ||
+        (response.data?.message && response.data?.message.includes("Required"));
+
+      // If we have an API-level error, throw an exception with the API status code
+      if (isResponseError) {
+        this.errorHelper.handleApiError(
+          response.data,
+          orderId,
+          "CREATE_ORDER_V2"
+        );
+      }
+
+      return { response, requestUrl: endpoint.url, requestBody: payload };
+    } catch (error) {
+      // Log all errors, not just network-related ones
+      const errorData = {
+        message: error.message || "Unknown error",
+        code: error.code || "",
+        status: error.response?.status || "",
+        responseData: error.response?.data || {},
+        stack: error.stack,
+      };
+
+      this.logger.error(
+        `[Shipyaari createOrderV2] Error for OrderId: ${orderId} - ${JSON.stringify(errorData)}`,
+        error.stack
+      );
+
+      this.errorHelper.handleHttpError(error, orderId, "CREATE_ORDER_V2");
+    }
+  }
+
+  /**
+   * Format Shipyaari API response into standard format
+   */
 
   /**
    * Override validation method if needed for Shipyaari-specific validation
