@@ -172,10 +172,10 @@ export class AppController {
    * Accepts an array of shipment details and updates partner info
    * for each shipment via HubOps API
    */
-  // @Post("update-partner-to-hubops")
-  // async updatePartnerToHubOps(
-  //   @Body() responseData: UpdatePartnerToHubOpsRequestDto
-  // ): Promise<BaseResDto> {
-  //   return this.distributorService.updatePartnerToHubOps(responseData);
-  // }
+  @Post("update-partner-to-hubops")
+  async updatePartnerToHubOps(
+    @Body() responseData: UpdatePartnerToHubOpsRequestDto
+  ): Promise<BaseResDto> {
+    return this.distributorService.updatePartnerToHubOps(responseData);
+  }
 }
