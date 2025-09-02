@@ -674,6 +674,47 @@ export class DistributorService {
     );
   }
 
+
+   /**
+   * Update partner information to HubOps for multiple shipments
+   * This method processes shipment details and updates partner info for each shipment
+   * @param requestDto Request data containing shipmentDetails array
+   * @returns Combined response for all shipment updates
+   */
+  async updatePartnerToHubOps<R extends BaseResDto>(
+    requestDto: UpdatePartnerToHubOpsRequestDto
+  ): Promise<R> {
+    this.logger.log(
+      `Updating partner information to HubOps for multiple shipments`
+    );
+
+    try {
+      // Get the appropriate partner implementation
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      // Execute the operation with the selected partner
+      return partnerActivity.updatePartnerToHubOps<
+        UpdatePartnerToHubOpsRequestDto,
+        R
+      >(requestDto);
+    } catch (error) {
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "UpdatePartnerToHubOps",
+        "Multiple AWBs",
+        "HUBOPS",
+        undefined,
+        {
+          awbCount: requestDto?.shipmentDetails?.length || 0,
+          operation: "Partner Update",
+        }
+      );
+      throw error;
+    }
+  }
+
   /**
    * Create pickup request V2 with network partner
    * @param requestDto Request data containing pickup details
