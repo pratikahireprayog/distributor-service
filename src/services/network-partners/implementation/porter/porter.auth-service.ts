@@ -8,7 +8,7 @@ export class PorterAuthService implements AuthProvider {
 
     async getAuthHeaders(): Promise<Record<string, string>> {
     return {
-      "x-api-key": this.configService.get<string>('PORTER_API_KEY') ,
+      "x-api-key": "659d4aaf-3797-4186-b7c3-2c231f5d0e22",
       "Content-Type": "application/json"
     };
   }

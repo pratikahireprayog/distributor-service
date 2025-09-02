@@ -1,0 +1,30 @@
+{
+  "cancelOrder": {
+    "fields": [
+          {
+      "sources": "orderId",
+      "destination": "order_id"
+    },
+      {
+        "sources": "cancelReason",
+        "destination": "cancel_reason"
+      }
+    ]
+  },
+  "cancelOrderResponse": {
+    "fields": [
+      {
+        "sources": "status",
+        "destination": "statusCode"
+      },
+      {
+        "sources": "message",
+        "destination": "message"
+      },
+      {
+        "sources": "data",
+        "destination": "data"
+      }
+    ]
+  }
+}

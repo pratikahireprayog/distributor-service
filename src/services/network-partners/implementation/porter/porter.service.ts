@@ -10,8 +10,9 @@ import { PorterAuthService } from "./porter.auth-service";
 
 import {
   BaseOrderResDto,
+  BaseResDto,
 } from "src/common/dtos/base.dto";
-import { BaseOrderReqDtoV2, extractLineItems } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2, extractLineItems } from "src/common/dtos/base2.dto";
 
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
@@ -184,6 +185,155 @@ export class PorterService extends BaseNetworkPartner {
       console.log("porter error", JSON.stringify(error.resposne));
       throw error;
     }
+  }
+
+  /**
+   * Cancel an order with Porter
+   */
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      this.logger.debug(`Cancelling Order V2 with Porter for order: ${data.orderId}`);
+      const startTime = Date.now();
+
+      // Validate input
+      if (!data.orderId || !data.cancelReason) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'orderId and cancelReason are required'
+        );
+      }
+
+      // Build the URL with order ID from environment variable
+      const baseUrl = this.configService.get<string>('PORTER_BASE_URL');
+      const cancelUrl = `${baseUrl}/v1/orders/${data.orderId}/cancel`;
+
+      if (!baseUrl) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'PORTER_BASE_URL environment variable is not configured'
+        );
+      }
+
+      // Get auth headers
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      
+      // Prepare request payload
+      const requestPayload = {
+        cancel_reason: data.cancelReason
+      };
+
+      // Make the API call
+      const response = await firstValueFrom(
+        this.httpService.post(cancelUrl, requestPayload, {
+          headers: authHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(`Order cancelled successfully in ${responseTimeMs}ms`);
+
+      // Return standardized response
+      return {
+        statusCode: 200,
+        message: "Order cancelled successfully with Porter",
+        data: response.data,
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: "PORTER"
+        }
+      } as R;
+
+    } catch (error) {
+      this.logger.error(`Porter cancelOrder error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an order with Porter
+   */
+  async updateOrderV2<T extends BaseUpdateOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      const awbNumber = data.awbNumber;
+      const endpoint = {
+        url: `${this.configService.get<string>('PORTER_BASE_URL')}/update/${awbNumber}`
+      };
+
+      if (!endpoint.url) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'PORTER_BASE_URL environment variable is not configured'
+        );
+      }
+
+      // Transform the update data to Porter format
+      const updatePayload = this.transformPorterUpdatePayload(data);
+      
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      
+      const response = await firstValueFrom(
+        this.httpService.put(endpoint.url, updatePayload, {
+          headers: authHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+
+      return {
+        statusCode: 200,
+        message: "Order updated successfully with Porter",
+        data: response.data
+      } as R;
+    } catch (error) {
+      this.logger.error(`Porter updateOrder error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Transform update data to Porter format
+   */
+  private transformPorterUpdatePayload(data: BaseUpdateOrderDtoV2): any {
+    const payload: any = {
+      orderId: data.orderId,
+      awbNumber: data.awbNumber
+    };
+
+    if (data.expectedDeliveryDate) {
+      payload.expectedDeliveryDate = data.expectedDeliveryDate;
+    }
+
+    if (data.serviceType) {
+      payload.serviceType = data.serviceType;
+    }
+
+    if (data.orderStatus) {
+      payload.orderStatus = data.orderStatus;
+    }
+
+    if (data.addresses && data.addresses.length > 0) {
+      payload.addresses = data.addresses;
+    }
+
+    if (data.parentShipment) {
+      payload.parentShipment = data.parentShipment;
+    }
+
+    if (data.payment) {
+      payload.payment = data.payment;
+    }
+
+    return payload;
   }
 
   /**

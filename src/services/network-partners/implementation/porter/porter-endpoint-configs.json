@@ -1,0 +1,40 @@
+{
+  "cancelOrder": {
+    "name": "Porter Cancel Order API",
+    "method": "POST",
+    "partnerCode": "PORTER",
+    "url": "https://pfe-apigw-uat.porter.in/v1/orders/{order_id}/cancel",
+    "endpointId": "CANCEL_ORDER",
+    "contentType": "application/json",
+    "requiresAuth": true,
+    "urlParamMapping": [
+      {
+        "paramName": "order_id",
+        "sourceField": "orderId"
+      }
+    ],
+    "headerMapping": [
+      {
+        "headerName": "x-api-key",
+        "sourceField": "apiKey"
+      }
+    ],
+    "payloadMapperConfig": {
+      "fields": [
+        {
+          "sources": "cancelReason",
+          "destination": "cancel_reason"
+        }
+      ]
+    },
+    "responseMapping": {
+      "successPath": "status",
+      "statusCodePath": "status",
+      "messagePath": "message",
+      "dataPath": "data"
+    },
+    "timeout": 30000,
+    "retryCount": 3,
+    "retryDelay": 1000
+  }
+}

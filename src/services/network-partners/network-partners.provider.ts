@@ -9,7 +9,8 @@ import { ShipyaariService } from "./implementation/shipyaari/shipyaari.service";
 import { DHLService } from "./implementation/dhl/dhl.service";
 import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-hyperlocal.service";
 import { PorterService } from "./implementation/porter/porter.service";
-import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.service";
+import { IndiaPostInternationalService } from "./implementation/india-post-international/india-post-international.service";
+import { UniuniService } from "./implementation/uniuni/uniuni.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -18,8 +19,8 @@ export const networkPartnersProviders: Provider[] = [
     useClass: BigshipService,
   },
   {
-    provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
-    useClass: TsawService,
+      provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
+      useClass: TsawService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
@@ -27,7 +28,7 @@ export const networkPartnersProviders: Provider[] = [
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DHL,
-    useClass: DHLService,
+    useClass: DHLService, 
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
@@ -38,8 +39,12 @@ export const networkPartnersProviders: Provider[] = [
     useClass: PorterService,
   },
   {
-    provide: NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
-    useClass: SmileHubopsService,
+    provide: NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
+    useClass: IndiaPostInternationalService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
+    useClass: UniuniService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
@@ -56,7 +61,8 @@ export const networkPartnersProviders: Provider[] = [
       dhlService: DHLService,
       smileHyperlocalService: SmileHyperlocalService,
       porterService: PorterService,
-      smileHubopsService: SmileHubopsService,
+      indiaPostService: IndiaPostInternationalService,
+      uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
       // Register individual partners
@@ -64,15 +70,10 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.TSAW, tsawService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPYAARI, shipyaariService);
       factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
-      factory.registerPartner(
-        PARTNER_CODE_ENUM.SMILE_HYPERLOCAL,
-        smileHyperlocalService
-      );
+      factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
-      factory.registerPartner(
-        PARTNER_CODE_ENUM.SMILE_HUBOPS,
-        smileHubopsService
-      );
+      factory.registerPartner(PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL, indiaPostService);
+      factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -87,7 +88,8 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.DHL,
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
       NETWORK_PARTNER_PROVIDER_CONST.PORTER,
-      NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
+      NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
+      NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     ],
   },
