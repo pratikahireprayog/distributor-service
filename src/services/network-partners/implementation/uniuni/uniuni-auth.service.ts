@@ -7,77 +7,116 @@ import { firstValueFrom } from 'rxjs';
 @Injectable()
 export class UniuniAuthService implements AuthProvider {
   private readonly logger = new Logger(UniuniAuthService.name);
-  private token: string | null = null;
-  private tokenExpiry: number = 0;
-  private isTokenRefreshInProgress: Promise<string> | null = null;
+  
+  // Store tokens per country
+  private tokens: Map<string, { token: string; expiry: number }> = new Map();
+  private tokenRefreshInProgress: Map<string, Promise<string>> = new Map();
 
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {}
 
-  async getAuthHeaders(): Promise<Record<string, string>> {
-    const token = await this.getToken();
+  async getAuthHeaders(country: 'US' | 'CANADA' = 'US'): Promise<Record<string, string>> {
+    const token = await this.getToken(country);
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
   }
 
-  private async getToken(): Promise<string> {
+  private async getToken(country: 'US' | 'CANADA'): Promise<string> {
+    const countryKey = country;
+    
     // Check if token is still valid (with 5 minute buffer)
-    if (this.token && this.tokenExpiry > Date.now() + (5 * 60 * 1000)) {
-      return this.token;
+    const tokenInfo = this.tokens.get(countryKey);
+    if (tokenInfo && tokenInfo.expiry > Date.now() + (5 * 60 * 1000)) {
+      return tokenInfo.token;
     }
 
-    // Prevent multiple concurrent token requests
-    if (this.isTokenRefreshInProgress) {
-      return this.isTokenRefreshInProgress;
+    // Prevent multiple concurrent token requests for the same country
+    if (this.tokenRefreshInProgress.has(countryKey)) {
+      return this.tokenRefreshInProgress.get(countryKey)!;
     }
 
-    this.isTokenRefreshInProgress = this.refreshToken();
+    const refreshPromise = this.refreshToken(country);
+    this.tokenRefreshInProgress.set(countryKey, refreshPromise);
+    
     try {
-      const token = await this.isTokenRefreshInProgress;
+      const token = await refreshPromise;
       return token;
     } finally {
-      this.isTokenRefreshInProgress = null;
+      this.tokenRefreshInProgress.delete(countryKey);
     }
   }
 
-  private async refreshToken(): Promise<string> {
+  private async refreshToken(country: 'US' | 'CANADA'): Promise<string> {
     try {
-      this.logger.debug('Refreshing UNIUNI authentication token');
+      this.logger.debug(`Refreshing UNIUNI authentication token for ${country}`);
       
-      const clientId = this.configService.get<string>('UNIUNI_CLIENT_ID', '100552');
-      const clientSecret = this.configService.get<string>('UNIUNI_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
-      const authUrl = this.configService.get<string>('UNIUNI_AUTH_URL', 'https://sjqa.uniexpress.org/storeauth/customertoken');
-
+      const authConfig = this.getAuthConfig(country);
+      
       const response = await firstValueFrom(
-        this.httpService.post(authUrl, {
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
+        this.httpService.post(authConfig.url, authConfig.payload)
       );
 
       // Handle the actual UNIUNI API response format
       if (response.data && response.data.status === 'SUCCESS' && response.data.data && response.data.data.access_token) {
-        this.token = response.data.data.access_token;
+        const token = response.data.data.access_token;
         const expiresIn = response.data.data.expires_in;
+        
+        let expiryTime: number;
         if (expiresIn) {
-          this.tokenExpiry = expiresIn > 1000000000 ? expiresIn * 1000 : expiresIn;
+          // Convert to milliseconds if it's in seconds
+          expiryTime = expiresIn > 1000000000 ? expiresIn : expiresIn * 1000;
         } else {
-          this.tokenExpiry = Date.now() + (3600 * 1000);
+          expiryTime = Date.now() + (3600 * 1000); // Default 1 hour
         }
-        this.logger.debug(`UNIUNI token refreshed successfully. Expires at: ${new Date(this.tokenExpiry).toISOString()}`);
+        
+        this.tokens.set(country, { token, expiry: expiryTime });
+        this.logger.debug(`UNIUNI token refreshed successfully for ${country}. Expires at: ${new Date(expiryTime).toISOString()}`);
+        
+        return token;
       } else {
-        throw new Error(`Invalid response from UNIUNI auth API: ${JSON.stringify(response.data)}`);
+        throw new Error(`Invalid response from UNIUNI auth API for ${country}: ${JSON.stringify(response.data)}`);
       }
-
-      return this.token;
     } catch (error) {
-      this.logger.error(`Failed to refresh UNIUNI token: ${error.message}`);
-      throw new Error(`UNIUNI authentication failed: ${error.message}`);
+      this.logger.error(`Failed to refresh UNIUNI token for ${country}: ${error.message}`);
+      throw new Error(`UNIUNI authentication failed for ${country}: ${error.message}`);
+    }
+  }
+
+  private getAuthConfig(country: 'US' | 'CANADA'): { url: string; payload: any } {
+    let clientId: string;
+    let clientSecret: string;
+    
+    if (country === 'US') {
+      clientId = this.configService.get<string>('UNIUNI_US_CLIENT_ID', '100552');
+      clientSecret = this.configService.get<string>('UNIUNI_US_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
+      const authUrl = this.configService.get<string>('UNIUNI_US_AUTH_URL', 'https://prm-api.qa.uniuni.com/storeauth/customertoken');
+      
+      return {
+        url: authUrl,
+        payload: {
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+        }
+      };
+    } else {
+      // Canada
+      clientId = this.configService.get<string>('UNIUNI_CA_CLIENT_ID', '100552');
+      clientSecret = this.configService.get<string>('UNIUNI_CA_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
+      const authUrl = this.configService.get<string>('UNIUNI_CA_AUTH_URL', 'https://sjqa.uniexpress.org/storeauth/customertoken');
+      
+      return {
+        url: authUrl,
+        payload: {
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+        }
+      };
     }
   }
 }

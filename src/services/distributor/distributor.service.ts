@@ -350,7 +350,8 @@ export class DistributorService {
 
     try {
       const partnerActivity = this.networkPartnerFactory.getPartner(
-        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT,
+        requestDto
       );
 
       const result = await partnerActivity.cancelOrderV2<BaseCancelOrderDtoV2, R>(

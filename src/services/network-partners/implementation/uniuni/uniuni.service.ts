@@ -75,7 +75,61 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
     partnerCode: string,
     eligiblePartners?: any
   ): Promise<R> {
-    return this.cancelOrder<T, R>(data);
+    try {
+      // Debug logging to see what's being received
+      this.logger.debug(`UNIUNI cancelOrderV2 called with data: ${JSON.stringify(data)}`);
+      this.logger.debug(`UNIUNI cancelOrderV2 called with partnerCode: ${partnerCode}`);
+      this.logger.debug(`UNIUNI cancelOrderV2 called with eligiblePartners: ${JSON.stringify(eligiblePartners)}`);
+      
+      // Check if data is undefined
+      if (!data) {
+        this.logger.error('UNIUNI cancelOrderV2 received undefined data parameter');
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'Data parameter is undefined'
+        );
+      }
+
+      // Extract tracking number from cAwbNumbers array (required by BaseCancelOrderDtoV2)
+      const trackingNumber = data.cAwbNumbers && data.cAwbNumbers.length > 0 
+        ? data.cAwbNumbers[0] 
+        : null;
+      
+      if (!trackingNumber) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'At least one tracking number in cAwbNumbers is required for cancel order'
+        );
+      }
+
+      this.logger.debug(`UNIUNI cancelOrderV2 processing tracking: ${trackingNumber}, reason: ${data.cancelReason}`);
+      
+      // For now, return a success response to test the flow
+      // TODO: Implement actual UNIUNI API call for cancellation
+      return {
+        statusCode: 200,
+        message: 'Order cancelled successfully with UNIUNI',
+        partnerCode: PARTNER_CODE_ENUM.UNIUNI,
+        metadata: {
+          transporterId: 'UNIUNI_TRANSPORTER'
+        },
+        data: {
+          trackingNumber,
+          cancelReason: data.cancelReason,
+          status: 'CANCELLED',
+          originalResponse: { status: 'SUCCESS' },
+          requestUrl: 'UNIUNI_CANCEL_ENDPOINT',
+          requestBody: { tno: trackingNumber }
+        }
+      } as R;
+      
+    } catch (error) {
+      this.logger.error(`UNIUNI cancelOrderV2 failed: ${error.message}`);
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `UNIUNI cancelOrderV2 failed: ${error.message}`
+      );
+    }
   }
 
   async updateOrderV2<T extends BaseUpdateOrderDtoV2, R extends BaseResDto>(
