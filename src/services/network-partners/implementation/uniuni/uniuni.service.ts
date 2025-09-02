@@ -17,7 +17,7 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
   protected readonly logger = new Logger(UniuniService.name);
   private readonly endpointConfigs = {
     CREATE_ORDER: {
-      url: 'https://sjqa.uniexpress.org/orders/createbusinessorder',
+      url: 'https://prm-api.qa.uniuni.com/orders/createbusinessorder',
       method: 'POST',
       requiresAuth: true,
     },
