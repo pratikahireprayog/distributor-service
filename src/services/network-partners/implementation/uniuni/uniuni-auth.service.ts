@@ -92,7 +92,7 @@ export class UniuniAuthService implements AuthProvider {
   private getAuthConfig(): { url: string; payload: any } {
     const clientId = this.configService.get<string>('UNIUNI_CLIENT_ID', '100552');
     const clientSecret = this.configService.get<string>('UNIUNI_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
-    const authUrl = this.configService.get<string>('UNIUNI_AUTH_URL', 'https://sjqa.uniexpress.org/storeauth/customertoken');
+    const authUrl = this.configService.get<string>('UNIUNI_AUTH_URL', 'https://prm-api.uniuni.com/storeauth/customertoken');
     
     return {
       url: authUrl,
