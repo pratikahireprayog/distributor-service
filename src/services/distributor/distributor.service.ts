@@ -339,7 +339,9 @@ export class DistributorService {
   async cancelOrderV2<R extends BaseResDto>(
     requestDto: StandardCancelRequestDtoV2
   ): Promise<R> {
-    const awbDisplay = requestDto.order.cAwbNumbers?.join(",") || "unknown";
+    // Handle both "data" and "order" formats
+    const orderData = requestDto.order || (requestDto as any).data;
+    const awbDisplay = orderData?.cAwbNumbers?.join(",") || "unknown";
     this.logger.debug(`Cancelling Order V2 for ${awbDisplay}`);
 
     try {
@@ -349,7 +351,7 @@ export class DistributorService {
       );
 
       const result = await partnerActivity.cancelOrderV2<BaseCancelOrderDtoV2, R>(
-        requestDto.order,
+        orderData,  // Use the extracted order data
         requestDto.partnerCode as string,
         requestDto.eligiblePartners
       );
@@ -363,7 +365,6 @@ export class DistributorService {
           `🚨 ORDER CANCELLATION RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
         );
 
-        // Create a custom error object for Discord alerting
         const errorForAlert = {
           message: (result as any).message || "Order cancellation failed",
           status: (result as any).statusCode,
@@ -374,7 +375,7 @@ export class DistributorService {
 
         await this.discordAlertService.sendOrderCancellationErrorAlert(
           errorForAlert,
-          requestDto.order.cAwbNumbers,
+          orderData?.cAwbNumbers,  // Use the extracted order data
           requestDto.partnerCode as string
         );
       }
@@ -390,7 +391,7 @@ export class DistributorService {
 
       await this.discordAlertService.sendOrderCancellationErrorAlert(
         error,
-        requestDto.order.cAwbNumbers,
+        orderData?.cAwbNumbers,  // Use the extracted order data
         requestDto.partnerCode as string
       );
       throw error;

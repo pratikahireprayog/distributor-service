@@ -17,48 +17,51 @@ export class UniuniAuthService implements AuthProvider {
     private readonly httpService: HttpService,
   ) {}
 
-  async getAuthHeaders(country: 'US' | 'CANADA' = 'US'): Promise<Record<string, string>> {
-    const token = await this.getToken(country);
+  async getAuthHeaders(): Promise<Record<string, string>> {
+    const token = await this.getToken();
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
   }
 
-  private async getToken(country: 'US' | 'CANADA'): Promise<string> {
-    const countryKey = country;
+  private async getToken(): Promise<string> {
+    const tokenKey = 'UNIUNI_TOKEN';
     
     // Check if token is still valid (with 5 minute buffer)
-    const tokenInfo = this.tokens.get(countryKey);
+    const tokenInfo = this.tokens.get(tokenKey);
     if (tokenInfo && tokenInfo.expiry > Date.now() + (5 * 60 * 1000)) {
       return tokenInfo.token;
     }
 
-    // Prevent multiple concurrent token requests for the same country
-    if (this.tokenRefreshInProgress.has(countryKey)) {
-      return this.tokenRefreshInProgress.get(countryKey)!;
+    // Prevent multiple concurrent token requests
+    if (this.tokenRefreshInProgress.has(tokenKey)) {
+      return this.tokenRefreshInProgress.get(tokenKey)!;
     }
 
-    const refreshPromise = this.refreshToken(country);
-    this.tokenRefreshInProgress.set(countryKey, refreshPromise);
+    const refreshPromise = this.refreshToken();
+    this.tokenRefreshInProgress.set(tokenKey, refreshPromise);
     
     try {
       const token = await refreshPromise;
       return token;
     } finally {
-      this.tokenRefreshInProgress.delete(countryKey);
+      this.tokenRefreshInProgress.delete(tokenKey);
     }
   }
 
-  private async refreshToken(country: 'US' | 'CANADA'): Promise<string> {
+  private async refreshToken(): Promise<string> {
     try {
-      this.logger.debug(`Refreshing UNIUNI authentication token for ${country}`);
+      this.logger.debug('Refreshing UNIUNI authentication token');
       
-      const authConfig = this.getAuthConfig(country);
+      const authConfig = this.getAuthConfig();
+      this.logger.debug(`UNIUNI auth config: URL=${authConfig.url}, clientId=${authConfig.payload.client_id}`);
       
       const response = await firstValueFrom(
         this.httpService.post(authConfig.url, authConfig.payload)
       );
+      
+      this.logger.debug(`UNIUNI auth response: ${JSON.stringify(response.data)}`);
 
       // Handle the actual UNIUNI API response format
       if (response.data && response.data.status === 'SUCCESS' && response.data.data && response.data.data.access_token) {
@@ -73,51 +76,32 @@ export class UniuniAuthService implements AuthProvider {
           expiryTime = Date.now() + (3600 * 1000); // Default 1 hour
         }
         
-        this.tokens.set(country, { token, expiry: expiryTime });
-        this.logger.debug(`UNIUNI token refreshed successfully for ${country}. Expires at: ${new Date(expiryTime).toISOString()}`);
+        this.tokens.set('UNIUNI_TOKEN', { token, expiry: expiryTime });
+        this.logger.debug(`UNIUNI token refreshed successfully. Expires at: ${new Date(expiryTime).toISOString()}`);
         
         return token;
       } else {
-        throw new Error(`Invalid response from UNIUNI auth API for ${country}: ${JSON.stringify(response.data)}`);
+        throw new Error(`Invalid response from UNIUNI auth API: ${JSON.stringify(response.data)}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to refresh UNIUNI token for ${country}: ${error.message}`);
-      throw new Error(`UNIUNI authentication failed for ${country}: ${error.message}`);
+      this.logger.error(`Failed to refresh UNIUNI token: ${error.message}`);
+      throw new Error(`UNIUNI authentication failed: ${error.message}`);
     }
   }
 
-  private getAuthConfig(country: 'US' | 'CANADA'): { url: string; payload: any } {
-    let clientId: string;
-    let clientSecret: string;
+  private getAuthConfig(): { url: string; payload: any } {
+    const clientId = this.configService.get<string>('UNIUNI_CLIENT_ID', '100552');
+    const clientSecret = this.configService.get<string>('UNIUNI_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
+    const authUrl = this.configService.get<string>('UNIUNI_AUTH_URL', 'https://sjqa.uniexpress.org/storeauth/customertoken');
     
-    if (country === 'US') {
-      clientId = this.configService.get<string>('UNIUNI_US_CLIENT_ID', '100552');
-      clientSecret = this.configService.get<string>('UNIUNI_US_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
-      const authUrl = this.configService.get<string>('UNIUNI_US_AUTH_URL', 'https://prm-api.qa.uniuni.com/storeauth/customertoken');
-      
-      return {
-        url: authUrl,
-        payload: {
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret,
-        }
-      };
-    } else {
-      // Canada
-      clientId = this.configService.get<string>('UNIUNI_CA_CLIENT_ID', '100552');
-      clientSecret = this.configService.get<string>('UNIUNI_CA_CLIENT_SECRET', 'acad964f336dff02415362087539c9f2');
-      const authUrl = this.configService.get<string>('UNIUNI_CA_AUTH_URL', 'https://sjqa.uniexpress.org/storeauth/customertoken');
-      
-      return {
-        url: authUrl,
-        payload: {
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret,
-        }
-      };
-    }
+    return {
+      url: authUrl,
+      payload: {
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }
+    };
   }
 }
 

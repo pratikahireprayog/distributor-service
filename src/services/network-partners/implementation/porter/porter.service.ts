@@ -188,19 +188,20 @@ export class PorterService extends BaseNetworkPartner {
   }
 
   /**
-   * Cancel an order with Porter
+   * Cancel an order with Porter (using environment variables)
    */
-  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
-    data: T,
+  override async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    order: T,
     partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     try {
-      this.logger.debug(`Cancelling Order V2 with Porter for order: ${data.orderId}`);
+      this.logger.debug(`🚀 PORTER SERVICE cancelOrderV2 called for order: ${order.orderId}`);
+      this.logger.debug(`🚀 PORTER SERVICE - order data: ${JSON.stringify(order)}`);
       const startTime = Date.now();
 
       // Validate input
-      if (!data.orderId || !data.cancelReason) {
+      if (!order.orderId || !order.cancelReason) {
         throw new CustomHttpException(
           HttpStatus.BAD_REQUEST,
           'orderId and cancelReason are required'
@@ -208,27 +209,17 @@ export class PorterService extends BaseNetworkPartner {
       }
 
       // Build the URL with order ID from environment variable
-      const baseUrl = this.configService.get<string>('PORTER_BASE_URL');
-      const cancelUrl = `${baseUrl}/v1/orders/${data.orderId}/cancel`;
+      const baseUrl = this.configService.get<string>('PORTER_BASE_URL', 'https://pfe-apigw-uat.porter.in');
+      const cancelUrl = `${baseUrl}/v1/orders/${order.orderId}/cancel`;
 
-      if (!baseUrl) {
-        throw new CustomHttpException(
-          HttpStatus.BAD_REQUEST,
-          'PORTER_BASE_URL environment variable is not configured'
-        );
-      }
+      this.logger.debug(`Porter cancel request URL: ${cancelUrl}`);
 
       // Get auth headers
       const authHeaders = await this.authProvider.getAuthHeaders();
       
-      // Prepare request payload
-      const requestPayload = {
-        cancel_reason: data.cancelReason
-      };
-
-      // Make the API call
+      // Make the API call exactly as specified in your curl
       const response = await firstValueFrom(
-        this.httpService.post(cancelUrl, requestPayload, {
+        this.httpService.post(cancelUrl, '', {  // Empty body as per your curl
           headers: authHeaders,
           httpsAgent: this.httpsAgent,
           timeout: 30000,
@@ -236,7 +227,7 @@ export class PorterService extends BaseNetworkPartner {
       );
 
       const responseTimeMs = Date.now() - startTime;
-      this.logger.debug(`Order cancelled successfully in ${responseTimeMs}ms`);
+      this.logger.debug(`✅ Order cancelled successfully in ${responseTimeMs}ms`);
 
       // Return standardized response
       return {
@@ -245,12 +236,14 @@ export class PorterService extends BaseNetworkPartner {
         data: response.data,
         trace: {
           timestamp: new Date().toISOString(),
-          partnerCode: "PORTER"
+          partnerCode: "PORTER",
+          orderId: order.orderId
         }
       } as R;
 
     } catch (error) {
-      this.logger.error(`Porter cancelOrder error: ${JSON.stringify(error)}`);
+      this.logger.error(`❌ Porter cancelOrder error: ${JSON.stringify(error)}`);
+      this.logger.error(`❌ Porter cancelOrder error response: ${JSON.stringify(error.response?.data)}`);
       throw error;
     }
   }

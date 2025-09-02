@@ -206,6 +206,9 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
       const authHeaders = await this.uniuniAuthService.getAuthHeaders();
       const url = this.endpointConfigs.CREATE_ORDER.url;
       
+      this.logger.debug(`UNIUNI API request headers: ${JSON.stringify(authHeaders)}`);
+      this.logger.debug(`UNIUNI API request payload: ${JSON.stringify(transformedData)}`);
+      
       const response = await firstValueFrom(
         this.httpService.post(url, transformedData, { headers: authHeaders })
       );
@@ -216,6 +219,8 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
       return response.data;
     } catch (error) {
       this.logger.error(`UNIUNI API call failed: ${error.message}`);
+      this.logger.error(`UNIUNI API error response: ${JSON.stringify(error.response?.data)}`);
+      this.logger.error(`UNIUNI API error status: ${error.response?.status}`);
       throw new Error(`UNIUNI API call failed: ${error.message}`);
     }
   }

@@ -60,7 +60,7 @@ export class CustomJwtService {
 
   async generateToken(payload): Promise<any> {
     return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-      expiresIn: process.env.JWT_EXPIRY_TIME,
+      expiresIn: process.env.JWT_EXPIRY_TIME || '1h',
     });
   }
 }
