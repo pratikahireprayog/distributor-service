@@ -9,7 +9,7 @@ import { AppService } from './app.service';
 import { NestLoggerMiddleware } from './infrastructure/telemetry/logger/logger.middleware';
 import { TraceMiddleware } from './infrastructure/telemetry/otel.middleware';
 import { DatabaseModule } from './infrastructure/database/database.module';
-// import { TemporalModule } from './infrastructure/temporal/temporal.module';
+import { TemporalModule } from './infrastructure/temporal/temporal.module';
 import { DistributorModule } from './services/distributor/distributor.module';
 import { NetworkPartnersModule } from './services/network-partners/network-partners.module';
 import { ConfigModule } from '@nestjs/config';
@@ -20,7 +20,7 @@ import { ConfigModule } from '@nestjs/config';
       isGlobal: true,
     }),
     DatabaseModule,
-    // TemporalModule,
+    TemporalModule,
     DistributorModule,
     NetworkPartnersModule,
   ],
