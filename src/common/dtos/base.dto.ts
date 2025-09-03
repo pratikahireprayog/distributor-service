@@ -26,6 +26,10 @@ export class BaseResDto {
   statusCode: number;
   message: string;
   partnerCode?: string;
+  metadata?: {
+    transporterId?: string;
+    [key: string]: any;
+  };
   data?: any;
   trace?: any;
 }

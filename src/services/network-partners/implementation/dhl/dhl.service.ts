@@ -9,11 +9,13 @@ import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { DHLAuthService } from "./dhl-auth.service";
 import { SHIPYAARI_ENV_VARS } from "../shipyaari/shipyaari.enum";
 
-import { BaseOrderResDto } from "src/common/dtos/base.dto";
+import { BaseOrderResDto, BaseResDto } from "src/common/dtos/base.dto";
 import {
   BaseOrderReqDtoV2,
+  BaseCancelOrderDtoV2,
   BaseReqDto,
   extractLineItems,
+  BaseUpdateOrderDtoV2,
 } from "src/common/dtos/base2.dto";
 
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
@@ -171,6 +173,186 @@ export class DHLService extends BaseNetworkPartner {
     }
   }
 
+  /**
+   * Create pickup request V2 with DHL
+   */
+  async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Creating Pickup V2 with DHL for partner: ${partnerCode}`);
+    const startTime = Date.now();
+
+    try {
+      // Validate input
+      if (!data) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'Pickup data is required'
+        );
+      }
+
+      // Build the URL from environment variable
+      const baseUrl = this.configService.get<string>('DHL_EXPRESS_API_URL') || 'https://express.api.dhl.com/mydhlapi/test';
+      const pickupUrl = `${baseUrl}/pickups`;
+
+      if (!baseUrl) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'DHL_EXPRESS_API_URL environment variable is not configured'
+        );
+      }
+
+      // Get auth headers
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      
+      // Use fixed-length Message-Reference (exactly 28 characters)
+      const messageReference = `pickup-${Date.now().toString().slice(-4)}-abcdefghijklmnop`;
+      
+      const requestHeaders = {
+        ...authHeaders,
+        'accept': 'application/json',
+        'Message-Reference': messageReference,
+        'Message-Reference-Date': new Date().toUTCString(),
+        'Plugin-Name': '',
+        'Plugin-Version': '',
+        'Shipping-System-Platform-Name': '',
+        'Shipping-System-Platform-Version': '',
+        'Webstore-Platform-Name': '',
+        'Webstore-Platform-Version': '',
+        'x-version': '2.12.0',
+        'Content-Type': 'application/json'
+      };
+
+      // Make the API call
+      const response = await firstValueFrom(
+        this.httpService.post(pickupUrl, data, {
+          headers: requestHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(`Pickup created successfully in ${responseTimeMs}ms`);
+
+      // Return standardized response matching Shipyaari format
+      return {
+        statusCode: 200,
+        message: "Pickup created successfully with DHL",
+        partnerCode: this.partnerCode,
+        data: {
+          success: true,
+          orderId: response.data?.dispatchConfirmationNumbers?.[0] || "",
+          cAwbNumber: response.data?.dispatchConfirmationNumbers?.[0] || "",
+          status: "PICKUP_CREATED",
+          message: "Pickup created successfully",
+          apiResponse: response.data,
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: this.partnerCode,
+          operation: "CREATE_PICKUP",
+        }
+      } as R;
+
+    } catch (error) {
+      this.logger.error(`DHL createPickup error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel pickup request V2 with DHL
+   */
+  async cancelPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Cancelling Pickup V2 with DHL for partner: ${partnerCode}`);
+    const startTime = Date.now();
+
+    try {
+      // Validate input
+      if (!data || !(data as any).pickupId || !(data as any).requestorName || !(data as any).reason) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'pickupId, requestorName, and reason are required'
+        );
+      }
+
+      const pickupData = data as any;
+      
+      // Build the URL from environment variable
+      const baseUrl = this.configService.get<string>('DHL_EXPRESS_API_URL') || 'https://express.api.dhl.com/mydhlapi/test';
+      const cancelPickupUrl = `${baseUrl}/pickups/${pickupData.pickupId}?requestorName=${encodeURIComponent(pickupData.requestorName)}&reason=${encodeURIComponent(pickupData.reason)}`;
+
+      if (!baseUrl) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'DHL_EXPRESS_API_URL environment variable is not configured'
+        );
+      }
+
+      // Get auth headers
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      
+      // Use fixed-length Message-Reference (exactly 28 characters)
+      const messageReference = `del-${Date.now().toString().slice(-4)}-abcdefghijklmnopqrs`;
+      
+      const requestHeaders = {
+        ...authHeaders,
+        'Message-Reference': messageReference,
+        'Message-Reference-Date': new Date().toUTCString(),
+        'Plugin-Name': '',
+        'Plugin-Version': '',
+        'Shipping-System-Platform-Name': '',
+        'Shipping-System-Platform-Version': '',
+        'Webstore-Platform-Name': '',
+        'Webstore-Platform-Version': '',
+        'x-version': '2.12.0'
+      };
+
+      // Make the API call
+      const response = await firstValueFrom(
+        this.httpService.delete(cancelPickupUrl, {
+          headers: requestHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(`Pickup cancelled successfully in ${responseTimeMs}ms`);
+
+      // Return standardized response matching Shipyaari format
+      return {
+        statusCode: 200,
+        message: "Pickup cancelled successfully with DHL",
+        partnerCode: this.partnerCode,
+        data: {
+          success: true,
+          orderId: pickupData.pickupId || "",
+          cAwbNumber: pickupData.pickupId || "",
+          status: "PICKUP_CANCELLED",
+          message: "Pickup cancelled successfully",
+          apiResponse: response.data,
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: this.partnerCode,
+          operation: "CANCEL_PICKUP",
+        }
+      } as R;
+
+    } catch (error) {
+      this.logger.error(`DHL cancelPickup error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
   // Helper to fetch city code from nearest-hub-locations API
   private async fetchCityCodeFromZip(zip: string): Promise<string | undefined> {
     const url = this.configService.get<string>("SERVICEABILITY_HUB_CODE_URL");
@@ -235,24 +417,54 @@ export class DHLService extends BaseNetworkPartner {
       ...(orderDetails.childShipments || []),
     ].filter(Boolean);
 
-    // Map each shipment to a DHL package object
-    const packages = shipments.map((shipment, idx) => ({
-      typeCode: "2BP",
-      weight: shipment.physicalWeight,
-      dimensions: {
-        length: shipment.dimensions.length,
-        width: shipment.dimensions.width,
-        height: shipment.dimensions.height,
+    // Calculate combined items weight across parent and child shipments (for fallback)
+    const totalItemWeightAllShipments = shipments.reduce(
+      (grandTotal: number, shp: any) => {
+        const perShipmentItems = shp?.items || [];
+        const perShipmentSum = perShipmentItems.reduce(
+          (totalWeight: number, item: any) => {
+            const itemWeight = Number(item?.weight) || 0;
+            const itemQuantity = Number(item?.quantity) || 1;
+            return totalWeight + itemWeight * itemQuantity;
+          },
+          0
+        );
+        return grandTotal + perShipmentSum;
       },
-      customerReferences: [
-        {
-          value: shipment.awbNumber || orderDetails.awbNumber,
-          typeCode: "CU",
+      0
+    );
+
+    // Map each shipment to a DHL package object
+    const packages = shipments.map((shipment, idx) => {
+      const itemWeightSum = (shipment.items || []).reduce(
+        (totalWeight: number, item: any) => {
+          const itemWeight = Number(item?.weight) || 0;
+          const itemQuantity = Number(item?.quantity) || 1;
+          return totalWeight + itemWeight * itemQuantity;
         },
-      ],
-      description: shipment.items?.[0]?.description || "No description",
-      labelDescription: shipment.items?.[0]?.description || "No description",
-    }));
+        0
+      );
+
+      return {
+        typeCode: "2BP",
+        // Use shipment physicalWeight; if missing/zero/invalid, fallback to per-shipment items sum,
+        // and finally fallback to total items sum across parent + child shipments
+        weight: (Number(shipment.physicalWeight)  ||  totalItemWeightAllShipments),
+        dimensions: {
+          length: shipment.dimensions.length,
+          width: shipment.dimensions.width,
+          height: shipment.dimensions.height,
+        },
+        customerReferences: [
+          {
+            value: shipment.awbNumber || orderDetails.awbNumber,
+            typeCode: "CU",
+          },
+        ],
+        description: shipment.items?.[0]?.description || "No description",
+        labelDescription: shipment.items?.[0]?.description || "No description",
+      };
+    });
 
     // Find pickup and delivery addresses for DHL API
     const pickupAddress: any =
@@ -321,7 +533,7 @@ export class DHLService extends BaseNetworkPartner {
             return {
               number: idx + 1,
               description: item.description,
-              price: item.unitPrice,
+              price: Number(item.unitPrice) || 0,
               quantity: {
                 value: item.quantity,
                 unitOfMeasurement: "KG",
@@ -335,8 +547,8 @@ export class DHLService extends BaseNetworkPartner {
               exportReasonType: "permanent",
               manufacturerCountry: "IN",
               weight: {
-                netValue: item.weight,
-                grossValue: item.weight,
+                netValue: Number(item.weight) || 0,
+                grossValue: Number(item.weight) || 0,
               },
               isTaxesPaid: true,
               customerReferences: [
@@ -352,13 +564,13 @@ export class DHLService extends BaseNetworkPartner {
             date: moment(orderDetails.orderDate)
               .utcOffset("+05:30")
               .format("YYYY-MM-DD"),
-            instructions: [orderDetails.parentShipment?.note || ""],
+            instructions: ["Instructions"],
             totalNetWeight: lineItems.reduce(
-              (sum, item) => sum + (item.weight || 0),
+              (sum, item) => sum + (Number(item.weight) || 0),
               0
             ),
             totalGrossWeight: lineItems.reduce(
-              (sum, item) => sum + (item.weight || 0),
+              (sum, item) => sum + (Number(item.weight) || 0),
               0
             ),
           },
@@ -410,7 +622,7 @@ export class DHLService extends BaseNetworkPartner {
             email: pickupAddress.email || "",
             phone: pickupAddress.phone || "",
             mobilePhone: pickupAddress.phone || "",
-            companyName: pickupAddress.addressName || "",
+            companyName: pickupAddress.name || "",
             fullName: pickupAddress.name || "",
           },
           typeCode: "business",
@@ -428,7 +640,7 @@ export class DHLService extends BaseNetworkPartner {
             email: deliveryAddress.email || "",
             phone: deliveryAddress.phone || "",
             mobilePhone: deliveryAddress.phone || "",
-            companyName: deliveryAddress.addressName || "",
+            companyName: deliveryAddress.name || "",
             fullName: deliveryAddress.name || "",
           },
           typeCode: "business",
@@ -539,6 +751,129 @@ export class DHLService extends BaseNetworkPartner {
       (error as any).requestBody = payload;
       throw error;
     }
+  }
+
+  /**
+   * Cancel an order with DHL
+   */
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      const awbNumber = data.cAwbNumbers?.[0] || '';
+      const endpoint = {
+        url: `${this.configService.get<string>('DHL_BASE_URL')}/cancel/${awbNumber}`
+      };
+
+      if (!endpoint.url) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'DHL_BASE_URL environment variable is not configured'
+        );
+      }
+
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      
+      const response = await firstValueFrom(
+        this.httpService.delete(endpoint.url, {
+          headers: authHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+
+      return {
+        statusCode: 200,
+        message: "Order cancelled successfully with DHL",
+        data: response.data
+      } as R;
+    } catch (error) {
+      this.logger.error(`DHL cancelOrder error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an order with DHL
+   */
+  async updateOrderV2<T extends BaseUpdateOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      const awbNumber = data.awbNumber;
+      const endpoint = {
+        url: `${this.configService.get<string>('DHL_BASE_URL')}/update/${awbNumber}`
+      };
+
+      if (!endpoint.url) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'DHL_BASE_URL environment variable is not configured'
+        );
+      }
+
+      // Transform the update data to DHL format
+      const updatePayload = this.transformDHLUpdatePayload(data);
+      
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      
+      const response = await firstValueFrom(
+        this.httpService.put(endpoint.url, updatePayload, {
+          headers: authHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+
+      return {
+        statusCode: 200,
+        message: "Order updated successfully with DHL",
+        data: response.data
+      } as R;
+    } catch (error) {
+      this.logger.error(`DHL updateOrder error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Transform update data to DHL format
+   */
+  private transformDHLUpdatePayload(data: BaseUpdateOrderDtoV2): any {
+    const payload: any = {
+      orderId: data.orderId,
+      awbNumber: data.awbNumber
+    };
+
+    if (data.expectedDeliveryDate) {
+      payload.expectedDeliveryDate = data.expectedDeliveryDate;
+    }
+
+    if (data.serviceType) {
+      payload.serviceType = data.serviceType;
+    }
+
+    if (data.orderStatus) {
+      payload.orderStatus = data.orderStatus;
+    }
+
+    if (data.addresses && data.addresses.length > 0) {
+      payload.addresses = data.addresses;
+    }
+
+    if (data.parentShipment) {
+      payload.parentShipment = data.parentShipment;
+    }
+
+    if (data.payment) {
+      payload.payment = data.payment;
+    }
+
+    return payload;
   }
 
   /**

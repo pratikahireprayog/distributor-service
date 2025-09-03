@@ -7,7 +7,7 @@ import {
   DRSPayloadDTO,
   ManifestReqDto,
 } from "src/common/dtos/base.dto";
-import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
   pushOrdersToPRSDto,
@@ -40,6 +40,18 @@ export interface INetworkPartner {
 
   cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
+  ): Promise<R>;
+
+  cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R>;
+
+  updateOrderV2<T extends BaseUpdateOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R>;
 
   /**
@@ -85,6 +97,32 @@ export interface INetworkPartner {
    */
   updateEcomOrderWebhook<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
+  ): Promise<R>;
+
+  /**
+   * Create pickup request V2
+   * @param data Pickup request data
+   * @param partnerCode Partner code for the network partner
+   * @param eligiblePartners Optional eligible partners data
+   * @returns Response from pickup creation API
+   */
+  createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R>;
+
+  /**
+   * Cancel pickup request V2
+   * @param data Pickup cancellation data
+   * @param partnerCode Partner code for the network partner
+   * @param eligiblePartners Optional eligible partners data
+   * @returns Response from pickup cancellation API
+   */
+  cancelPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R>;
 
   /**
