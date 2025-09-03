@@ -208,16 +208,20 @@ export class PorterService extends BaseNetworkPartner {
         );
       }
 
-      // Build the URL with order ID from environment variable
+      // Get URLs from environment variables
       const baseUrl = this.configService.get<string>('PORTER_BASE_URL', 'https://pfe-apigw-uat.porter.in');
-      const cancelUrl = `${baseUrl}/v1/orders/${order.orderId}/cancel`;
+      const cancelPath = this.configService.get<string>('PORTER_CANCEL_PATH', '/v1/orders/{orderId}/cancel');
+      
+      // Replace {orderId} placeholder in the path
+      const cancelUrlPath = cancelPath.replace('{orderId}', order.orderId);
+      const cancelUrl = `${baseUrl}${cancelUrlPath}`;
 
-      this.logger.debug(`Porter cancel request URL: ${cancelUrl}`);
+      this.logger.log(`Porter cancel request URL: ${cancelUrl}`);
 
       // Get auth headers
       const authHeaders = await this.authProvider.getAuthHeaders();
       
-      // Make the API call exactly as specified in your curl
+      // Make the API call
       const response = await firstValueFrom(
         this.httpService.post(cancelUrl, '', {  // Empty body as per your curl
           headers: authHeaders,
