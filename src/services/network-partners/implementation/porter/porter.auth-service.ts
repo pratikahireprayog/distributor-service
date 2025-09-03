@@ -6,9 +6,15 @@ import { ConfigService } from "@nestjs/config";
 export class PorterAuthService implements AuthProvider {
   constructor(private readonly configService: ConfigService) {}
 
-    async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(): Promise<Record<string, string>> {
+    const apiKey = this.configService.get<string>('PORTER_API_KEY');
+    
+    if (!apiKey) {
+      throw new Error('PORTER_API_KEY environment variable is not configured');
+    }
+
     return {
-      "x-api-key": "659d4aaf-3797-4186-b7c3-2c231f5d0e22",
+      "x-api-key": apiKey,
       "Content-Type": "application/json"
     };
   }
