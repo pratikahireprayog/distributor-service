@@ -1013,7 +1013,7 @@ export class ShipyaariService extends BaseNetworkPartner {
     const transformedData = {
       pickupDetails: {
         addressType: "warehouse",
-        fullAddress: `${pickupAddress.address1 || ""} ${pickupAddress.address2 ? pickupAddress.address2 + ", " : ""}${pickupAddress.city || ""}, ${pickupAddress.state || ""} ${pickupAddress.zip || pickupAddress.postalCode || ""}`,
+        fullAddress: `${pickupAddress.street}`,
         pincode: parseInt(pickupAddress.zip || pickupAddress.postalCode || "0"),
         startTime: "08",
         endTime: "09",
@@ -1031,7 +1031,7 @@ export class ShipyaariService extends BaseNetworkPartner {
       },
       deliveryDetails: {
         addressType: "warehouse",
-        fullAddress: `${deliveryAddress.address1 || ""} ${deliveryAddress.address2 ? deliveryAddress.address2 + ", " : ""}${deliveryAddress.city || ""}, ${deliveryAddress.state || ""} ${deliveryAddress.zip || deliveryAddress.postalCode || ""}`,
+        fullAddress: `${deliveryAddress.street}`,
         pincode: parseInt(
           deliveryAddress.zip || deliveryAddress.postalCode || "0"
         ),
