@@ -12,7 +12,6 @@ import { ShipyaariModule } from "./implementation/shipyaari/shipyaari.module";
 import { DHLModule } from "./implementation/dhl/dhl.module";
 import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-hyperlocal.module";
 import { PorterModule } from "./implementation/porter/porter.module";
-import { IndiaPostInternationalModule } from "./implementation/india-post-international/india-post-international.module";
 import { UniuniModule } from "./implementation/uniuni/uniuni.module";
 import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
 
@@ -31,7 +30,6 @@ import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.mo
     DHLModule,
     SmileHyperlocalModule,
     PorterModule,
-    IndiaPostInternationalModule,
     UniuniModule,
     SmileHubopsModule,
   ],

@@ -10,7 +10,6 @@ import { DHLService } from "./implementation/dhl/dhl.service";
 import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-hyperlocal.service";
 import { PorterService } from "./implementation/porter/porter.service";
 import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.service";
-import { IndiaPostInternationalService } from "./implementation/india-post-international/india-post-international.service";
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
 
 export const networkPartnersProviders: Provider[] = [
@@ -44,10 +43,6 @@ export const networkPartnersProviders: Provider[] = [
     useClass: SmileHubopsService,
   },
   {
-    provide: NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
-    useClass: IndiaPostInternationalService,
-  },
-  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
     useClass: UniuniService,
   },
@@ -67,7 +62,6 @@ export const networkPartnersProviders: Provider[] = [
       smileHyperlocalService: SmileHyperlocalService,
       porterService: PorterService,
       smileHubopsService: SmileHubopsService,
-      indiaPostService: IndiaPostInternationalService,
       uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner
     ) => {
@@ -82,7 +76,6 @@ export const networkPartnersProviders: Provider[] = [
         PARTNER_CODE_ENUM.SMILE_HUBOPS,
         smileHubopsService
       );
-      factory.registerPartner(PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL, indiaPostService);
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
 
       // Register the default partner
@@ -98,7 +91,6 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.DHL,
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
       NETWORK_PARTNER_PROVIDER_CONST.PORTER,
-      NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST,
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
       NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
