@@ -928,7 +928,7 @@ export class DHLService extends BaseNetworkPartner {
       format: doc.imageFormat,
       type: doc.typeCode,
     }))
-    shipmentDetails.push({documents:documents})
+    shipmentDetails.push({document:documents})
 
     return {
       statusCode: 200,
