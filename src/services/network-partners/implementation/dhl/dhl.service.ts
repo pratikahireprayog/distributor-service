@@ -912,20 +912,23 @@ export class DHLService extends BaseNetworkPartner {
       } as R;
     }
 
-    // Extract tracking information from DHL response
-    const shipment = responseData.shipments?.[0];
-    const trackingNumber = shipment?.shipmentTrackingNumber;
-    const labelUrl = shipment?.documents?.[0]?.documentContent;
-
     // Map packages from request to shipmentDetails
-    const requestPackages = requestBody?.shipments?.[0]?.packages || [];
-    const responsePackages = shipment?.packages || [];
+    const requestPackages = requestBody?.content?.packages || [];
+    const responsePackages = responseData.packages || [];
+    
     const shipmentDetails = requestPackages.map((pkg: any, index: number) => ({
       awbNumber: pkg.customerReferences?.[0]?.value || null,
       partnerAwbNumber: responsePackages[index]?.trackingNumber || null,
       partnerName: "DHL",
       transporterId: "", // Blank for now as requested
     }));
+
+    const documents = responseData.documents.map((doc: any, index: number) => ({
+      content: doc.content,
+      format: doc.imageFormat,
+      type: doc.typeCode,
+    }))
+    shipmentDetails.push({documents:documents})
 
     return {
       statusCode: 200,
@@ -938,10 +941,7 @@ export class DHLService extends BaseNetworkPartner {
         originalResponse: responseData,
         requestUrl: requestUrl,
         requestBody: requestBody,
-        trackingId: trackingNumber,
-        referenceNumber: trackingNumber,
-        labelUrl: labelUrl,
-        shipmentDetails: shipmentDetails,
+        shipmentDetails: shipmentDetails
       },
       trace: {
         timestamp: new Date().toISOString(),
