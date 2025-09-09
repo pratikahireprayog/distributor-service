@@ -449,7 +449,7 @@ export class DHLService extends BaseNetworkPartner {
         typeCode: "2BP",
         // Use shipment physicalWeight; if missing/zero/invalid, fallback to per-shipment items sum,
         // and finally fallback to total items sum across parent + child shipments
-        weight: (Number(shipment.physicalWeight)  ||  totalItemWeightAllShipments),
+        weight: (itemWeightSum),
         dimensions: {
           length: shipment.dimensions.length,
           width: shipment.dimensions.width,
@@ -463,6 +463,7 @@ export class DHLService extends BaseNetworkPartner {
         ],
         description: shipment.items?.[0]?.description || "No description",
         labelDescription: shipment.items?.[0]?.description || "No description",
+        
       };
     });
 
@@ -895,6 +896,10 @@ export class DHLService extends BaseNetworkPartner {
       return {
         statusCode: 400,
         message: `DHL API Error: ${errorMessage}`,
+        partnerCode: this.partnerCode,
+        metadata: {
+          transporterId: "",
+        },
         data: {
           originalResponse: responseData,
           requestUrl: requestUrl,
@@ -912,9 +917,23 @@ export class DHLService extends BaseNetworkPartner {
     const trackingNumber = shipment?.shipmentTrackingNumber;
     const labelUrl = shipment?.documents?.[0]?.documentContent;
 
+    // Map packages from request to shipmentDetails
+    const requestPackages = requestBody?.shipments?.[0]?.packages || [];
+    const responsePackages = shipment?.packages || [];
+    const shipmentDetails = requestPackages.map((pkg: any, index: number) => ({
+      awbNumber: pkg.customerReferences?.[0]?.value || null,
+      partnerAwbNumber: responsePackages[index]?.trackingNumber || null,
+      partnerName: "DHL",
+      transporterId: "", // Blank for now as requested
+    }));
+
     return {
       statusCode: 200,
       message: "Order created successfully with DHL",
+      partnerCode: this.partnerCode,
+      metadata: {
+        transporterId: "", // Blank for now as requested
+      },
       data: {
         originalResponse: responseData,
         requestUrl: requestUrl,
@@ -922,6 +941,7 @@ export class DHLService extends BaseNetworkPartner {
         trackingId: trackingNumber,
         referenceNumber: trackingNumber,
         labelUrl: labelUrl,
+        shipmentDetails: shipmentDetails,
       },
       trace: {
         timestamp: new Date().toISOString(),
