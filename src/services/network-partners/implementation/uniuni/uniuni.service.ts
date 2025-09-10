@@ -49,7 +49,7 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
       const transformedData = await this.transformCreateUniuniPayload(orderDetails);
       const response = await this.callUniuniCreateOrderAPI(transformedData);
       
-      return this.formatCreateOrderResponse(response) as R;
+      return this.formatCreateOrderResponse(response, orderDetails) as R;
     } catch (error) {
       this.logger.error(`UNIUNI createOrder failed: ${error.message}`);
       throw new CustomHttpException(
@@ -225,7 +225,7 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
     }
   }
 
-  private formatCreateOrderResponse(responseData: any): BaseOrderResDto {
+  private formatCreateOrderResponse(responseData: any, orderDetails?: any): BaseOrderResDto {
     try {
       this.logger.debug('Formatting UNIUNI create order response');
       
@@ -235,6 +235,15 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
         responseData.success === true ||
         responseData.statusCode === 200 ||
         responseData.statusCode === 201;
+
+      // Get parent shipment AWB number from original payload
+      const parentShipmentAwbNumber = orderDetails?.parentShipment?.awbNumber || 
+        responseData.data?.order_id || 
+        responseData.order_id || 
+        'UNKNOWN';
+
+      // Get UNIUNI order ID for partner AWB number
+      const uniuniOrderId = responseData.data?.order_id || responseData.order_id || 'UNKNOWN';
 
       if (isSuccess) {
         return {
@@ -246,19 +255,33 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
           },
           data: {
             originalResponse: responseData,
-            trackingId: responseData.data?.tracking_number || responseData.tracking_number || responseData.data?.order_id || responseData.order_id || 'UNKNOWN',
+            trackingId: uniuniOrderId,
             referenceNumber: responseData.data?.reference || responseData.reference || 'UNKNOWN',
             labelUrl: responseData.data?.label_url || responseData.label_url || '',
             requestUrl: this.endpointConfigs.CREATE_ORDER.url,
             requestBody: responseData.data?.request_body || responseData.request_body || {},
-            shipmentDetails: [
-              {
-                awbNumber: responseData.data?.order_id || responseData.order_id || 'UNKNOWN',
-                partnerAwbNumber: responseData.data?.tracking_number || responseData.tracking_number || 'UNKNOWN',
-                partnerName: 'UNIUNI',
-                transporterId: responseData.data?.transporter_id || responseData.transporter_id || 'UNIUNI_TRANSPORTER'
-              }
-            ]
+            shipmentDetails: {
+              trackingDetails: [
+                {
+                  awbNumber: parentShipmentAwbNumber, // Use parent shipment AWB number
+                  partnerAwbNumber: uniuniOrderId, // Use UNIUNI order ID
+                  partnerName: 'UNIUNI',
+                  transporterId: responseData.data?.transporter_id || responseData.transporter_id || 'UNIUNI_TRANSPORTER'
+                }
+              ],
+              documents: [
+                {
+                  type: "labelPdf",
+                  format: "base64",
+                  content: ""
+                },
+                {
+                  type: "eWayBill",
+                  format: "base64",
+                  content: ""
+                }
+              ]
+            }
           }
         };
       } else {
@@ -278,7 +301,10 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
             labelUrl: '',
             requestUrl: this.endpointConfigs.CREATE_ORDER.url,
             requestBody: {},
-            shipmentDetails: []
+            shipmentDetails: {
+              trackingDetails: [],
+              documents: []
+            }
           }
         };
       }
@@ -298,7 +324,10 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
           labelUrl: '',
           requestUrl: this.endpointConfigs.CREATE_ORDER.url,
           requestBody: {},
-          shipmentDetails: []
+          shipmentDetails: {
+            trackingDetails: [],
+            documents: []
+          }
         }
       };
     }

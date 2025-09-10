@@ -361,19 +361,28 @@ export class PorterService extends BaseNetworkPartner {
       const requestBodyJson = originalPayload || response.config?.data || {};
   
       // Create shipment details mapping similar to Shipyaari
-      const shipmentDetails = [
-        {
-          awbNumber: parentShipmentAwbNumber, // Use parentShipment.awbNumber
-          partnerAwbNumber: orderId, // Porter's order ID
-          partnerName: 'porter_2w',
-          transporterId: 'PORTER_TRANSPORTER',
-          trackingUrl: trackingUrl,
-          estimatedFare: {
-            currency: currency,
-            amount: fareAmount
+      const shipmentDetails = {
+        trackingDetails: [
+          {
+            awbNumber: parentShipmentAwbNumber, // Use parentShipment.awbNumber
+            partnerAwbNumber: orderId, // Porter's order ID
+            partnerName: 'porter_2w',
+            transporterId: 'PORTER_TRANSPORTER'
           }
-        }
-      ];
+        ],
+        documents: [
+          {
+            type: "labelPdf",
+            format: "base64",
+            content: ""
+          },
+          {
+            type: "eWayBill",
+            format: "base64",
+            content: ""
+          }
+        ]
+      };
   
       return {
         statusCode: 200,
