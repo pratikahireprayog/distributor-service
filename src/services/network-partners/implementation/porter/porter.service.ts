@@ -49,9 +49,6 @@ export class PorterService extends BaseNetworkPartner {
     });
   }
 
-  /**
-   * Create an order with Porter
-   */
   async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderDetails: T,
     partnerCode: string,
@@ -79,8 +76,8 @@ export class PorterService extends BaseNetworkPartner {
         transformedData,
       );
 
-      // 4. Format and return response
-      return this.formatCreateOrderResponse<R>(response);
+      // 4. Format and return response - pass both response and original payload
+      return this.formatCreateOrderResponse<R>(response, orderDetails, transformedData);
     } catch (error) {
       this.logger.error(`Porter createOrder error: ${JSON.stringify(error)}`);
       throw error;
@@ -332,37 +329,75 @@ export class PorterService extends BaseNetworkPartner {
 
     return payload;
   }
-
-  /**
-   * Format Porter create order response
+    /**
+   * Format Porter create order response to match Shipyaari's standardized format
    */
-  private formatCreateOrderResponse<R extends BaseOrderResDto>(
-    response: AxiosResponse<any>
-  ): R {
-    const responseData = response.data;
-
-    // Check if the response contains an error
-    if (responseData.error) {
-      throw new CustomHttpException(
-        HttpStatus.BAD_REQUEST,
-        `Porter API Error: ${responseData.error.message || 'Unknown error'}`
-      );
-    }
-
-    // Extract tracking information from Porter response
-    const orderId = responseData.order_id;
-    const trackingUrl = responseData.tracking_url;
-
-    return {
-      statusCode: 200,
-      message: "Order created successfully with Porter",
-      partnerCode: this.partnerCode,
-      data: {
-        trackingId: orderId,
-        referenceNumber: orderId,
-        labelUrl: trackingUrl,
-        rawResponse: responseData
+    private formatCreateOrderResponse<R extends BaseOrderResDto>(
+      response: AxiosResponse<any>,
+      orderDetails?: any,
+      originalPayload?: any
+    ): R {
+      const responseData = response.data;
+  
+      // Check if the response contains an error
+      if (responseData.error) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          `Porter API Error: ${responseData.error.message || 'Unknown error'}`
+        );
       }
-    } as R;
-  }
-}
+  
+      // Extract key fields from Porter response
+      const orderId = responseData.order_id || responseData.request_id;
+      const trackingUrl = responseData.tracking_url || '';
+      const estimatedFare = responseData.estimated_fare_details || {};
+      const currency = estimatedFare.currency || 'INR';
+      const fareAmount = estimatedFare.minor_amount || 0;
+  
+      // Get parent shipment AWB number
+      const parentShipmentAwbNumber = orderDetails?.parentShipment?.awbNumber || orderId;
+  
+      // Use the original payload object (not the serialized string from response.config.data)
+      const requestBodyJson = originalPayload || response.config?.data || {};
+  
+      // Create shipment details mapping similar to Shipyaari
+      const shipmentDetails = [
+        {
+          awbNumber: parentShipmentAwbNumber, // Use parentShipment.awbNumber
+          partnerAwbNumber: orderId, // Porter's order ID
+          partnerName: 'porter_2w',
+          transporterId: 'PORTER_TRANSPORTER',
+          trackingUrl: trackingUrl,
+          estimatedFare: {
+            currency: currency,
+            amount: fareAmount
+          }
+        }
+      ];
+  
+      return {
+        statusCode: 200,
+        message: "Order created successfully with Porter",
+        partnerCode: this.partnerCode,
+        metadata: {
+          transporterId: "PORTER_TRANSPORTER",
+        },
+        data: {
+          originalResponse: responseData,
+          trackingId: orderId,
+          referenceNumber: orderId,
+          labelUrl: trackingUrl,
+          requestUrl: response.config?.url || '',
+          requestBody: requestBodyJson, // Now in clean JSON format
+          shipmentDetails: shipmentDetails,
+          estimatedFare: {
+            currency: currency,
+            amount: fareAmount
+          }
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: this.partnerCode,
+        },
+      } as unknown as R;
+    }}
