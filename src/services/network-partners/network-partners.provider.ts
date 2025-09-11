@@ -11,6 +11,7 @@ import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-
 import { PorterService } from "./implementation/porter/porter.service";
 import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.service";
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
+import { ARAMEXService } from "./implementation/aramex/aramex.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -19,8 +20,8 @@ export const networkPartnersProviders: Provider[] = [
     useClass: BigshipService,
   },
   {
-      provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
-      useClass: TsawService,
+    provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
+    useClass: TsawService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
@@ -28,7 +29,7 @@ export const networkPartnersProviders: Provider[] = [
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DHL,
-    useClass: DHLService, 
+    useClass: DHLService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
@@ -63,7 +64,8 @@ export const networkPartnersProviders: Provider[] = [
       porterService: PorterService,
       smileHubopsService: SmileHubopsService,
       uniuniService: UniuniService,
-      defaultNetworkPartner: DefaultNetworkPartner
+      defaultNetworkPartner: DefaultNetworkPartner,
+      aramexService: ARAMEXService
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -72,6 +74,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
+      factory.registerPartner(PARTNER_CODE_ENUM.ARAMEX, aramexService);
       factory.registerPartner(
         PARTNER_CODE_ENUM.SMILE_HUBOPS,
         smileHubopsService
@@ -94,6 +97,11 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
       NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
+      NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
     ],
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
+    useClass: ARAMEXService,
   },
 ];
