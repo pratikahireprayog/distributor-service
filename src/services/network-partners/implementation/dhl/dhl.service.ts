@@ -928,7 +928,7 @@ export class DHLService extends BaseNetworkPartner {
       format: doc.imageFormat,
       type: doc.typeCode,
     }))
-    shipmentDetails.push({document:documents})
+
 
     return {
       statusCode: 200,
@@ -941,7 +941,10 @@ export class DHLService extends BaseNetworkPartner {
         originalResponse: responseData,
         requestUrl: requestUrl,
         requestBody: requestBody,
-        shipmentDetails: shipmentDetails
+        shipmentDetails: {
+          trackingDetails: shipmentDetails,
+        } ,
+        documents: documents
       },
       trace: {
         timestamp: new Date().toISOString(),
