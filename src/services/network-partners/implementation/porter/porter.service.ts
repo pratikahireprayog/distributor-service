@@ -356,9 +356,12 @@ export class PorterService extends BaseNetworkPartner {
   
       // Get parent shipment AWB number
       const parentShipmentAwbNumber = orderDetails?.parentShipment?.awbNumber || orderId;
-  
+
       // Use the original payload object (not the serialized string from response.config.data)
       const requestBodyJson = originalPayload || response.config?.data || {};
+
+      // Check if documents exist in payload
+      const hasDocuments = orderDetails?.documents && Array.isArray(orderDetails.documents) && orderDetails.documents.length > 0;
   
       // Create shipment details mapping similar to Shipyaari
       const shipmentDetails = {
@@ -370,18 +373,20 @@ export class PorterService extends BaseNetworkPartner {
             transporterId: 'PORTER_TRANSPORTER'
           }
         ],
-        documents: [
-          {
-            type: "labelPdf",
-            format: "base64",
-            content: ""
-          },
-          {
-            type: "eWayBill",
-            format: "base64",
-            content: ""
-          }
-        ]
+        ...(hasDocuments && {
+          documents: [
+            {
+              type: "labelPdf",
+              format: "base64",
+              content: ""
+            },
+            {
+              type: "eWayBill",
+              format: "base64",
+              content: ""
+            }
+          ]
+        })
       };
   
       return {

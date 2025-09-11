@@ -245,6 +245,9 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
       // Get UNIUNI order ID for partner AWB number
       const uniuniOrderId = responseData.data?.order_id || responseData.order_id || 'UNKNOWN';
 
+      // Check if documents exist in payload
+      const hasDocuments = orderDetails?.documents && Array.isArray(orderDetails.documents) && orderDetails.documents.length > 0;
+
       if (isSuccess) {
         return {
           statusCode: 200,
@@ -269,18 +272,20 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
                   transporterId: responseData.data?.transporter_id || responseData.transporter_id || 'UNIUNI_TRANSPORTER'
                 }
               ],
-              documents: [
-                {
-                  type: "labelPdf",
-                  format: "base64",
-                  content: ""
-                },
-                {
-                  type: "eWayBill",
-                  format: "base64",
-                  content: ""
-                }
-              ]
+              ...(hasDocuments && {
+                documents: [
+                  {
+                    type: "labelPdf",
+                    format: "base64",
+                    content: ""
+                  },
+                  {
+                    type: "eWayBill",
+                    format: "base64",
+                    content: ""
+                  }
+                ]
+              })
             }
           }
         };
@@ -302,8 +307,7 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
             requestUrl: this.endpointConfigs.CREATE_ORDER.url,
             requestBody: {},
             shipmentDetails: {
-              trackingDetails: [],
-              documents: []
+              trackingDetails: []
             }
           }
         };
@@ -325,8 +329,7 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
           requestUrl: this.endpointConfigs.CREATE_ORDER.url,
           requestBody: {},
           shipmentDetails: {
-            trackingDetails: [],
-            documents: []
+            trackingDetails: []
           }
         }
       };
