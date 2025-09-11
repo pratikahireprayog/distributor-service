@@ -943,8 +943,8 @@ export class DHLService extends BaseNetworkPartner {
         requestBody: requestBody,
         shipmentDetails: {
           trackingDetails: shipmentDetails,
-        } ,
-        documents: documents
+           documents: documents
+        } 
       },
       trace: {
         timestamp: new Date().toISOString(),
