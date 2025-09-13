@@ -16,7 +16,7 @@ import { EndpointConfigRepository } from "src/common/repositories/endpoint-confi
 import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { AxiosResponse } from "axios";
-import { ARAMEX_ACCOUNTS, ARAMEX_CLIENT_INFO, ORDER_TYPE } from "../../network-partners.constant";
+import { ARAMEX_ACCOUNTS, ARAMEX_CLIENT_INFO, ARAMEX_PAYMENT_METHOD, ARAMEX_PAYMENT_TYPE, ARAMEX_PRODUCT_TYPE, ORDER_TYPE } from "./aramex-constants";
 
 @Injectable()
 export class ARAMEXService extends BaseNetworkPartner {
@@ -155,18 +155,17 @@ export class ARAMEXService extends BaseNetworkPartner {
   async transformCreateAramexPayload(order) {
     const shipperAddr = order.addresses.find(a => a.type === "PICKUP" || a.type === "RETURN");
     const consigneeAddr = order.addresses.find(a => a.type === "DELIVERY");
+    const thirdPartyAddr = null;  // required if payment type is 3
 
-    // Fetch Client Info Aramex / need to check
     const clientInfo = await this.fetchAramexClientInfo(shipperAddr.city);
     const accountNumber = clientInfo.AccountNumber;
-
     const shipment = {
       // Reference1: "",  // optional
       // Reference2: "",  // optional
       // Reference3: "",  // optional
       Shipper: await this.convertAddressAndContactsToAramexParty(shipperAddr, accountNumber),
       Consignee: await this.convertAddressAndContactsToAramexParty(consigneeAddr, accountNumber),
-      // ThirdParty: await this.convertAddressAndContactsToAramexParty(null, accountNumber), // optional but conditional
+      ThirdParty: order?.payment?.type === ARAMEX_PAYMENT_METHOD['3'] ? await this.convertAddressAndContactsToAramexParty(thirdPartyAddr, accountNumber) : null,
       ShippingDateTime: `/Date(${new Date(order.orderDate).getTime()}+0530)/`,
       DueDate: `/Date(${new Date(order.expectedDeliveryDate).getTime()}+0530)/`,
       Comments: order.parentShipment?.note || "",
@@ -183,17 +182,19 @@ export class ARAMEXService extends BaseNetworkPartner {
           }
           : null,
         ActualWeight: {
-          Unit: "KG",                                     // need to check 
+          Unit: "KG",
           Value: order.parentShipment?.physicalWeight || 0,
         },
         ChargeableWeight: null,
-        DescriptionOfGoods: order.parcelCategory || "",   // need to check 
+        DescriptionOfGoods: order.parcelCategory || "",
         GoodsOriginCountry: "IN",                         // need to check manufacturar country
         NumberOfPieces: order.parentShipment?.items?.length || 1,
         ProductGroup: order.orderType === ORDER_TYPE.FORWARD ? ORDER_TYPE.EXP : ORDER_TYPE.DOM,
-        ProductType: order.productType || "",             // need to check eg. ppx
-        PaymentType: "P",                                 // need to check
-        PaymentOptions: "CASH",                           // need to check
+        ProductType: ARAMEX_PRODUCT_TYPE.includes(order.productType) || null,
+        PaymentType: ARAMEX_PAYMENT_METHOD.includes(order?.payment?.type) ? order.payment.type : null,
+        PaymentOptions: ARAMEX_PAYMENT_METHOD.includes(order?.payment?.type) &&
+          order?.payment?.type === ARAMEX_PAYMENT_METHOD['C'] || ARAMEX_PAYMENT_METHOD['P'] ?
+          ARAMEX_PAYMENT_TYPE.includes(order?.payment?.paymentMethod) : null,
 
         /**  Value charged by destination customs.
           Conditional - Based on the ProductType "Dutible" **/
@@ -211,21 +212,23 @@ export class ARAMEXService extends BaseNetworkPartner {
 
         // InsuranceAmount: null,                // Optional
         // CashAdditionalAmount: null,           // Optional
-        // CashAdditionalAmountDescription: "",  // Optional
+
 
         /**. Transportation Charges to be collected from consignee.
         Conditional - Based on the PaymentType "C" +PaymentOptions "ARCC" */
         CollectAmount: null,
+        CashAdditionalAmountDescription: "",
 
         Services: order.serviceType || "",
         Items: order.parentShipment?.items?.map(this.transformItem) || [],
         AdditionalProperties: [],
       },
       // Attachments: [],  // optional
-      // ForeignHAWB: "",  // optional
       // TransportType: 0, // optional
       // PickupGUID: "",   // optional
       // Number: order.awbNumber || "",   // optional
+
+      ForeignHAWB: "",  // Clients Shipment number
       ScheduledDelivery: null,
     };
 
@@ -337,11 +340,6 @@ export class ARAMEXService extends BaseNetworkPartner {
       Version: ARAMEX_CLIENT_INFO.VERSION,
       Source: ARAMEX_CLIENT_INFO.SOURCE,
       ...account
-      // AccountNumber: ARAMEX_CLIENT_INFO.ACCOUNT_NUMBER,
-      // AccountPin: ARAMEX_CLIENT_INFO.ACCOUNT_PIN,
-      // AccountEntity: ARAMEX_CLIENT_INFO.ACCOUNT_ENTITY,
-      // AccountCountryCode: ARAMEX_CLIENT_INFO.ACCOUNT_COUNTRY_CODE,
-
     }
   }
 
