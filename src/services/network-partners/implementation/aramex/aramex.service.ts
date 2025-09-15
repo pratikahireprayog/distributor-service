@@ -187,7 +187,7 @@ export class ARAMEXService extends BaseNetworkPartner {
         },
         ChargeableWeight: null,
         DescriptionOfGoods: order.parcelCategory || "",
-        GoodsOriginCountry: "IN",                         // need to check manufacturar country
+        GoodsOriginCountry: "IN",
         NumberOfPieces: order.parentShipment?.items?.length || 1,
         ProductGroup: order.orderType === ORDER_TYPE.FORWARD ? ORDER_TYPE.EXP : ORDER_TYPE.DOM,
         ProductType: ARAMEX_PRODUCT_TYPE.includes(order.productType) || null,
@@ -232,7 +232,7 @@ export class ARAMEXService extends BaseNetworkPartner {
       ScheduledDelivery: null,
     };
 
-    // Fetch Label Information / need to check
+    // Fetch Label Information
     const labelInfo = await this.fetchLabelInfo();
 
     // Fetch Transactions Details

@@ -14,7 +14,7 @@ export const ARAMEX_ACCOUNTS = {
     DELHI: {
         AccountNumber: "60501059",
         AccountPin: "332432",
-        AccountEntity: "DELHI",
+        AccountEntity: "DEL",
         AccountCountryCode: "IN",
     },
     BLR: {
@@ -44,7 +44,7 @@ export const ARAMEX_ACCOUNTS = {
     CHENNAI: {
         AccountNumber: "60520426",
         AccountPin: "432432",
-        AccountEntity: "CHENNAI",
+        AccountEntity: "MAA", // CHENNAI
         AccountCountryCode: "IN",
     },
 };
