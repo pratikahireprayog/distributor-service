@@ -108,7 +108,7 @@ export class ARAMEXService extends BaseNetworkPartner {
       const transformedData = await this.transformCreateAramexPayload(
         orderDetails, cityCode
       );
-
+      
       // 6. Make API call
       const apiResult = await this.callAramexCreateOrderAPI(
         endpoint,
@@ -184,13 +184,13 @@ export class ARAMEXService extends BaseNetworkPartner {
         NumberOfPieces: order.parentShipment?.items?.length || 1,
         ProductGroup: order.orderType === ORDER_TYPE.FORWARD ? ORDER_TYPE.EXP : ORDER_TYPE.DOM,
         ProductType: ARAMEX_PRODUCT_TYPE.includes(order.productType) ? order.productType : null,
-        PaymentType: 'C', // stand for 'Collect' Transportation Charges payable by consignee
-        PaymentOptions: 'ASCC', //ASCC = Needs Shipper Account
+        PaymentType: 'P', // Prepaid Transportation Charges payable by shipper
+        PaymentOptions: '', // Optional - Based on the Payment Type P
 
         /**  Value charged by destination customs.
           Conditional - Based on the ProductType "Dutible" **/
         CustomsValueAmount: {
-          CurrencyCode: "USD",
+          CurrencyCode: "INR",
           Value: (order.parentShipment?.items || []).reduce(
             (sum, i) => sum + (i.unitPrice || 0),
             0
@@ -234,13 +234,12 @@ export class ARAMEXService extends BaseNetworkPartner {
       ForeignHAWB: "",  // Clients Shipment number
       ScheduledDelivery: null,
     };
-
     // Fetch Label Information
     const labelInfo = await this.fetchLabelInfo();
 
     // Fetch Transactions Details
     const transactionDetails = await this.fetchTransactionsDetails();
-
+    
     return {
       ClientInfo: clientInfo,
       LabelInfo: labelInfo,
@@ -321,11 +320,11 @@ export class ARAMEXService extends BaseNetworkPartner {
     return {
       PackageType: item.name,
       Quantity: String(item.quantity || 1),
-      Weight: item.weight
+      Weight: item.weight!= null ||  item.weight!= ""
         ? { Value: item.weight, Unit: "KG" }
         : "",
       CustomsValue: {
-        CurrencyCode: "USD", // need to check
+        CurrencyCode: "INR", // need to check
         Value: item.unitPrice || 0,
       },
       Comments: "",
