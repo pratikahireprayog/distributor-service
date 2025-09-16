@@ -87,27 +87,26 @@ export class ARAMEXService extends BaseNetworkPartner {
           `Could not fetch city_code from nearest hub API`
         );
       }
-
       // 3. Fetch partner_id
-      let partnerId: string | undefined = undefined;
-      if (
-        eligiblePartners &&
-        Array.isArray(eligiblePartners.data) &&
-        eligiblePartners.data.length > 0
-      ) {
-        partnerId = String(eligiblePartners.data[0].id);
-      }
-      partnerId = this.configService.get<string>("ARAMEX_PARTNER_ID");
-      if (!partnerId) {
-        throw new CustomHttpException(
-          HttpStatus.BAD_REQUEST,
-          "partner_id is required for ARAMEX partner-configs lookup"
-        );
-      }
+      // let partnerId: string | undefined = undefined;
+      // if (
+      //   eligiblePartners &&
+      //   Array.isArray(eligiblePartners.data) &&
+      //   eligiblePartners.data.length > 0
+      // ) {
+      //   partnerId = String(eligiblePartners.data[0].id);
+      // }
+      // partnerId = this.configService.get<string>("ARAMEX_PARTNER_ID");
+      // if (!partnerId) {
+      //   throw new CustomHttpException(
+      //     HttpStatus.BAD_REQUEST,
+      //     "partner_id is required for ARAMEX partner-configs lookup"
+      //   );
+      // }
 
       // 4. Transform the payload for ARAMEX API, injecting the accountId
       const transformedData = await this.transformCreateAramexPayload(
-        orderDetails,
+        orderDetails, cityCode
       );
 
       // 6. Make API call
@@ -120,7 +119,6 @@ export class ARAMEXService extends BaseNetworkPartner {
       return this.formatCreateOrderResponse<any>(apiResult);
     } catch (error) {
       this.logger.error(`ARAMEX createOrder error: ${JSON.stringify(error)}`);
-
       // Return consistent error structure for exceptions
       const errorResponse = {
         statusCode: error.status || error.response?.status || 500,
@@ -152,20 +150,15 @@ export class ARAMEXService extends BaseNetworkPartner {
   }
 
 
-  async transformCreateAramexPayload(order) {
-    const shipperAddr = order.addresses.find(a => a.type === "PICKUP" || a.type === "RETURN");
+  async transformCreateAramexPayload(order, cityCode) {
+    const shipperAddr = order.addresses.find(a => a.type === "PICKUP");
     const consigneeAddr = order.addresses.find(a => a.type === "DELIVERY");
-    const thirdPartyAddr = null;  // required if payment type is 3
-
-    const clientInfo = await this.fetchAramexClientInfo(shipperAddr.city);
+    const clientInfo = await this.fetchAramexClientInfo(cityCode);
     const accountNumber = clientInfo.AccountNumber;
+
     const shipment = {
-      // Reference1: "",  // optional
-      // Reference2: "",  // optional
-      // Reference3: "",  // optional
       Shipper: await this.convertAddressAndContactsToAramexParty(shipperAddr, accountNumber),
-      Consignee: await this.convertAddressAndContactsToAramexParty(consigneeAddr, accountNumber),
-      ThirdParty: order?.payment?.type === ARAMEX_PAYMENT_METHOD['3'] ? await this.convertAddressAndContactsToAramexParty(thirdPartyAddr, accountNumber) : null,
+      Consignee: await this.convertAddressAndContactsToAramexParty(consigneeAddr, ""),
       ShippingDateTime: `/Date(${new Date(order.orderDate).getTime()}+0530)/`,
       DueDate: `/Date(${new Date(order.expectedDeliveryDate).getTime()}+0530)/`,
       Comments: order.parentShipment?.note || "",
@@ -190,11 +183,9 @@ export class ARAMEXService extends BaseNetworkPartner {
         GoodsOriginCountry: "IN",
         NumberOfPieces: order.parentShipment?.items?.length || 1,
         ProductGroup: order.orderType === ORDER_TYPE.FORWARD ? ORDER_TYPE.EXP : ORDER_TYPE.DOM,
-        ProductType: ARAMEX_PRODUCT_TYPE.includes(order.productType) || null,
-        PaymentType: ARAMEX_PAYMENT_METHOD.includes(order?.payment?.type) ? order.payment.type : null,
-        PaymentOptions: ARAMEX_PAYMENT_METHOD.includes(order?.payment?.type) &&
-          order?.payment?.type === ARAMEX_PAYMENT_METHOD['C'] || ARAMEX_PAYMENT_METHOD['P'] ?
-          ARAMEX_PAYMENT_TYPE.includes(order?.payment?.paymentMethod) : null,
+        ProductType: ARAMEX_PRODUCT_TYPE.includes(order.productType) ? order.productType : null,
+        PaymentType: 'C', // stand for 'Collect' Transportation Charges payable by consignee
+        PaymentOptions: 'ASCC', //ASCC = Needs Shipper Account
 
         /**  Value charged by destination customs.
           Conditional - Based on the ProductType "Dutible" **/
@@ -210,10 +201,6 @@ export class ARAMEXService extends BaseNetworkPartner {
           Conditional - Based on the Services "COD" being filled.  **/
         CashOnDeliveryAmount: null,
 
-        // InsuranceAmount: null,                // Optional
-        // CashAdditionalAmount: null,           // Optional
-
-
         /**. Transportation Charges to be collected from consignee.
         Conditional - Based on the PaymentType "C" +PaymentOptions "ARCC" */
         CollectAmount: null,
@@ -221,13 +208,29 @@ export class ARAMEXService extends BaseNetworkPartner {
 
         Services: order.serviceType || "",
         Items: order.parentShipment?.items?.map(this.transformItem) || [],
-        AdditionalProperties: [],
+        AdditionalProperties: [
+          {
+            "CategoryName": "CustomsClearance",
+            "Name": "InvoiceDate",
+            "Value": this.formatDateToMMDDYYYY(order.orderDate)
+          },
+          {
+            "CategoryName": "CustomsClearance",
+            "Name": "InvoiceNumber",
+            "Value": `INV-${order.parentShipment?.awbNumber}` // creating custom invoice number
+          },
+          {
+            "CategoryName": "CustomsClearance",
+            "Name": "ExporterType",
+            "Value": "UT"
+          },
+          {
+            "CategoryName": "CustomsClearance",
+            "Name": "ShipperTaxIdVATEINNumber",
+            "Value": "535453366"
+          },
+        ],
       },
-      // Attachments: [],  // optional
-      // TransportType: 0, // optional
-      // PickupGUID: "",   // optional
-      // Number: order.awbNumber || "",   // optional
-
       ForeignHAWB: "",  // Clients Shipment number
       ScheduledDelivery: null,
     };
@@ -290,10 +293,10 @@ export class ARAMEXService extends BaseNetworkPartner {
         ),
         Longitude: addr?.longitude || 0,
         Latitude: addr?.latitude || 0,
-        BuildingNumber: null,
-        BuildingName: null,
-        Floor: null,
-        Apartment: null,
+        BuildingNumber: "",
+        BuildingName: "",
+        Floor: "",
+        Apartment: "",
         POBox: null,
         Description: null,
       },
@@ -320,7 +323,7 @@ export class ARAMEXService extends BaseNetworkPartner {
       Quantity: String(item.quantity || 1),
       Weight: item.weight
         ? { Value: item.weight, Unit: "KG" }
-        : { Value: 0.1, Unit: "KG" },
+        : "",
       CustomsValue: {
         CurrencyCode: "USD", // need to check
         Value: item.unitPrice || 0,
@@ -343,7 +346,6 @@ export class ARAMEXService extends BaseNetworkPartner {
     }
   }
 
-  // test values need to check with Aramex team
   private async fetchLabelInfo() {
     return {
       ReportID: 9729,
@@ -478,7 +480,7 @@ export class ARAMEXService extends BaseNetworkPartner {
   private async getAramexAccountByCity(city: string) {
     const normalized = city.trim().toUpperCase();
 
-    if (["DELHI", "NEW DELHI"].includes(normalized)) return ARAMEX_ACCOUNTS.DELHI;
+    if (["DELHI", "NEW DELHI", "DEL"].includes(normalized)) return ARAMEX_ACCOUNTS.DELHI;
     if (["BENGALURU", "BANGALORE", "BLR"].includes(normalized)) return ARAMEX_ACCOUNTS.BLR;
     if (["HYDERABAD", "HYD"].includes(normalized)) return ARAMEX_ACCOUNTS.HYD;
     if (["MUMBAI", "BOMBAY", "THANE", "BOM"].includes(normalized)) return ARAMEX_ACCOUNTS.BOM;
@@ -486,6 +488,16 @@ export class ARAMEXService extends BaseNetworkPartner {
     if (["CHENNAI", "MAA"].includes(normalized)) return ARAMEX_ACCOUNTS.CHENNAI;
 
     throw new Error(`No Aramex account configured for city: ${city}`);
+  }
+
+  private formatDateToMMDDYYYY(dateString: string): string {
+    const date = new Date(dateString);
+
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
+
+    return `${month}/${day}/${year}`;
   }
 
 }

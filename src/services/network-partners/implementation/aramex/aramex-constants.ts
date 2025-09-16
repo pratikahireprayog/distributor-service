@@ -59,5 +59,6 @@ export const ORDER_TYPE = {
 export const ARAMEX_PRODUCT_TYPE = ['PDX', 'PPX', 'PLX', 'DDX', 'DPX', 'GDX', 'GPX', 'OND'];
 export const ARAMEX_SERVICE_CODES = ['COD', 'FIRST', 'FRDOM', 'HFPU', 'NOON', 'SIG'];
 export const ARAMEX_PAYMENT_METHOD = ['P', 'C', '3'];
-export const ARAMEX_PAYMENT_TYPE = ['ASCC', 'ARCC', 'CASH', 'ACCT', 'PPST', 'CRDT'];
+export const ARAMEX_PAYMENT_TYPE = ['ASCC', 'ARCC'];
+
 
