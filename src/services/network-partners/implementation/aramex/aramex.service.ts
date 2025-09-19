@@ -6,8 +6,9 @@ import * as https from "https";
 import { parseStringPromise } from "xml2js";
 import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { ARAMEXAuthService } from "./aramex-auth.service";
-import { BaseOrderResDto } from "src/common/dtos/base.dto";
+import { BaseOrderResDto, BaseReqDto, BaseResDto } from "src/common/dtos/base.dto";
 import {
+  BaseCancelOrderDtoV2,
   BaseOrderReqDtoV2,
 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
@@ -16,7 +17,7 @@ import { EndpointConfigRepository } from "src/common/repositories/endpoint-confi
 import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { AxiosResponse } from "axios";
-import { ARAMEX_ACCOUNTS, ARAMEX_CLIENT_INFO, ARAMEX_PAYMENT_METHOD, ARAMEX_PAYMENT_TYPE, ARAMEX_PRODUCT_TYPE, ORDER_TYPE } from "./aramex-constants";
+import { ARAMEX_ACCOUNTS, ARAMEX_API_URLS, ARAMEX_CLIENT_INFO, ARAMEX_PAYMENT_METHOD, ARAMEX_PAYMENT_TYPE, ARAMEX_PRODUCT_TYPE, ORDER_TYPE } from "./aramex-constants";
 
 @Injectable()
 export class ARAMEXService extends BaseNetworkPartner {
@@ -72,6 +73,7 @@ export class ARAMEXService extends BaseNetworkPartner {
         pickupAddress.pincode ||
         pickupAddress.pin ||
         pickupAddress.PIN ||
+        pickupAddress.PostCode ||
         pickupAddress.PINCODE;
       if (!pickupZip) {
         throw new CustomHttpException(
@@ -108,7 +110,7 @@ export class ARAMEXService extends BaseNetworkPartner {
       const transformedData = await this.transformCreateAramexPayload(
         orderDetails, cityCode
       );
-      
+
       // 6. Make API call
       const apiResult = await this.callAramexCreateOrderAPI(
         endpoint,
@@ -239,7 +241,6 @@ export class ARAMEXService extends BaseNetworkPartner {
 
     // Fetch Transactions Details
     const transactionDetails = await this.fetchTransactionsDetails();
-    
     return {
       ClientInfo: clientInfo,
       LabelInfo: labelInfo,
@@ -320,7 +321,7 @@ export class ARAMEXService extends BaseNetworkPartner {
     return {
       PackageType: item.name,
       Quantity: String(item.quantity || 1),
-      Weight: item.weight!= null ||  item.weight!= ""
+      Weight: item.weight != null || item.weight != ""
         ? { Value: item.weight, Unit: "KG" }
         : "",
       CustomsValue: {
@@ -497,6 +498,161 @@ export class ARAMEXService extends BaseNetworkPartner {
     const year = date.getFullYear();
 
     return `${month}/${day}/${year}`;
+  }
+
+
+  /**
+   * Create pickup request V2 with ARAMEX
+   */
+  async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.debug(`Creating Pickup V2 with ARANEX for partner: ${partnerCode}`);
+    const startTime = Date.now();
+
+    try {
+      // Validate input
+      if (!data) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'Pickup data is required'
+        );
+      }
+
+      const pickupAddress: any = data['Pickup']['PickupAddress'];
+
+      const pickupZip =
+        pickupAddress.zip ||
+        pickupAddress.postalCode ||
+        pickupAddress.pincode ||
+        pickupAddress.pin ||
+        pickupAddress.PIN ||
+        pickupAddress.PostCode ||
+        pickupAddress.PINCODE;
+
+      if (!pickupZip) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "Pickup address zip is required for ARAMEX account lookup"
+        );
+      }
+
+      const cityCode = await this.fetchCityCodeFromZip(pickupZip);
+      const clientInfo = await this.fetchAramexClientInfo(cityCode);
+
+      const aramexPickupShipmentPayload = { ...clientInfo, ...data }
+      // Build the URL from environment variable
+      const baseUrl = this.configService.get<string>('ARAMEX_BASE_URL');
+      const pickupUrl = `${baseUrl}/${ARAMEX_API_URLS.ARAMEX_PICKUP_SHIPEMENT_URL}`;
+      if (!baseUrl) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'ARAMEX_BASE_URL environment variable is not configured'
+        );
+      }
+
+      // Get auth headers
+      const authHeaders = await this.authProvider.getAuthHeaders();
+
+      // Use fixed-length Message-Reference (exactly 28 characters)
+      const messageReference = `pickup-${Date.now().toString().slice(-4)}-abcdefghijklmnop`;
+
+      const requestHeaders = {
+        ...authHeaders,
+        'accept': 'application/json',
+        'Message-Reference': messageReference,
+        'Message-Reference-Date': new Date().toUTCString(),
+        'Plugin-Name': '',
+        'Plugin-Version': '',
+        'Shipping-System-Platform-Name': '',
+        'Shipping-System-Platform-Version': '',
+        'Webstore-Platform-Name': '',
+        'Webstore-Platform-Version': '',
+        'x-version': '2.12.0',
+        'Content-Type': 'application/json'
+      };
+
+      // Make the API call
+      const response = await firstValueFrom(
+        this.httpService.post(pickupUrl, aramexPickupShipmentPayload, {
+          headers: requestHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(`Pickup created successfully in ${responseTimeMs}ms`);
+
+      // Return standardized response matching Shipyaari format
+      return {
+        statusCode: 200,
+        message: "Pickup created successfully with ARAMEX",
+        partnerCode: this.partnerCode,
+        data: {
+          success: true,
+          orderId: response.data?.dispatchConfirmationNumbers?.[0] || "",
+          cAwbNumber: response.data?.dispatchConfirmationNumbers?.[0] || "",
+          status: "PICKUP_CREATED",
+          message: "Pickup created successfully",
+          apiResponse: response.data,
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: this.partnerCode,
+          operation: "CREATE_PICKUP",
+        }
+      } as R;
+
+    } catch (error) {
+      this.logger.error(`ARAMEX createPickup error: ${JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    try {
+      const endpoint = {
+        url: `${this.configService.get<string>('ARAMEX_BASE_URL')}/${ARAMEX_API_URLS.ARAMEX_CANCEL_ORDER_URL}`
+      };
+      if (!endpoint.url) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'ARAMEX_BASE_URL environment variable is not configured'
+        );
+      }
+      const clientInfo = await this.fetchAramexClientInfo('BOM'); //   NEED to check
+
+      const authHeaders = await this.authProvider.getAuthHeaders();
+      const holdShipmentPayload = {
+        ClientInfo: clientInfo,
+        ShipmentHolds: data.cAwbNumbers.map(awb => ({
+          ShipmentNumber: awb,
+          Comment: data?.cancelReason || ''
+        }))
+      };
+
+      const response = await firstValueFrom(
+        this.httpService.post(endpoint.url, holdShipmentPayload, {
+          headers: authHeaders,
+          httpsAgent: this.httpsAgent,
+          timeout: 30000,
+        })
+      );
+      return {
+        statusCode: 200,
+        message: "Order cancelled successfully with ARAMEX",
+        data: response.data
+      } as R;
+    } catch (error) {
+      this.logger.error(`ARAMEX cancelOrder error: ${JSON.stringify(error)}`);
+      throw error;
+    }
   }
 
 }

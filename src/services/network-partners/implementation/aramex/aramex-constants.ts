@@ -61,4 +61,8 @@ export const ARAMEX_SERVICE_CODES = ['COD', 'FIRST', 'FRDOM', 'HFPU', 'NOON', 'S
 export const ARAMEX_PAYMENT_METHOD = ['P', 'C', '3'];
 export const ARAMEX_PAYMENT_TYPE = ['ASCC', 'ARCC'];
 
+export const ARAMEX_API_URLS = {
+    ARAMEX_PICKUP_SHIPEMENT_URL: "ShippingAPI.V2/Shipping/Service_1_0.svc/json/CreatePickup",
+    ARAMEX_CANCEL_ORDER_URL: "ShippingAPI.V2/Shipping/Service_1_0.svc/json/HoldShipments"
+}
 
