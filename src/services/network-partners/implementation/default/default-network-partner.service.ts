@@ -547,6 +547,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       cAWB_No: data.cAwbNumber || data.awbNumber,
       AWB_No: data.awbNumber,
       created_at: data.orderCreatedDate,
+      isMcn:data.mcn,
       payload: {
         cAWB_No: data.cAwbNumber || data.awbNumber,
         deliveryDetails: {
