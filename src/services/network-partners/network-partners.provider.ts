@@ -11,9 +11,14 @@ import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-
 import { PorterService } from "./implementation/porter/porter.service";
 import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.service";
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
+import { BaralService } from "./implementation/baral/baral.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.BARAL,
+    useClass: BaralService,
+  },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.BIGSHIP,
     useClass: BigshipService,
@@ -63,7 +68,8 @@ export const networkPartnersProviders: Provider[] = [
       porterService: PorterService,
       smileHubopsService: SmileHubopsService,
       uniuniService: UniuniService,
-      defaultNetworkPartner: DefaultNetworkPartner
+      defaultNetworkPartner: DefaultNetworkPartner,
+      baralService: BaralService
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -77,6 +83,7 @@ export const networkPartnersProviders: Provider[] = [
         smileHubopsService
       );
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
+      factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -94,6 +101,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
       NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
+      NETWORK_PARTNER_PROVIDER_CONST.BARAL,
     ],
   },
 ];
