@@ -15,6 +15,7 @@ import { PorterModule } from "./implementation/porter/porter.module";
 import { UniuniModule } from "./implementation/uniuni/uniuni.module";
 import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
 import { ARAMEXModule } from "./implementation/aramex/aramex.module";
+import { BaralModule } from "./implementation/baral/baral.module";
 
 /**
  * Module for network partners
@@ -33,7 +34,8 @@ import { ARAMEXModule } from "./implementation/aramex/aramex.module";
     PorterModule,
     UniuniModule,
     SmileHubopsModule,
-    ARAMEXModule
+    ARAMEXModule,
+    BaralModule,
   ],
   providers: [
     NetworkPartnerFactoryService,
