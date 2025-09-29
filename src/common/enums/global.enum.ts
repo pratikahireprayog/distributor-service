@@ -41,7 +41,8 @@ export enum PARTNER_CODE_ENUM {
   PORTER = "porter_2w",
   DELHIVERY = "DELHIVERY",
   SMILE_HUBOPS = "smile_hubops",
-  ARAMEX = "ARAMEX"
+  ARAMEX = "ARAMEX",
+  FEDEX = "FEDEX"
 }
 
 export enum ENDPOINT_ID_ENUM {
