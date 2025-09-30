@@ -11,6 +11,7 @@ import { SmileHyperlocalService } from "./implementation/smile-hyperlocal/smile-
 import { PorterService } from "./implementation/porter/porter.service";
 import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.service";
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
+import { ARAMEXService } from "./implementation/aramex/aramex.service";
 import { BaralService } from "./implementation/baral/baral.service";
 
 export const networkPartnersProviders: Provider[] = [
@@ -24,8 +25,8 @@ export const networkPartnersProviders: Provider[] = [
     useClass: BigshipService,
   },
   {
-      provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
-      useClass: TsawService,
+    provide: NETWORK_PARTNER_PROVIDER_CONST.TSAW,
+    useClass: TsawService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SHIPYAARI,
@@ -33,7 +34,7 @@ export const networkPartnersProviders: Provider[] = [
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DHL,
-    useClass: DHLService, 
+    useClass: DHLService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SMILE_HYPERLOCAL,
@@ -69,6 +70,7 @@ export const networkPartnersProviders: Provider[] = [
       smileHubopsService: SmileHubopsService,
       uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner,
+      aramexService: ARAMEXService,
       baralService: BaralService
     ) => {
       // Register individual partners
@@ -78,6 +80,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
+      factory.registerPartner(PARTNER_CODE_ENUM.ARAMEX, aramexService);
       factory.registerPartner(
         PARTNER_CODE_ENUM.SMILE_HUBOPS,
         smileHubopsService
@@ -101,7 +104,12 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
       NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
+      NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
       NETWORK_PARTNER_PROVIDER_CONST.BARAL,
     ],
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
+    useClass: ARAMEXService,
   },
 ];

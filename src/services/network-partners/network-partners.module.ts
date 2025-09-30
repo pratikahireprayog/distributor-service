@@ -14,6 +14,7 @@ import { SmileHyperlocalModule } from "./implementation/smile-hyperlocal/smile-h
 import { PorterModule } from "./implementation/porter/porter.module";
 import { UniuniModule } from "./implementation/uniuni/uniuni.module";
 import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
+import { ARAMEXModule } from "./implementation/aramex/aramex.module";
 import { BaralModule } from "./implementation/baral/baral.module";
 
 /**
@@ -33,6 +34,7 @@ import { BaralModule } from "./implementation/baral/baral.module";
     PorterModule,
     UniuniModule,
     SmileHubopsModule,
+    ARAMEXModule,
     BaralModule,
   ],
   providers: [
@@ -42,4 +44,4 @@ import { BaralModule } from "./implementation/baral/baral.module";
   ],
   exports: [NetworkPartnerFactoryService, SchemaMapperService],
 })
-export class NetworkPartnersModule {}
+export class NetworkPartnersModule { }
