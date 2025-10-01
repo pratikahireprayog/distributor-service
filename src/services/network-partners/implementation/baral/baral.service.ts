@@ -178,7 +178,7 @@ export class BaralService extends BaseNetworkPartner {
         BoxNo: `Box-${idx + 1}`,
         Description: it.description || it.name,
         HSNCode: it.hsnCode || "",
-        Quantity: String( 1),
+        Quantity: String(it.quantity || 1),
         Unit: "PCS",
         Weight: String(it.weight || 1),
         Rate: String(it.unitPrice || 0),
