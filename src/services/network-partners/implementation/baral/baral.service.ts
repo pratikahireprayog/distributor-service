@@ -124,7 +124,7 @@ export class BaralService extends BaseNetworkPartner {
       CustomerCode: this.configService.get<string>("BARAL_CUSTOMER_CODE", "100"),
       // Strictly from env (no payload fallback)
       CustomerRefNo: this.configService.get<string>("BARAL_CUSTOMER_REF_NO", ""),
-      OriginName: this.configService.get<string>("BARAL_ORIGIN", "AMD"),
+      OriginName: pickup?.city || pickup?.addressName || pickup?.state || this.configService.get<string>("BARAL_ORIGIN", "AMD"),
       // Destination should come from delivery place in payload; fallback to env/default
       DestinationName:
         delivery?.city || delivery?.addressName || delivery?.state ||
@@ -178,7 +178,7 @@ export class BaralService extends BaseNetworkPartner {
         BoxNo: `Box-${idx + 1}`,
         Description: it.description || it.name,
         HSNCode: it.hsnCode || "",
-        Quantity: String(it.quantity || 1),
+        Quantity: String( 1),
         Unit: "PCS",
         Weight: String(it.weight || 1),
         Rate: String(it.unitPrice || 0),
