@@ -16,6 +16,7 @@ import { UniuniModule } from "./implementation/uniuni/uniuni.module";
 import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
 import { ARAMEXModule } from "./implementation/aramex/aramex.module";
 import { FEDEXModule } from "./implementation/fedex/fedex.module";
+import { BaralModule } from "./implementation/baral/baral.module";
 
 /**
  * Module for network partners
@@ -35,7 +36,8 @@ import { FEDEXModule } from "./implementation/fedex/fedex.module";
     UniuniModule,
     SmileHubopsModule,
     ARAMEXModule,
-    FEDEXModule
+    FEDEXModule,
+    BaralModule
   ],
   providers: [
     NetworkPartnerFactoryService,

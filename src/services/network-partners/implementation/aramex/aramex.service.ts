@@ -509,7 +509,7 @@ export class ARAMEXService extends BaseNetworkPartner {
     partnerCode: string,
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
-    this.logger.debug(`Creating Pickup V2 with ARANEX for partner: ${partnerCode}`);
+    this.logger.debug(`Creating Pickup V2 with ARAMEX for partner: ${partnerCode}`);
     const startTime = Date.now();
 
     try {

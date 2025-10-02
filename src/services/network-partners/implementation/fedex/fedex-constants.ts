@@ -75,3 +75,18 @@ export const ACCOUNT_DETAILS = [
         accountNumber: 202956821
     },
 ]
+
+export const PACKAGING_TYPES = [
+    "FEDEX_ENVELOPE",
+    "FEDEX_SMALL_BOX",
+    "FEDEX_MEDIUM_BOX",
+    "FEDEX_LARGE_BOX",
+    "FEDEX_EXTRA_LARGE_BOX",
+    "FEDEX_PAK",
+    "FEDEX_TUBE"
+]
+
+export const FEDEX_SERVICE_TYPE = [
+    "STANDARD_OVERNIGHT",
+    "YOUR_PACKAGING"
+]

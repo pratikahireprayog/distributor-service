@@ -11,7 +11,8 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
 import { EndpointConfigRepository } from "src/common/repositories/endpoint-configs/endpoint-configs.repository";
 import { SchemaMapperService } from "src/infrastructure/schema-mapper";
-import { ACCOUNT_DETAILS, FEDEX_URLS } from "./fedex-constants";
+import { ACCOUNT_DETAILS, FEDEX_URLS, PACKAGING_TYPES } from "./fedex-constants";
+import { FEDEXAuthService } from "./fedex-auth.service";
 
 @Injectable()
 export class FEDEXService extends BaseNetworkPartner {
@@ -21,6 +22,7 @@ export class FEDEXService extends BaseNetworkPartner {
     constructor(
         protected readonly httpService: HttpService,
         private readonly configService: ConfigService,
+        protected readonly authProvider: FEDEXAuthService,
         protected readonly endpointConfigRepository: EndpointConfigRepository,
         protected readonly schemaMapper: SchemaMapperService<any, any>
     ) {
@@ -46,14 +48,18 @@ export class FEDEXService extends BaseNetworkPartner {
         try {
 
             // 1. Transform payload for consolidation
-            const fedexShipment = this.transformToFedexShipment(orderDetails);
+            const fedexShipment = await this.transformToFedexShipment(orderDetails);
 
             // 2. Create Consolidation
-            console.log("FEDEX_URLS.fedexShipment", FEDEX_URLS.CREATE_SHIPMENT, fedexShipment);
+
+            console.log("FEDEX_URLS.fedexShipment", FEDEX_URLS.CREATE_SHIPMENT);
+            console.dir(JSON.stringify(fedexShipment), null);
+
             const response = await this.callFedexPOSTAPI(
                 FEDEX_URLS.CREATE_SHIPMENT,
                 fedexShipment
             );
+            console.log("FEDEX_URLS.fedexShipment response response", response);
 
 
             // 5. Format and return
@@ -80,19 +86,26 @@ export class FEDEXService extends BaseNetworkPartner {
     // ----------------------
     // 2. Transform Order Payload to FedEx Shipment
     // ----------------------
-    private transformToFedexShipment(order: any) {
+    private async transformToFedexShipment(order: any) {
         const shipperAddress = order.addresses.find(a => a.type === 'PICKUP');
         const recipientAddress = order.addresses.find(a => a.type === 'DELIVERY');
         const item = order.parentShipment.items[0];
         const account = this.getAccountNumberForFedex('Mumbai', 'FEDEX (IMP)');
 
+        const shipperCountryCode = await this.fetchAndValidateCountryCode(
+            shipperAddress.zip || shipperAddress.postalCode || ""
+        );
+        const receiverCountryCode = await this.fetchAndValidateCountryCode(
+            recipientAddress.zip || recipientAddress.postalCode || ""
+        );
         return {
             includeBase64document: false,
             openShipmentAction: 'CONFIRM',
             customerTransactionId: `ORDER-${order.orderId}`,
             accountNumber: {
-                value: account || '' //this.configService.get<string>('FEDEX_ACCOUNT_NUMBER'),
+                value: this.configService.get<string>('FEDEX_ACCOUNT_NUMBER'),
             },
+            labelResponseOptions: "URL_ONLY",
             requestedShipment: {
                 serviceType: this.mapServiceType(order.serviceType),
                 shipper: {
@@ -107,7 +120,7 @@ export class FEDEXService extends BaseNetworkPartner {
                         city: shipperAddress.city,
                         postalCode: shipperAddress.zip,
                         stateOrProvinceCode: shipperAddress.state || '',
-                        countryCode: this.mapCountryCode(shipperAddress.country),
+                        countryCode: shipperCountryCode,
                         residential: false,
                     },
                 },
@@ -124,7 +137,7 @@ export class FEDEXService extends BaseNetworkPartner {
                             city: recipientAddress.city,
                             postalCode: recipientAddress.zip,
                             stateOrProvinceCode: recipientAddress.state || '',
-                            countryCode: this.mapCountryCode(recipientAddress.country),
+                            countryCode: receiverCountryCode,
                             residential: false,
                         },
                     },
@@ -136,7 +149,7 @@ export class FEDEXService extends BaseNetworkPartner {
                                 value: this.configService.get<string>('FEDEX_ACCOUNT_NUMBER'),
                             },
                             address: {
-                                countryCode: shipperAddress.country ? this.mapCountryCode(shipperAddress.country) : 'IN',
+                                countryCode: shipperCountryCode,
                             },
                         },
                     },
@@ -151,7 +164,7 @@ export class FEDEXService extends BaseNetworkPartner {
                                     value: this.configService.get<string>('FEDEX_ACCOUNT_NUMBER'),
                                 },
                                 address: {
-                                    countryCode: shipperAddress.country ? this.mapCountryCode(shipperAddress.country) : 'IN',
+                                    countryCode: shipperCountryCode,
                                 },
                             },
                         },
@@ -199,24 +212,16 @@ export class FEDEXService extends BaseNetworkPartner {
                         },
                     ],
                 },
+                packagingType: "YOUR_PACKAGING" //PACKAGING_TYPES.includes(order.productType) ? order.productType : null,
             },
         };
-    }
-
-
-    // ----------------------
-    // 3. Map Country Names to ISO Code (simple example)
-    // ----------------------
-    private mapCountryCode(country: string) {
-        const mapping = { India: 'IN', Korea: 'KR', Germany: 'DE' };
-        return mapping[country] || 'IN';
     }
 
     // ----------------------
     // 4. Map internal service to FedEx service
     // ----------------------
     private mapServiceType(serviceType: string) {
-        const mapping = { FRDM: 'FEDEX_INTERNATIONAL_ECONOMY', PPX: 'FEDEX_PRIORITY' };
+        const mapping = { FRDM: 'INTERNATIONAL_ECONOMY', PPX: 'FEDEX_INTERNATIONAL_PRIORITY' };
         return mapping[serviceType] || 'FEDEX_GROUND';
     }
 
@@ -244,7 +249,7 @@ export class FEDEXService extends BaseNetworkPartner {
     private async callFedexPutAPI(url: string, body: any) {
         const authHeaders = await this.authProvider.getAuthHeaders();
         const response = await firstValueFrom(
-            this.httpService.post(url, body, {
+            this.httpService.put(url, body, {
                 headers: authHeaders,
                 httpsAgent: this.httpsAgent,
                 timeout: 30000,
@@ -262,7 +267,7 @@ export class FEDEXService extends BaseNetworkPartner {
             const endpoint = FEDEX_URLS.CANCEL_SHIPMENT;
             const awbNumber = data.cAwbNumbers?.[0] || '';
             //   const endpoint = {
-            //     url: `${this.configService.get<string>('DHL_BASE_URL')}/cancel/${awbNumber}`
+            //     url: `${this.configService.get<string>('FEDEX_BASE_URL')}/cancel/${awbNumber}`
             //   };
 
             const body = {
@@ -286,15 +291,14 @@ export class FEDEXService extends BaseNetworkPartner {
                     'FEDEX_BASE_URL environment variable is not configured'
                 );
             }
-
             const response = await this.callFedexPutAPI(endpoint, body);
             return {
                 statusCode: 200,
-                message: "Order cancelled successfully with DHL",
+                message: "Order cancelled successfully with FEDEX",
                 data: response.data
             } as R;
         } catch (error) {
-            this.logger.error(`DHL cancelOrder error: ${JSON.stringify(error)}`);
+            this.logger.error(`FEDEX cancelOrder error: ${JSON.stringify(error)}`);
             throw error;
         }
     }
@@ -304,7 +308,7 @@ export class FEDEXService extends BaseNetworkPartner {
         partnerCode: string,
         eligiblePartners?: EligiblePartnersData
     ): Promise<R> {
-        this.logger.debug(`Creating Pickup V2 with DHL for partner: ${partnerCode}`);
+        this.logger.debug(`Creating Pickup V2 with FEDEX for partner: ${partnerCode}`);
         const startTime = Date.now();
 
         try {
@@ -315,7 +319,13 @@ export class FEDEXService extends BaseNetworkPartner {
                     'Pickup data is required'
                 );
             }
+            const associatedAccountNumber = {
+                associatedAccountNumber: {
+                    value: this.configService.get<string>('FEDEX_ACCOUNT_NUMBER'),
+                },
+            };
 
+            data = { ...data, ...associatedAccountNumber };
             // Build the URL from environment variable
             const pickupUrl = FEDEX_URLS.CREATE_PICKUP;
 
@@ -348,6 +358,7 @@ export class FEDEXService extends BaseNetworkPartner {
             };
 
             // Make the API call
+            console.log("data -=====", data);
             const response = await firstValueFrom(
                 this.httpService.post(pickupUrl, data, {
                     headers: requestHeaders,
@@ -362,7 +373,7 @@ export class FEDEXService extends BaseNetworkPartner {
             // Return standardized response matching Shipyaari format
             return {
                 statusCode: 200,
-                message: "Pickup created successfully with DHL",
+                message: "Pickup created successfully with FEDEX",
                 partnerCode: this.partnerCode,
                 data: {
                     success: true,
@@ -380,7 +391,7 @@ export class FEDEXService extends BaseNetworkPartner {
             } as R;
 
         } catch (error) {
-            this.logger.error(`DHL createPickup error: ${JSON.stringify(error)}`);
+            this.logger.error(`FEDEX createPickup error: ${JSON.stringify(error)}`);
             throw error;
         }
     }
@@ -390,7 +401,7 @@ export class FEDEXService extends BaseNetworkPartner {
         partnerCode: string,
         eligiblePartners?: EligiblePartnersData
     ): Promise<R> {
-        this.logger.debug(`Cancelling Pickup V2 with DHL for partner: ${partnerCode}`);
+        this.logger.debug(`Cancelling Pickup V2 with FEDEX for partner: ${partnerCode}`);
         const startTime = Date.now();
 
         try {
@@ -405,13 +416,13 @@ export class FEDEXService extends BaseNetworkPartner {
             const pickupData = data as any;
 
             // Build the URL from environment variable
-            //   const baseUrl = this.configService.get<string>('DHL_EXPRESS_API_URL') || 'https://express.api.dhl.com/mydhlapi/test';
+            //   const baseUrl = this.configService.get<string>('FEDEX_EXPRESS_API_URL') || 'https://express.api.FEDEX.com/myFEDEXapi/test';
             const cancelPickupUrl = FEDEX_URLS.CANCEL_PICKUP;
 
             if (!cancelPickupUrl) {
                 throw new CustomHttpException(
                     HttpStatus.BAD_REQUEST,
-                    'DHL_EXPRESS_API_URL environment variable is not configured'
+                    'FEDEX_EXPRESS_API_URL environment variable is not configured'
                 );
             }
 
@@ -449,7 +460,7 @@ export class FEDEXService extends BaseNetworkPartner {
             // Return standardized response matching Shipyaari format
             return {
                 statusCode: 200,
-                message: "Pickup cancelled successfully with DHL",
+                message: "Pickup cancelled successfully with FEDEX",
                 partnerCode: this.partnerCode,
                 data: {
                     success: true,
@@ -469,6 +480,24 @@ export class FEDEXService extends BaseNetworkPartner {
         } catch (error) {
             this.logger.error(`FEDEX cancelPickup error: ${JSON.stringify(error)}`);
             throw error;
+        }
+    }
+
+    private async fetchAndValidateCountryCode(
+        postalCode: string
+    ): Promise<string> {
+        const geo_url = this.configService.get<string>("GEO_LOCATION_URL");
+        const url = `${geo_url}?&postal_codes=${postalCode}&offset=0&limit=1`;
+        try {
+            const resp = await firstValueFrom(this.httpService.get(url));
+            const data = resp?.data?.data?.[0];
+            const countryCode = data?.country_code?.trim();
+            return countryCode;
+        } catch (err) {
+            throw new CustomHttpException(
+                HttpStatus.BAD_REQUEST,
+                `Failed to fetch geo-location for postal code not CA or US ${postalCode}`
+            );
         }
     }
 

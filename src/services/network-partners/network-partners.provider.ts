@@ -13,9 +13,14 @@ import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.s
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
 import { ARAMEXService } from "./implementation/aramex/aramex.service";
 import { FEDEXService } from "./implementation/fedex/fedex.service";
+import { BaralService } from "./implementation/baral/baral.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.BARAL,
+    useClass: BaralService,
+  },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.BIGSHIP,
     useClass: BigshipService,
@@ -67,8 +72,8 @@ export const networkPartnersProviders: Provider[] = [
       uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner,
       aramexService: ARAMEXService,
-      fedexService: FEDEXService
-
+      fedexService: FEDEXService,
+      baralService: BaralService
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -85,6 +90,7 @@ export const networkPartnersProviders: Provider[] = [
         smileHubopsService
       );
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
+      factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -103,7 +109,8 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
       NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
-      NETWORK_PARTNER_PROVIDER_CONST.FEDEX
+      NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
+      NETWORK_PARTNER_PROVIDER_CONST.BARAL,
     ],
   },
   {
