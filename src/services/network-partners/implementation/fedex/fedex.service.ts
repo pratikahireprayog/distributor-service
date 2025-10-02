@@ -51,16 +51,10 @@ export class FEDEXService extends BaseNetworkPartner {
             const fedexShipment = await this.transformToFedexShipment(orderDetails);
 
             // 2. Create Consolidation
-
-            console.log("FEDEX_URLS.fedexShipment", FEDEX_URLS.CREATE_SHIPMENT);
-            console.dir(JSON.stringify(fedexShipment), null);
-
             const response = await this.callFedexPOSTAPI(
                 FEDEX_URLS.CREATE_SHIPMENT,
                 fedexShipment
             );
-            console.log("FEDEX_URLS.fedexShipment response response", response);
-
 
             // 5. Format and return
             return response.data;
@@ -358,7 +352,6 @@ export class FEDEXService extends BaseNetworkPartner {
             };
 
             // Make the API call
-            console.log("data -=====", data);
             const response = await firstValueFrom(
                 this.httpService.post(pickupUrl, data, {
                     headers: requestHeaders,
