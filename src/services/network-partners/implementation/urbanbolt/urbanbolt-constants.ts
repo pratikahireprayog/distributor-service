@@ -1,10 +1,17 @@
-export const URBANBOLT_API_URLS = {
-  BASE_URL: "https://uat.urbanebolt.in/api/v1",
-  AUTH_TOKEN: "/auth/getToken/",
-  CREATE_MANIFEST: "/services/manifest/",
+// Environment variable keys for UrbanBolt configuration
+export const URBANBOLT_ENV_KEYS = {
+  BASE_URL: 'URBANBOLT_BASE_URL',
+  AUTH_TOKEN_PATH: 'URBANBOLT_AUTH_TOKEN_PATH',
+  CREATE_MANIFEST_PATH: 'URBANBOLT_CREATE_MANIFEST_PATH',
+  USERNAME: 'URBANBOLT_USERNAME',
+  PASSWORD: 'URBANBOLT_PASSWORD',
 } as const;
 
-export const URBANBOLT_AUTH_CONFIG = {
+// Default values if environment variables are not set
+export const URBANBOLT_DEFAULTS = {
+  BASE_URL: "https://uat.urbanebolt.in/api/v1",
+  AUTH_TOKEN_PATH: "/auth/getToken/",
+  CREATE_MANIFEST_PATH: "/services/manifest/",
   USERNAME: "info@urbanebolt.com",
   PASSWORD: "EKIcygsLVV5RCtPZ",
 } as const;

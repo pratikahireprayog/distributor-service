@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import * as https from 'https';
 import { AuthProvider } from '../../interfaces/auth-provider.interface';
-import { URBANBOLT_API_URLS, URBANBOLT_AUTH_CONFIG } from './urbanbolt-constants';
+import { URBANBOLT_ENV_KEYS, URBANBOLT_DEFAULTS } from './urbanbolt-constants';
 import { UrbanBoltAuthRequestDto, UrbanBoltAuthResponseDto } from './urbanbolt.dto';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import { HttpStatus } from '@nestjs/common';
@@ -41,11 +41,13 @@ export class UrbanBoltAuthService implements AuthProvider {
 
   private async authenticate(): Promise<void> {
     try {
-      const authUrl = `${URBANBOLT_API_URLS.BASE_URL}${URBANBOLT_API_URLS.AUTH_TOKEN}`;
+      const baseUrl = this.configService.get<string>(URBANBOLT_ENV_KEYS.BASE_URL, URBANBOLT_DEFAULTS.BASE_URL);
+      const authPath = this.configService.get<string>(URBANBOLT_ENV_KEYS.AUTH_TOKEN_PATH, URBANBOLT_DEFAULTS.AUTH_TOKEN_PATH);
+      const authUrl = `${baseUrl}${authPath}`;
       
       const authRequest: UrbanBoltAuthRequestDto = {
-        username: URBANBOLT_AUTH_CONFIG.USERNAME,
-        password: URBANBOLT_AUTH_CONFIG.PASSWORD,
+        username: this.configService.get<string>(URBANBOLT_ENV_KEYS.USERNAME, URBANBOLT_DEFAULTS.USERNAME),
+        password: this.configService.get<string>(URBANBOLT_ENV_KEYS.PASSWORD, URBANBOLT_DEFAULTS.PASSWORD),
       };
 
       this.logger.log(`Authenticating with UrbanBolt API: ${authUrl}`);

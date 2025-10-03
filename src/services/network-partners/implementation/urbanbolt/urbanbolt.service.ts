@@ -17,7 +17,8 @@ import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 import { AxiosResponse } from "axios";
 import { 
-  URBANBOLT_API_URLS, 
+  URBANBOLT_ENV_KEYS,
+  URBANBOLT_DEFAULTS,
   URBANBOLT_DEFAULT_VALUES,
   URBANBOLT_SERVICE_TYPES,
   URBANBOLT_PAY_MODES,
@@ -64,7 +65,9 @@ export class UrbanBoltService extends BaseNetworkPartner {
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     // Initialize variables outside try block for error handling
-    const manifestUrl = `${URBANBOLT_API_URLS.BASE_URL}${URBANBOLT_API_URLS.CREATE_MANIFEST}`;
+    const baseUrl = this.configService.get<string>(URBANBOLT_ENV_KEYS.BASE_URL, URBANBOLT_DEFAULTS.BASE_URL);
+    const manifestPath = this.configService.get<string>(URBANBOLT_ENV_KEYS.CREATE_MANIFEST_PATH, URBANBOLT_DEFAULTS.CREATE_MANIFEST_PATH);
+    const manifestUrl = `${baseUrl}${manifestPath}`;
     let urbanBoltRequest: UrbanBoltManifestRequestDto;
 
     try {
