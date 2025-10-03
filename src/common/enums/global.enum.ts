@@ -43,6 +43,7 @@ export enum PARTNER_CODE_ENUM {
   SMILE_HUBOPS = "smile_hubops",
   ARAMEX = "ARAMEX",
   BARAL = "BARAL",
+  URBANBOLT = "urbanbolt",
 }
 
 export enum ENDPOINT_ID_ENUM {

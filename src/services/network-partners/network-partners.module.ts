@@ -16,6 +16,7 @@ import { UniuniModule } from "./implementation/uniuni/uniuni.module";
 import { SmileHubopsModule } from "./implementation/smile-hubops/smile-hubops.module";
 import { ARAMEXModule } from "./implementation/aramex/aramex.module";
 import { BaralModule } from "./implementation/baral/baral.module";
+import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
 
 /**
  * Module for network partners
@@ -36,6 +37,7 @@ import { BaralModule } from "./implementation/baral/baral.module";
     SmileHubopsModule,
     ARAMEXModule,
     BaralModule,
+    UrbanBoltModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

@@ -13,6 +13,7 @@ import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.s
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
 import { ARAMEXService } from "./implementation/aramex/aramex.service";
 import { BaralService } from "./implementation/baral/baral.service";
+import { UrbanBoltService } from "./implementation/urbanbolt/urbanbolt.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -53,6 +54,10 @@ export const networkPartnersProviders: Provider[] = [
     useClass: UniuniService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.URBANBOLT,
+    useClass: UrbanBoltService,
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     useClass: DefaultNetworkPartner,
   },
@@ -71,7 +76,8 @@ export const networkPartnersProviders: Provider[] = [
       uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner,
       aramexService: ARAMEXService,
-      baralService: BaralService
+      baralService: BaralService,
+      urbanBoltService: UrbanBoltService
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -87,6 +93,7 @@ export const networkPartnersProviders: Provider[] = [
       );
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
       factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
+      factory.registerPartner(PARTNER_CODE_ENUM.URBANBOLT, urbanBoltService);
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -106,6 +113,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
       NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
       NETWORK_PARTNER_PROVIDER_CONST.BARAL,
+      NETWORK_PARTNER_PROVIDER_CONST.URBANBOLT,
     ],
   },
   {
