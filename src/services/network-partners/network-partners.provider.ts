@@ -12,6 +12,7 @@ import { PorterService } from "./implementation/porter/porter.service";
 import { SmileHubopsService } from "./implementation/smile-hubops/smile-hubops.service";
 import { UniuniService } from "./implementation/uniuni/uniuni.service";
 import { ARAMEXService } from "./implementation/aramex/aramex.service";
+import { FEDEXService } from "./implementation/fedex/fedex.service";
 import { BaralService } from "./implementation/baral/baral.service";
 
 export const networkPartnersProviders: Provider[] = [
@@ -71,6 +72,7 @@ export const networkPartnersProviders: Provider[] = [
       uniuniService: UniuniService,
       defaultNetworkPartner: DefaultNetworkPartner,
       aramexService: ARAMEXService,
+      fedexService: FEDEXService,
       baralService: BaralService
     ) => {
       // Register individual partners
@@ -81,6 +83,8 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
       factory.registerPartner(PARTNER_CODE_ENUM.ARAMEX, aramexService);
+      factory.registerPartner(PARTNER_CODE_ENUM.FEDEX, fedexService);
+
       factory.registerPartner(
         PARTNER_CODE_ENUM.SMILE_HUBOPS,
         smileHubopsService
@@ -105,11 +109,16 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
       NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
       NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
+      NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
       NETWORK_PARTNER_PROVIDER_CONST.BARAL,
     ],
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
     useClass: ARAMEXService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
+    useClass: FEDEXService,
   },
 ];
