@@ -59,6 +59,14 @@ export const networkPartnersProviders: Provider[] = [
     useClass: UrbanBoltService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
+    useClass: ARAMEXService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
+    useClass: FEDEXService,
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.DEFAULT,
     useClass: DefaultNetworkPartner,
   },
@@ -89,7 +97,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
       factory.registerPartner(PARTNER_CODE_ENUM.ARAMEX, aramexService);
-             factory.registerPartner(PARTNER_CODE_ENUM.URBANBOLT, urbanBoltService);
+      factory.registerPartner(PARTNER_CODE_ENUM.URBANBOLT, urbanBoltService);
       factory.registerPartner(PARTNER_CODE_ENUM.FEDEX, fedexService);
 
       factory.registerPartner(
@@ -121,13 +129,5 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
       NETWORK_PARTNER_PROVIDER_CONST.BARAL
     ],
-  },
-  {
-    provide: NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
-    useClass: ARAMEXService,
-  },
-  {
-    provide: NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
-    useClass: FEDEXService,
   },
 ];
