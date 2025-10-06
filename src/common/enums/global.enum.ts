@@ -43,7 +43,7 @@ export enum PARTNER_CODE_ENUM {
   SMILE_HUBOPS = "smile_hubops",
   ARAMEX = "ARAMEX",
   FEDEX = "FEDEX",
-  BARAL = "BARAL",
+  BARAL = "sunil_baral",
   URBANBOLT = "urbanbolt",
 }
 
