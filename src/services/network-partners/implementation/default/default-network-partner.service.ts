@@ -661,7 +661,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         height: order?.dimensions?.height || 0,
         length: order?.dimensions?.length || 0,
         modeOfPayment: order?.paymentDetails?.isCOD ? "COD" : "PREPAID",
-        receiverAddressLine: order?.shippingAddress?.address1 || "",
+        receiverAddressLine1: order?.shippingAddress?.address1 || "",
         receiverCity: order?.shippingAddress?.city || "",
         receiverMobileNumber: parseInt(order?.shippingAddress?.mobile) || 0,
         receiverName: order?.shippingAddress?.name || "",

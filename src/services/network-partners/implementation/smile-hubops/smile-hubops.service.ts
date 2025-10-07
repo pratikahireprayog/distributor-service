@@ -172,7 +172,7 @@ export class SmileHubopsService extends BaseNetworkPartner {
         height: orderV2.parentShipment?.dimensions?.height,
         length: orderV2.parentShipment?.dimensions?.length,
         modeOfPayment: orderV2.payment?.type === "COD" ? "COD" : "PREPAID",
-        receiverAddressLine: deliveryAddress?.street || "",
+        receiverAddressLine1: deliveryAddress?.street || "",
         receiverCity: deliveryAddress?.city || "",
         receiverMobileNumber: parseInt(deliveryAddress?.phone || "0"),
         receiverName: deliveryAddress?.name || "",
