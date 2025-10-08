@@ -104,7 +104,7 @@ export class BaralService extends BaseNetworkPartner {
             ],
             documents: [
               {
-                content: response.data?.pdfdownload || response.data?.Response?.pdfdownload || "",
+                content: response.data?.Pdfdownload || response.data?.Response?.Pdfdownload || "",
                 type: "label",
                 format: "PDF",
               },
