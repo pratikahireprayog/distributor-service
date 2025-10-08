@@ -19,6 +19,8 @@ import {
 import { SOURCE_CONST } from "src/common/constants";
 import { BaseNetworkPartnerHelper } from "../../base/base-network-partner-helper.service";
 import { OrderCalculationUtils } from "src/common/utils";
+import { AwbSeriesService } from "./awb-series.service";
+import { ShipmentDetailsDto } from "src/common/dtos/base.dto";
 
 /**
  * SmileHubops Service for handling V2 orders that need to be pushed to HubOps
@@ -33,7 +35,8 @@ export class SmileHubopsService extends BaseNetworkPartner {
     protected readonly httpService: HttpService,
     protected readonly endpointConfigRepository: EndpointConfigRepository,
     protected readonly schemaMapper: SchemaMapperService<any, any>,
-    private readonly baseNetworkPartnerHelper: BaseNetworkPartnerHelper
+    private readonly baseNetworkPartnerHelper: BaseNetworkPartnerHelper,
+    private readonly awbSeriesService: AwbSeriesService
   ) {
     super(
       PARTNER_CODE_ENUM.SMILE_HUBOPS,
@@ -91,15 +94,79 @@ export class SmileHubopsService extends BaseNetworkPartner {
           `HubOps V2 API returned error but continuing as success (PATCHWORK): ${JSON.stringify(originalResponse)}`
         );
 
-        // Return success response with the original error data intact
+        // Return success response with the original error data intact (NO series assignment on failure)
         return this.createSuccessResponse<R>(
           response.data, // Keep original response structure with error details
           "V2 Order processed for HubOps (with API errors - patchwork fix)"
         );
       }
 
+      // SUCCESS - Now assign AWB numbers from series if enabled
+      const trackingDetails: ShipmentDetailsDto[] = [];
+
+      if (orderDetails.assignAWBFromSeries === true) {
+        this.logger.log(
+          `HubOps API successful - Now assigning AWB from series for order: ${orderDetails.orderId}`
+        );
+
+        // Assign AWB for parent shipment
+        const parentPartnerAwb = await this.awbSeriesService.getNextAwbNumber(
+          PARTNER_CODE_ENUM.SMILE_HUBOPS,
+          orderDetails.orderId,
+          "parent",
+          orderDetails.parentShipment?.awbNumber || orderDetails.awbNumber
+        );
+
+        trackingDetails.push({
+          awbNumber:
+            orderDetails.parentShipment?.awbNumber || orderDetails.awbNumber,
+          partnerAwbNumber: parentPartnerAwb,
+          partnerName: PARTNER_CODE_ENUM.SMILE_HUBOPS,
+          transporterId: "",
+        });
+
+        this.logger.log(
+          `Assigned parent AWB: ${parentPartnerAwb} for ${orderDetails.parentShipment?.awbNumber}`
+        );
+
+        // Assign AWB for child shipments if any
+        if (
+          orderDetails.childShipments &&
+          orderDetails.childShipments.length > 0
+        ) {
+          for (const childShipment of orderDetails.childShipments) {
+            const childPartnerAwb =
+              await this.awbSeriesService.getNextAwbNumber(
+                PARTNER_CODE_ENUM.SMILE_HUBOPS,
+                orderDetails.orderId,
+                "child",
+                childShipment.awbNumber
+              );
+
+            trackingDetails.push({
+              awbNumber: childShipment.awbNumber,
+              partnerAwbNumber: childPartnerAwb,
+              partnerName: PARTNER_CODE_ENUM.SMILE_HUBOPS,
+              transporterId: "",
+            });
+
+            this.logger.log(
+              `Assigned child AWB: ${childPartnerAwb} for ${childShipment.awbNumber}`
+            );
+          }
+        }
+      }
+
+      // Add tracking details to successful response
+      const responseData = {
+        ...response.data,
+        ...(trackingDetails.length > 0 && {
+          shipmentDetails: { trackingDetails },
+        }),
+      };
+
       return this.createSuccessResponse<R>(
-        response.data,
+        responseData,
         "V2 Order successfully pushed to HubOps"
       );
     } catch (error) {

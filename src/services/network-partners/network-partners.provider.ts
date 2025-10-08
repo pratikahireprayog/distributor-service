@@ -48,7 +48,7 @@ export const networkPartnersProviders: Provider[] = [
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.SMILE_HUBOPS,
-    useClass: SmileHubopsService,
+    useExisting: SmileHubopsService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.UNIUNI,
@@ -94,7 +94,10 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.TSAW, tsawService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPYAARI, shipyaariService);
       factory.registerPartner(PARTNER_CODE_ENUM.DHL, dhlService);
-      factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HYPERLOCAL, smileHyperlocalService);
+      factory.registerPartner(
+        PARTNER_CODE_ENUM.SMILE_HYPERLOCAL,
+        smileHyperlocalService
+      );
       factory.registerPartner(PARTNER_CODE_ENUM.PORTER, porterService);
       factory.registerPartner(PARTNER_CODE_ENUM.ARAMEX, aramexService);
       factory.registerPartner(PARTNER_CODE_ENUM.URBANBOLT, urbanBoltService);
@@ -106,7 +109,6 @@ export const networkPartnersProviders: Provider[] = [
       );
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
       factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
-      
 
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
@@ -127,7 +129,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.ARAMEX,
       NETWORK_PARTNER_PROVIDER_CONST.URBANBOLT,
       NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
-      NETWORK_PARTNER_PROVIDER_CONST.BARAL
+      NETWORK_PARTNER_PROVIDER_CONST.BARAL,
     ],
   },
 ];

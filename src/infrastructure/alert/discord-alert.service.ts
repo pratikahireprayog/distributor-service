@@ -215,4 +215,81 @@ export class DiscordAlertService {
       },
     });
   }
+
+  async sendAwbSeriesAlert(payload: {
+    partnerCode: string;
+    orderId: string;
+    alertType: string;
+    threshold?: number;
+    consumptionPercentage?: number;
+    currentCounter?: number;
+    seriesStart?: number;
+    seriesEnd?: number;
+    remaining?: number;
+    message: string;
+    severity: "info" | "warning" | "error" | "critical";
+  }): Promise<void> {
+    this.logger.log(
+      `🚨 Sending AWB Series Alert for ${payload.partnerCode} - ${payload.alertType}`
+    );
+
+    try {
+      const alertService = new AlertNotificationService();
+
+      // Determine status code based on severity
+      const statusMap = {
+        info: 200,
+        warning: 400,
+        error: 500,
+        critical: 503,
+      };
+
+      const discordPayload = {
+        channel: { discord: {} },
+        traceId: `awb-series-${Date.now()}`,
+        metaData: {
+          service: "Distributor-Service",
+          version: "1.0.0",
+          environment: process.env.NODE_ENV || "development",
+        },
+        error: {
+          status: statusMap[payload.severity],
+          statusText: `AWB Series Alert - ${payload.alertType}`,
+          message: payload.message,
+          endpoint: "/awb-series/assignment",
+          method: "POST",
+          timestamp: new Date().toISOString(),
+          requestId: payload.orderId,
+          additionalInfo: {
+            partnerCode: payload.partnerCode,
+            orderId: payload.orderId,
+            alertType: payload.alertType,
+            threshold: payload.threshold,
+            consumptionPercentage: payload.consumptionPercentage,
+            currentCounter: payload.currentCounter,
+            seriesStart: payload.seriesStart,
+            seriesEnd: payload.seriesEnd,
+            remaining: payload.remaining,
+            severity: payload.severity,
+          },
+        },
+      };
+
+      this.logger.log(
+        `📤 Sending AWB Series Discord alert: ${JSON.stringify(discordPayload, null, 2)}`
+      );
+
+      const result = await alertService.sendToDiscord(discordPayload);
+      this.logger.log(`🔄 Discord API response: ${JSON.stringify(result)}`);
+
+      this.logger.log(
+        `✅ AWB Series alert sent successfully for ${payload.partnerCode}`
+      );
+    } catch (alertError) {
+      this.logger.error(
+        `❌ Failed to send AWB Series alert for ${payload.partnerCode}: ${alertError.message}`
+      );
+      this.logger.error(`Alert error stack: ${alertError.stack}`);
+    }
+  }
 }

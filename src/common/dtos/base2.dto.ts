@@ -449,8 +449,6 @@ export class BaseCancelOrderDtoV2 {
   @IsNotEmpty()
   cancelReason: string;
 
-  
-
   @IsArray()
   @IsString({ each: true })
   @IsNotEmpty({ message: "C-AWB numbers are required" })
@@ -529,7 +527,6 @@ export class BaseUpdateOrderDtoV2 {
   payment?: PaymentDto;
 }
 
-
 export class BaseOrderReqDtoV2 extends BaseReqDto {
   @IsString()
   orderId: string;
@@ -540,6 +537,10 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   @IsOptional()
   @IsBoolean()
   mcn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  assignAWBFromSeries?: boolean;
 
   @IsString()
   parcelCategory: string;
