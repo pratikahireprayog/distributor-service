@@ -102,6 +102,13 @@ export class BaralService extends BaseNetworkPartner {
                 transporterId: "BARAL",
               },
             ],
+            documents: [
+              {
+                content: response.data?.pdfdownload || response.data?.Response?.pdfdownload || "",
+                type: "label",
+                format: "PDF",
+              },
+            ],
           },
         },
       } as unknown as R;
