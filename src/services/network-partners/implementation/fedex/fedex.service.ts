@@ -177,9 +177,8 @@ export class FEDEXService extends BaseNetworkPartner {
                     })),
                 },
                 labelSpecification: {
-                    labelFormatType: 'COMMON2D',
-                    imageType: 'PDF',
                     labelStockType: 'PAPER_LETTER',
+                    imageType: 'PDF',
                 },
                 pickupType: 'USE_SCHEDULED_PICKUP',
                 requestedPackageLineItems: order.parentShipment.items.map(i => ({
