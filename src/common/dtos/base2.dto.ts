@@ -536,11 +536,11 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
 
   @IsOptional()
   @IsBoolean()
-  mcn?: boolean;
+  mcn?: boolean = false;
 
   @IsOptional()
   @IsBoolean()
-  assignAWBFromSeries?: boolean;
+  assignAWBFromSeries?: boolean = false;
 
   @IsString()
   parcelCategory: string;
