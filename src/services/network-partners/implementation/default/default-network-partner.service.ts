@@ -547,7 +547,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       cAWB_No: data.cAwbNumber || data.awbNumber,
       AWB_No: data.awbNumber,
       created_at: data.orderCreatedDate,
-      isMcn:data.mcn,
+      isMcn: data.mcn,
       payload: {
         cAWB_No: data.cAwbNumber || data.awbNumber,
         deliveryDetails: {
@@ -566,7 +566,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         width: data.dimensions?.breadth || 0,
         height: data.dimensions?.height || 0,
       },
-      shipmentType: data.type,
+      shipmentType: data?.type?.toUpperCase(),
       shippingType: data.shippingType,
       shipmentStatus: data.orderStatus,
       source: "ORCHESTRATION",
