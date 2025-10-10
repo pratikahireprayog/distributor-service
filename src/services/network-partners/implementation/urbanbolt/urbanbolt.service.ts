@@ -333,13 +333,23 @@ export class UrbanBoltService extends BaseNetworkPartner {
     // Extract key fields from UrbanBolt response
     const primaryAwbNumber = successResponse?.trackingId || successResponse?.awbNumber || "";
     const referenceNumber = originalOrder?.orderId || "";
-    const labelUrl = successResponse?.data?.labelUrl || "";
+    const shippingLabelUrl = successResponse?.shippingLabel || "";
 
     // Enhanced mapping for V2 orders with multiple shipments (matching DHL)
     const shipmentDetails = this.createShipmentDetailsV2Mapping(
       successResponse,
       originalOrder
     );
+
+    // Prepare documents array with shipping label if available
+    const documents = [];
+    if (shippingLabelUrl) {
+      documents.push({
+        type: "label",
+        format: "PDF",
+        content: shippingLabelUrl,
+      });
+    }
 
     return {
       statusCode: 200,
@@ -354,7 +364,7 @@ export class UrbanBoltService extends BaseNetworkPartner {
         requestBody: requestBody,
         shipmentDetails: {
           trackingDetails: shipmentDetails,
-          documents: [] // UrbanBolt doesn't provide documents in response
+          documents: documents
         }
       },
       trace: {

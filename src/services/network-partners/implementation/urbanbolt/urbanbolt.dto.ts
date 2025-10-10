@@ -220,6 +220,14 @@ export class UrbanBoltSuccessResponseDto {
   @IsOptional()
   awbNumber?: string;
 
+  @IsString()
+  @IsOptional()
+  routeCode?: string;
+
+  @IsString()
+  @IsOptional()
+  shippingLabel?: string;
+
   @IsOptional()
   data?: any;
 }
