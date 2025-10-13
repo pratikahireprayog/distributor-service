@@ -18,6 +18,7 @@ import { ARAMEXModule } from "./implementation/aramex/aramex.module";
 import { FEDEXModule } from "./implementation/fedex/fedex.module";
 import { BaralModule } from "./implementation/baral/baral.module";
 import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
+import { SHIPCUBEModule } from "./implementation/shipcube/shipcube.module";
 
 /**
  * Module for network partners
@@ -39,7 +40,8 @@ import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
     ARAMEXModule,
     UrbanBoltModule,
     FEDEXModule,
-    BaralModule
+    BaralModule,
+    SHIPCUBEModule
   ],
   providers: [
     NetworkPartnerFactoryService,
