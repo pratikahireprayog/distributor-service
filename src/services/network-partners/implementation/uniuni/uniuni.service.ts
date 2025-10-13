@@ -158,6 +158,8 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
   private async transformCreateUniuniPayload(orderDetails: any): Promise<any> {
     try {
       this.logger.debug(`Transforming payload for UNIUNI order: ${orderDetails.orderId}`);
+      
+      // Validate required addresses
       const pickupAddress = orderDetails.addresses.find(addr => addr.type === 'PICKUP');
       const deliveryAddress = orderDetails.addresses.find(addr => addr.type === 'DELIVERY');
 
@@ -165,28 +167,14 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
         throw new Error('Both pickup and delivery addresses are required');
       }
 
-      const transformedData = {
-        customer_no: 2821,
-        reference: orderDetails.referenceId || orderDetails.orderId,
-        trace_no: orderDetails.orderId,
-        pickup_address: `${pickupAddress.street}, ${pickupAddress.city}`,
-        delivery_address: `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state}, ${deliveryAddress.country}`,
-        postal_code: deliveryAddress.zip,
-        receiver: deliveryAddress.name,
-        delivery_unit_no: deliveryAddress.landmark || '',
-        receiver_phone: deliveryAddress.phone,
-        receiver_email: deliveryAddress.email,
-        length: orderDetails.parentShipment?.dimensions?.length || 0,
-        width: orderDetails.parentShipment?.dimensions?.width || 0,
-        height: orderDetails.parentShipment?.dimensions?.height || 0,
-        weight: orderDetails.parentShipment?.physicalWeight || 0,
-        weight_uom: 'LBS',
-        dimension_uom: 'IN',
-        buzz_code: orderDetails.referenceId || orderDetails.orderId,
-        require_signature: false,
-        start_postal_code: pickupAddress.zip,
-        pickup_warehouse: ''
-      };
+      // Load schema mapping configuration
+      const schemaConfig = require('./uniuni-create-order-schema-config.json');
+      
+      // Use schema mapper to transform payload
+      const transformedData = this.schemaMapper.map(orderDetails, schemaConfig);
+      
+      // Handle complex warehouse mapping logic
+      transformedData.pickup_warehouse = this.getWarehouseId(pickupAddress);
       
       this.logger.debug(`Transformed payload for UNIUNI: ${JSON.stringify(transformedData)}`);
       return transformedData;
@@ -197,6 +185,20 @@ export class UniuniService extends BaseNetworkPartner implements INetworkPartner
         `Failed to transform payload for UNIUNI: ${error.message}`
       );
     }
+  }
+
+  private getWarehouseId(pickupAddress: any): number {
+    const warehouseMap: Record<string, number> = {
+      'LAX': 1, 'MIA': 2, 'ORD': 3, 'DFW': 4, 'SJC': 12,
+      'JFK': 17, 'EWR': 18, 'IAH': 19, 'DCA': 26, 'SEA': 27,
+      'ATL': 31, 'CVG': 33, 'CLT': 34, 'RDU': 35, 'BOS': 39,
+      'SLC': 41, 'DEN': 42, 'BUF': 45
+    };
+    
+    const airport = (pickupAddress.addressName || pickupAddress.city || '').toUpperCase();
+    const airportCode = Object.keys(warehouseMap).find(code => airport.includes(code));
+    
+    return airportCode ? warehouseMap[airportCode] : 1;
   }
 
   private async callUniuniCreateOrderAPI(transformedData: any): Promise<any> {

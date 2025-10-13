@@ -1,0 +1,184 @@
+{
+  "fields": [
+    {
+      "sources": "",
+      "destination": "customer_no",
+      "defaultValue": 2821,
+      "transform": "2821"
+    },
+    {
+      "sources": "referenceId",
+      "destination": "reference",
+      "transform": "value || ''"
+    },
+    {
+      "sources": "",
+      "destination": "trace_no",
+      "defaultValue": ""
+    },
+    {
+      "sources": "",
+      "destination": "bag_no",
+      "defaultValue": ""
+    },
+    {
+      "sources": "orderId",
+      "destination": "internal_account_number",
+      "transform": "value || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "sender",
+      "transform": "(value) => (value.find(a => a.type === 'PICKUP') || {}).name || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "start_phone",
+      "transform": "(value) => (value.find(a => a.type === 'PICKUP') || {}).phone || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "start_postal_code",
+      "transform": "(value) => (value.find(a => a.type === 'PICKUP') || {}).zip || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "pickup_address",
+      "transform": "(value) => (value.find(a => a.type === 'PICKUP') || {}).street + ((value.find(a => a.type === 'PICKUP') || {}).landmark ? ', ' + (value.find(a => a.type === 'PICKUP') || {}).landmark : '')"
+    },
+    {
+      "sources": "",
+      "destination": "pickup_warehouse",
+      "defaultValue": 1
+    },
+    {
+      "sources": "addresses",
+      "destination": "shipper_country_code",
+      "transform": "(value) => (value.find(a => a.type === 'PICKUP') || {}).countryCode || (value.find(a => a.type === 'PICKUP') || {}).country || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "receiver",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).name || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "city",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).city || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "province",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).state || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "country",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).countryCode || (value.find(a => a.type === 'DELIVERY') || {}).country || ''"
+    },
+    {
+      "sources": "",
+      "destination": "address_type",
+      "defaultValue": 1,
+      "transform": "1"
+    },
+    {
+      "sources": "addresses",
+      "destination": "postal_code",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).zip || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "delivery_address",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).street + ((value.find(a => a.type === 'DELIVERY') || {}).city ? ', ' + (value.find(a => a.type === 'DELIVERY') || {}).city : '')"
+    },
+    {
+      "sources": "addresses",
+      "destination": "delivery_unit_no",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).landmark || ''"
+    },
+    {
+      "sources": "",
+      "destination": "buzz_code",
+      "defaultValue": ""
+    },
+    {
+      "sources": "addresses",
+      "destination": "receiver_phone",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).phone || ''"
+    },
+    {
+      "sources": "addresses",
+      "destination": "receiver_email",
+      "transform": "(value) => (value.find(a => a.type === 'DELIVERY') || {}).email || ''"
+    },
+    {
+      "sources": "parentShipment.dimensions.length",
+      "destination": "length",
+      "transform": "parseFloat(value) || 0"
+    },
+    {
+      "sources": "parentShipment.dimensions.width",
+      "destination": "width",
+      "transform": "parseFloat(value) || 0"
+    },
+    {
+      "sources": "parentShipment.dimensions.height",
+      "destination": "height",
+      "transform": "parseFloat(value) || 0"
+    },
+    {
+      "sources": "",
+      "destination": "dimension_uom",
+      "defaultValue": "IN",
+      "transform": "'IN'"
+    },
+    {
+      "sources": "parentShipment.physicalWeight",
+      "destination": "weight",
+      "transform": "parseFloat(value) || 0"
+    },
+    {
+      "sources": "",
+      "destination": "weight_uom",
+      "defaultValue": "LBS",
+      "transform": "'LBS'"
+    },
+    {
+      "sources": "payment.finalAmount",
+      "destination": "total_value",
+      "transform": "parseFloat(value) || 0"
+    },
+    {
+      "sources": "payment.currency",
+      "destination": "currency",
+      "transform": "value || 'USD'"
+    },
+    {
+      "sources": "parentShipment.items",
+      "destination": "item_description",
+      "transform": "(value) => (value && Array.isArray(value)) ? value.map(item => item.description || item.name || '').filter(d => d).join(', ') : ''"
+    },
+    {
+      "sources": "parentShipment.note",
+      "destination": "driver_notes",
+      "transform": "value || ''"
+    },
+    {
+      "sources": "",
+      "destination": "danger_type",
+      "defaultValue": ""
+    },
+    {
+      "sources": "",
+      "destination": "require_signature",
+      "defaultValue": 0,
+      "transform": "0"
+    },
+    {
+      "sources": "",
+      "destination": "custom_field",
+      "defaultValue": null
+    }
+  ]
+}
