@@ -125,6 +125,97 @@ export class BaralService extends BaseNetworkPartner {
     const pickup = order.addresses.find((a) => a.type === "PICKUP");
     const delivery = order.addresses.find((a) => a.type === "DELIVERY");
 
+    // Calculate total pieces (parent + children count)
+    const totalPieces = 1 + (order.childShipments?.length || 0);
+
+    // Calculate combined weight - use volumetric if physical is 0
+    const getEffectiveWeight = (physicalWeight: number, volumetricWeight: number): number => {
+      return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 0);
+    };
+
+    const parentWeight = getEffectiveWeight(
+      order.parentShipment?.physicalWeight || 0,
+      order.parentShipment?.volumetricWeight || 0
+    );
+
+    const childrenWeight = (order.childShipments || []).reduce((sum, child) => {
+      return sum + getEffectiveWeight(child.physicalWeight || 0, child.volumetricWeight || 0);
+    }, 0);
+
+    const totalWeight = parentWeight + childrenWeight;
+
+    // Build Dimensions array with parent and child shipments
+    const dimensions = [];
+    
+    // Add parent shipment dimensions
+    if (order.parentShipment) {
+      dimensions.push({
+        ActualWeight: String(getEffectiveWeight(
+          order.parentShipment.physicalWeight || 0,
+          order.parentShipment.volumetricWeight || 0
+        ) || 1),
+        Vol_WeightL: String(order.parentShipment.dimensions?.length || 10),
+        Vol_WeightW: String(order.parentShipment.dimensions?.width || 10),
+        Vol_WeightH: String(order.parentShipment.dimensions?.height || 10),
+      });
+    }
+
+    // Add child shipments dimensions
+    (order.childShipments || []).forEach((child) => {
+      dimensions.push({
+        ActualWeight: String(getEffectiveWeight(
+          child.physicalWeight || 0,
+          child.volumetricWeight || 0
+        ) || 1),
+        Vol_WeightL: String(child.dimensions?.length || 10),
+        Vol_WeightW: String(child.dimensions?.width || 10),
+        Vol_WeightH: String(child.dimensions?.height || 10),
+      });
+    });
+
+    // Build Performa array with parent and child shipments (not items)
+    const performa = [];
+    
+    // Add parent shipment to Performa
+    if (order.parentShipment) {
+      performa.push({
+        BoxNo: `Parent-${order.parentShipment.awbNumber || 'Shipment'}`,
+        Description: order.parentShipment.items?.[0]?.description || 
+                     order.parentShipment.items?.[0]?.name || 
+                     order.parentShipment.note || 
+                     'Parent Shipment',
+        HSNCode: order.parentShipment.items?.[0]?.hsnCode || "",
+        Quantity: String(order.parentShipment.items?.length || 1),
+        Unit: "PCS",
+        Weight: String(getEffectiveWeight(
+          order.parentShipment.physicalWeight || 0,
+          order.parentShipment.volumetricWeight || 0
+        ) || 1),
+        Rate: String(order.parentShipment.items?.[0]?.unitPrice || 0),
+        Amount: String(order.payment?.finalAmount || 0),
+      });
+    }
+
+    // Add child shipments to Performa
+    (order.childShipments || []).forEach((child, idx) => {
+      performa.push({
+        BoxNo: `Child-${child.awbNumber || (idx + 1)}`,
+        Description: child.items?.[0]?.description || 
+                     child.items?.[0]?.name || 
+                     child.note || 
+                     `Child Shipment ${idx + 1}`,
+        HSNCode: child.items?.[0]?.hsnCode || "",
+        Quantity: String(child.items?.length || 1),
+        Unit: "PCS",
+        Weight: String(getEffectiveWeight(
+          child.physicalWeight || 0,
+          child.volumetricWeight || 0
+        ) || 1),
+        Rate: String(child.items?.[0]?.unitPrice || 0),
+        Amount: String((child.items?.[0]?.unitPrice || 0) * (child.items?.[0]?.quantity || 1)),
+      });
+    });
+
     return {
       UserID: this.configService.get<string>("BARAL_USER_ID", "100"),
       Password: this.configService.get<string>("BARAL_PASSWORD", "100@829"),
@@ -163,8 +254,8 @@ export class BaralService extends BaseNetworkPartner {
       ServiceName: this.configService.get<string>("BARAL_SERVICE", "SELF"),
       ProductCode: this.configService.get<string>("BARAL_PRODUCT", "SREV"),
       Dox_Spx: this.configService.get<string>("BARAL_DOX_SPX", "SPX"),
-      Pieces: String(order.childShipments?.length || 1),
-      Weight: String(order.parentShipment?.physicalWeight || 1),
+      Pieces: String(totalPieces),
+      Weight: String(totalWeight || 1),
       Content: order.parentShipment?.items?.[0]?.description || order.parentShipment?.items?.[0]?.name || "",
       Currency: this.configService.get<string>("BARAL_CURRENCY", "INR"),
       ShipmentValue: String(order.payment?.finalAmount || 0),
@@ -175,22 +266,8 @@ export class BaralService extends BaseNetworkPartner {
       InvoiceNo: this.configService.get<string>("BARAL_INVOICE_NO", ""),
       InvoiceDate: this.configService.get<string>("BARAL_INVOICE_DATE", "15/02/2021"),
       CompanyCode: this.configService.get<string>("BARAL_COMPANY_CODE", "BRL"),
-      Dimensions: (order.childShipments || []).map((c) => ({
-        ActualWeight: String(c.physicalWeight || 1),
-        Vol_WeightL: String(c.dimensions?.length || 10),
-        Vol_WeightW: String(c.dimensions?.width || 10),
-        Vol_WeightH: String(c.dimensions?.height || 10),
-      })),
-      Performa: (order.parentShipment?.items || []).map((it, idx) => ({
-        BoxNo: `Box-${idx + 1}`,
-        Description: it.description || it.name,
-        HSNCode: it.hsnCode || "",
-        Quantity: String(it.quantity || 1),
-        Unit: "PCS",
-        Weight: String(it.weight || 1),
-        Rate: String(it.unitPrice || 0),
-        Amount: String((it.unitPrice || 0) * (it.quantity || 1)),
-      })),
+      Dimensions: dimensions,
+      Performa: performa,
     };
   }
 
