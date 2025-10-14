@@ -281,8 +281,12 @@ export class XpressbeesService implements INetworkPartner {
 
     this.logger.debug(`Effective weight calculated: ${effectiveWeight}, Order amount: ${orderAmount}, Shipping: ${shippingCharges}`);
     
+    // Use our AWB number as the order reference on the label
+    const ourAwbNumber = order.awbNumber || order.parentShipment?.awbNumber || order.orderId;
+    this.logger.log(`Using AWB number for label Order No: ${ourAwbNumber}`);
+    
     return {
-      id: String(order.orderId || (order.parentShipment as any)?.id || Date.now()),
+      id: String(ourAwbNumber),
       unique_order_number: 'yes',
       payment_method: paymentMethod,
       consigner_name: pickup.name || '',
