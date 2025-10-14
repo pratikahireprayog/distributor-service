@@ -133,7 +133,7 @@ export class XpressbeesService implements INetworkPartner {
               {
                 content: labelUrl,
                 type: 'label',
-                format: 'PDF',
+                format: 's3link',
               },
             ],
           },
