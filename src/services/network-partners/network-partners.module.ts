@@ -20,6 +20,7 @@ import { BaralModule } from "./implementation/baral/baral.module";
 import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
 import { SHIPCUBEModule } from "./implementation/shipcube/shipcube.module";
 import { XpressbeesModule } from "./implementation/xpressbees/xpressbees.module";
+import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/india-post-domestic.module";
 
 /**
  * Module for network partners
@@ -43,7 +44,8 @@ import { XpressbeesModule } from "./implementation/xpressbees/xpressbees.module"
     FEDEXModule,
     BaralModule,
     SHIPCUBEModule,
-    XpressbeesModule
+    XpressbeesModule,
+    IndiaPostDomesticModule,
   ],
   providers: [
     NetworkPartnerFactoryService,
@@ -52,4 +54,4 @@ import { XpressbeesModule } from "./implementation/xpressbees/xpressbees.module"
   ],
   exports: [NetworkPartnerFactoryService, SchemaMapperService],
 })
-export class NetworkPartnersModule { }
+export class NetworkPartnersModule {}
