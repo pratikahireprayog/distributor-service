@@ -63,13 +63,22 @@ export class XpressbeesCreateOrderRequestDto {
 
 // Create Order Response DTO
 export class XpressbeesCreateOrderResponseDto {
-  status: number;
-  message: string;
+  response?: boolean;
+  status?: number;
+  message?: string;
+  shipping_id?: number;
+  awb_number?: string;
+  courier_id?: string;
+  courier_name?: string;
+  fwd_destination_code?: string;
+  label?: string;
+  // Also support nested structure for compatibility
   data?: {
     awb_number?: string;
     order_id?: string;
     tracking_number?: string;
     label_url?: string;
+    label?: string;
   };
 }
 

@@ -91,19 +91,26 @@ export class XpressbeesService implements INetworkPartner {
       }
 
       const responseData = response.data;
-      const responseDataAny = responseData as any;
 
-      // Extract AWB number from response - prioritize awb_number from originalResponse
+      // Extract AWB number from response
       const partnerAwbNumber =
-        responseDataAny?.awb_number ||
+        responseData?.awb_number ||
         responseData?.data?.awb_number ||
         responseData?.data?.order_id ||
         responseData?.data?.tracking_number ||
-        responseDataAny?.order_id ||
         '';
 
       this.logger.log(`Partner AWB Number extracted: ${partnerAwbNumber}`);
+      
+      // Extract label URL from response - similar to Baral
+      const labelUrl = 
+        responseData?.label ||              // Xpressbees returns in "label" field at root level
+        responseData?.data?.label ||        // Or nested in data
+        responseData?.data?.label_url ||    // Or as label_url in data
+        '';
+
       this.logger.debug(`Response structure: ${JSON.stringify(responseData)}`);
+      this.logger.log(`Label URL extracted: ${labelUrl}`);
 
       return {
         statusCode: 200,
@@ -117,20 +124,18 @@ export class XpressbeesService implements INetworkPartner {
             trackingDetails: [
               {
                 awbNumber: orderDetails.parentShipment?.awbNumber || orderDetails.awbNumber,
-                partnerAwbNumber: partnerAwbNumber, // This is from originalResponse.awb_number
+                partnerAwbNumber: partnerAwbNumber,
                 partnerName: PARTNER_CODE_ENUM.XPRESSBEES,
                 transporterId: 'XPRESSBEES',
               },
             ],
-            documents: responseData?.data?.label_url || responseDataAny?.label_url
-              ? [
-                  {
-                    content: responseData?.data?.label_url || responseDataAny?.label_url,
-                    type: 'label',
-                    format: 'PDF',
-                  },
-                ]
-              : [],
+            documents: [
+              {
+                content: labelUrl,
+                type: 'label',
+                format: 'PDF',
+              },
+            ],
           },
         },
       } as unknown as R;
