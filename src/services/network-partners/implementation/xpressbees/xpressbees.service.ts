@@ -60,7 +60,7 @@ export class XpressbeesService implements INetworkPartner {
       const authHeaders = await this.xpressbeesAuthService.getAuthHeaders();
 
       this.logger.log(`Creating order with Xpressbees: ${url}`);
-      this.logger.debug(`Request payload: ${JSON.stringify(payload)}`);
+      this.logger.debug(`Request payload: ${JSON.stringify(payload, null, 2)}`);
 
       const response = await firstValueFrom(
         this.httpService.post<XpressbeesCreateOrderResponseDto>(url, payload, {
@@ -75,10 +75,19 @@ export class XpressbeesService implements INetworkPartner {
       // Check response status
       if (response.status !== 200 && response.status !== 201) {
         this.logger.error(`Xpressbees API returned status ${response.status}`, response.data);
-        throw new CustomHttpException(
-          HttpStatus.BAD_GATEWAY,
-          `Xpressbees API returned status ${response.status}: ${JSON.stringify(response.data)}`
-        );
+        
+        // Return error in same format as success for debugging
+        return {
+          statusCode: response.status,
+          message: `Xpressbees API returned error: ${response.data?.message || JSON.stringify(response.data)}`,
+          partnerCode: PARTNER_CODE_ENUM.XPRESSBEES,
+          data: {
+            originalResponse: response.data,
+            requestUrl: url,
+            requestBody: payload,
+            error: true,
+          },
+        } as unknown as R;
       }
 
       const responseData = response.data;
@@ -127,9 +136,34 @@ export class XpressbeesService implements INetworkPartner {
       } as unknown as R;
     } catch (error) {
       this.logger.error(`Xpressbees createOrderV2 failed: ${error.message}`, error.stack);
+      
+      // Try to include request details in error response
+      const baseUrl = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.BASE_URL,
+        XPRESSBEES_DEFAULTS.BASE_URL
+      );
+      const createOrderPath = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.CREATE_ORDER_PATH,
+        XPRESSBEES_DEFAULTS.CREATE_ORDER_PATH
+      );
+      const url = `${baseUrl}${createOrderPath}`;
+      
+      let payload = null;
+      try {
+        payload = this.transformToXpressbeesPayload(orderDetails);
+      } catch (transformError) {
+        this.logger.error(`Failed to transform payload for error response: ${transformError.message}`);
+      }
+      
       throw new CustomHttpException(
         HttpStatus.INTERNAL_SERVER_ERROR,
-        `Xpressbees createOrderV2 failed: ${error.message}`
+        `Xpressbees createOrderV2 failed: ${error.message}`,
+        {
+          requestUrl: url,
+          requestBody: payload,
+          error: error.message,
+          stack: error.stack,
+        }
       );
     }
   }
@@ -163,14 +197,22 @@ export class XpressbeesService implements INetworkPartner {
     }
 
     // Transform products
-    const products: XpressbeesProductDto[] = (order.parentShipment?.items || []).map((item) => ({
-      product_name: item.name || item.description || 'Product',
-      product_qty: String(item.quantity || 1),
-      product_price: String(item.unitPrice || 0),
-      product_tax_per: (item as any).taxPercentage ? String((item as any).taxPercentage) : '',
-      product_sku: String(item.sku || (item as any).id || 'SKU001'),
-      product_hsn: item.hsnCode || '',
-    }));
+    const products: XpressbeesProductDto[] = (order.parentShipment?.items || []).map((item) => {
+      const unitPrice = parseFloat(String(item.unitPrice || 0)) || 0;
+      const taxPercentage = (item as any).taxPercentage ? parseFloat(String((item as any).taxPercentage)) || 0 : 0;
+      
+      // If unit price is 0, try to calculate from payment breakdown or use a minimum value
+      const finalUnitPrice = unitPrice > 0 ? unitPrice : 1;
+      
+      return {
+        product_name: item.name || item.description || 'Product',
+        product_qty: String(item.quantity || 1),
+        product_price: String(finalUnitPrice),
+        product_tax_per: taxPercentage > 0 ? String(taxPercentage) : '0',
+        product_sku: String(item.sku || (item as any).id || 'SKU001'),
+        product_hsn: item.hsnCode || '0',
+      };
+    });
 
     // Transform invoice details
     const parentShipmentAny = order.parentShipment as any;
@@ -187,16 +229,52 @@ export class XpressbeesService implements INetworkPartner {
     const paymentAny = order.payment as any;
     const paymentMethod = 'prepaid';
 
-    // Calculate amounts
-    const orderAmount = order.payment?.finalAmount || paymentAny?.totalAmount || 0;
+    // Calculate amounts - ensure all amounts are valid numbers
+    const parseAmount = (value: any): number => {
+      const parsed = parseFloat(String(value || 0));
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    // Extract charges from payment breakdown if available
+    const getChargeFromBreakdown = (description: string): number => {
+      const otherCharges = paymentAny?.breakdown?.otherCharges || [];
+      const charge = otherCharges.find((c: any) => c.description === description);
+      return parseAmount(charge?.chargedAmount);
+    };
+
+    const orderAmount = parseAmount(order.payment?.finalAmount || paymentAny?.totalAmount);
     const collectableAmount = 0; // Always 0 for prepaid
+    const shippingCharges = parseAmount(paymentAny?.shippingCharges) || getChargeFromBreakdown('freight_charge') || 0;
+    const codCharges = parseAmount(paymentAny?.codCharges) || getChargeFromBreakdown('cod_charges') || 0;
+    const discount = parseAmount(paymentAny?.discount) || parseAmount(paymentAny?.breakdown?.discounts?.[0]?.chargedAmount) || 0;
 
     // Get dimensions from first child shipment or parent
-    const dimensions =
+    const rawDimensions =
       order.childShipments?.[0]?.dimensions || order.parentShipment?.dimensions || { length: 10, width: 10, height: 10 };
+    
+    // Parse dimensions to ensure they're numeric
+    const dimensions = {
+      length: parseFloat(String(rawDimensions.length || 10)) || 10,
+      width: parseFloat(String(rawDimensions.width || 10)) || 10,
+      height: parseFloat(String(rawDimensions.height || 10)) || 10,
+    };
 
     const pickupAny = pickup as any;
     const deliveryAny = delivery as any;
+    
+    // Calculate effective weight - use volumetric if physical is zero
+    const getEffectiveWeight = (shipment: any): number => {
+      const physicalWeight = parseFloat(String(shipment?.physicalWeight || 0));
+      const volumetricWeight = parseFloat(String(shipment?.volumetricWeight || 0));
+      return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 0);
+    };
+
+    const effectiveWeight = 
+      getEffectiveWeight(order.parentShipment) ||
+      getEffectiveWeight(order.childShipments?.[0]) ||
+      500;
+
+    this.logger.debug(`Effective weight calculated: ${effectiveWeight}, Order amount: ${orderAmount}, Shipping: ${shippingCharges}`);
     
     return {
       id: String(order.orderId || (order.parentShipment as any)?.id || Date.now()),
@@ -218,11 +296,7 @@ export class XpressbeesService implements INetworkPartner {
       consignee_gst_number: deliveryAny?.gstNumber || '',
       products: products,
       invoice: invoice,
-      weight: String(
-        order.parentShipment?.physicalWeight ||
-        order.childShipments?.[0]?.physicalWeight ||
-        500
-      ),
+      weight: String(effectiveWeight),
       length: String(dimensions.length || 10),
       height: String(dimensions.height || 10),
       breadth: String(dimensions.width || 10),
@@ -231,9 +305,9 @@ export class XpressbeesService implements INetworkPartner {
         XPRESSBEES_DEFAULTS.COURIER_ID
       ),
       pickup_location: XPRESSBEES_CONSTANTS.PICKUP_LOCATION,
-      shipping_charges: String(paymentAny?.shippingCharges || 0),
-      cod_charges: String(paymentAny?.codCharges || 0),
-      discount: String(paymentAny?.discount || 0),
+      shipping_charges: String(shippingCharges),
+      cod_charges: String(codCharges),
+      discount: String(discount),
       order_amount: String(orderAmount),
       collectable_amount: String(collectableAmount),
     };
@@ -288,10 +362,20 @@ export class XpressbeesService implements INetworkPartner {
       // Check response status
       if (response.status !== 200 && response.status !== 201) {
         this.logger.error(`Xpressbees cancel API returned status ${response.status}`, response.data);
-        throw new CustomHttpException(
-          HttpStatus.BAD_GATEWAY,
-          `Xpressbees cancel API returned status ${response.status}: ${JSON.stringify(response.data)}`
-        );
+        
+        // Return error in same format as success for debugging
+        return {
+          statusCode: response.status,
+          message: `Xpressbees cancel API returned error: ${response.data?.message || JSON.stringify(response.data)}`,
+          partnerCode: PARTNER_CODE_ENUM.XPRESSBEES,
+          data: {
+            originalResponse: response.data,
+            requestUrl: url,
+            requestBody: payload,
+            error: true,
+            awbNumber: awbNumber,
+          },
+        } as unknown as R;
       }
 
       return {
@@ -307,9 +391,29 @@ export class XpressbeesService implements INetworkPartner {
       } as unknown as R;
     } catch (error) {
       this.logger.error(`Xpressbees cancelOrderV2 failed: ${error.message}`, error.stack);
+      
+      // Try to include request details in error response
+      const baseUrl = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.BASE_URL,
+        XPRESSBEES_DEFAULTS.BASE_URL
+      );
+      const cancelOrderPath = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.CANCEL_ORDER_PATH,
+        XPRESSBEES_DEFAULTS.CANCEL_ORDER_PATH
+      );
+      const url = `${baseUrl}${cancelOrderPath}`;
+      
       throw new CustomHttpException(
         HttpStatus.INTERNAL_SERVER_ERROR,
-        `Xpressbees cancelOrderV2 failed: ${error.message}`
+        `Xpressbees cancelOrderV2 failed: ${error.message}`,
+        {
+          requestUrl: url,
+          requestBody: {
+            awb_number: data.cAwbNumbers?.[0] || data.orderId || '',
+          },
+          error: error.message,
+          stack: error.stack,
+        }
       );
     }
   }
