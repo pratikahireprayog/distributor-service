@@ -183,14 +183,13 @@ export class XpressbeesService implements INetworkPartner {
       },
     ];
 
-    // Determine payment method
+    // Always use prepaid as payment method (lowercase required by API)
     const paymentAny = order.payment as any;
-    const isCOD = paymentAny?.isCOD || paymentAny?.mode === 'COD' || order.payment?.type === 'COD';
-    const paymentMethod = isCOD ? 'COD' : 'PREPAID';
+    const paymentMethod = 'prepaid';
 
     // Calculate amounts
     const orderAmount = order.payment?.finalAmount || paymentAny?.totalAmount || 0;
-    const collectableAmount = isCOD ? orderAmount : 0;
+    const collectableAmount = 0; // Always 0 for prepaid
 
     // Get dimensions from first child shipment or parent
     const dimensions =
