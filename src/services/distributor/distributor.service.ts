@@ -13,7 +13,7 @@ import {
   UpdatePartnerToHubOpsRequestDto,
 } from "src/common/dtos/base.dto";
 
-import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2, OrderDtov2 } from "src/common/dtos/base2.dto";
+import { BaseOrderReqDtoV2,OrderDtov2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
 
@@ -36,18 +36,6 @@ export class StandardRequestDto {
 
 export class StandardRequestDtoV2 {
   order: OrderDtov2;
-  partnerCode: PARTNER_CODE_ENUM | string;
-  eligiblePartners?: EligiblePartnersData;
-}
-
-export class StandardCancelRequestDtoV2 {
-  order: BaseCancelOrderDtoV2;
-  partnerCode: PARTNER_CODE_ENUM | string;
-  eligiblePartners?: EligiblePartnersData;
-}
-
-export class StandardUpdateRequestDtoV2 {
-  order: BaseUpdateOrderDtoV2;
   partnerCode: PARTNER_CODE_ENUM | string;
   eligiblePartners?: EligiblePartnersData;
 }

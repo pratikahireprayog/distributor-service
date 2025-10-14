@@ -9,4 +9,5 @@ export const NP_TYPE_TO_CLASS_MAP = {
     [PARTNER_CODE_ENUM.SMILE_HYPERLOCAL]: SmileHyperlocalService,
     [PARTNER_CODE_ENUM.PORTER]: PorterService,
     [PARTNER_CODE_ENUM.UNIUNI]: UniuniService,
+    //[PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL]: IndiaPostInternationalService,
 } as const;

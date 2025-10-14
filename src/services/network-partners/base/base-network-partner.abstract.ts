@@ -20,7 +20,11 @@ import {
   ManifestReqDto,
 } from "src/common/dtos/base.dto";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
-import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2 } from "src/common/dtos/base2.dto";
+import {
+  BaseOrderReqDtoV2,
+  BaseCancelOrderDtoV2,
+  BaseUpdateOrderDtoV2,
+} from "src/common/dtos/base2.dto";
 import { BaseNetworkPartnerHelper } from "./base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
@@ -264,10 +268,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       );
 
       if (
-        !this.validateInputForOperation(
-          ENDPOINT_ID_ENUM.UPDATE_ORDER,
-          data
-        )
+        !this.validateInputForOperation(ENDPOINT_ID_ENUM.UPDATE_ORDER, data)
       ) {
         throw new Error("Invalid input data for update order operation");
       }
@@ -313,10 +314,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       );
 
       if (
-        !this.validateInputForOperation(
-          ENDPOINT_ID_ENUM.CREATE_PICKUP,
-          data
-        )
+        !this.validateInputForOperation(ENDPOINT_ID_ENUM.CREATE_PICKUP, data)
       ) {
         throw new Error("Invalid input data for create pickup operation");
       }
@@ -362,10 +360,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       );
 
       if (
-        !this.validateInputForOperation(
-          ENDPOINT_ID_ENUM.CANCEL_PICKUP,
-          data
-        )
+        !this.validateInputForOperation(ENDPOINT_ID_ENUM.CANCEL_PICKUP, data)
       ) {
         throw new Error("Invalid input data for cancel pickup operation");
       }
@@ -549,10 +544,7 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
       );
 
       if (
-        !this.validateInputForOperation(
-          ENDPOINT_ID_ENUM.CANCEL_ORDER,
-          data
-        )
+        !this.validateInputForOperation(ENDPOINT_ID_ENUM.CANCEL_ORDER, data)
       ) {
         throw new Error("Invalid input data for cancel order operation");
       }

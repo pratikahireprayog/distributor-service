@@ -1040,7 +1040,10 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   }
 
   private determineMcnFlag(
+    
     order: BaseOrderReqDto,
+    partnerCode: string
+  ,
     partnerCode: string
   ): boolean {
     if (order?.mcn !== undefined) {
@@ -1060,7 +1063,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // 2. For DHL: Typically used for international, may need different MCN logic
     // 3. For international orders: May have different MCN requirements regardless of partner
 
-    return isInternational || isShipyaari || isDelhivery;
+    return isInternational || isShipyaari || isDelhivery || isDelhivery;
   }
 
   /**
