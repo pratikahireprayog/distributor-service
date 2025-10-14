@@ -16,6 +16,7 @@ import { FEDEXService } from "./implementation/fedex/fedex.service";
 import { BaralService } from "./implementation/baral/baral.service";
 import { UrbanBoltService } from "./implementation/urbanbolt/urbanbolt.service";
 import { SHIPCUBEService } from "./implementation/shipcube/shipcube.service";
+import { XpressbeesService } from "./implementation/xpressbees/xpressbees.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -75,6 +76,10 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.SHIPCUBE,
     useClass: SHIPCUBEService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES,
+    useClass: XpressbeesService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -94,6 +99,7 @@ export const networkPartnersProviders: Provider[] = [
       fedexService: FEDEXService,
       baralService: BaralService,
       shipcubeService: SHIPCUBEService,
+      xpressbeesService: XpressbeesService,
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -116,6 +122,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
       factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPCUBE, shipcubeService);
+      factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES, xpressbeesService);
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
 
@@ -136,7 +143,8 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.URBANBOLT,
       NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
       NETWORK_PARTNER_PROVIDER_CONST.BARAL,
-      NETWORK_PARTNER_PROVIDER_CONST.SHIPCUBE
+      NETWORK_PARTNER_PROVIDER_CONST.SHIPCUBE,
+      NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES
     ],
   },
 ];

@@ -19,6 +19,7 @@ import { FEDEXModule } from "./implementation/fedex/fedex.module";
 import { BaralModule } from "./implementation/baral/baral.module";
 import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
 import { SHIPCUBEModule } from "./implementation/shipcube/shipcube.module";
+import { XpressbeesModule } from "./implementation/xpressbees/xpressbees.module";
 
 /**
  * Module for network partners
@@ -41,7 +42,8 @@ import { SHIPCUBEModule } from "./implementation/shipcube/shipcube.module";
     UrbanBoltModule,
     FEDEXModule,
     BaralModule,
-    SHIPCUBEModule
+    SHIPCUBEModule,
+    XpressbeesModule
   ],
   providers: [
     NetworkPartnerFactoryService,

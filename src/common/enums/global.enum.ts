@@ -45,7 +45,8 @@ export enum PARTNER_CODE_ENUM {
   FEDEX = "FEDEX",
   BARAL = "sunil_baral",
   URBANBOLT = "urbanbolt",
-  SHIPCUBE = "shipcube"
+  SHIPCUBE = "shipcube",
+  XPRESSBEES = "XPRESSBEES"
 }
 
 export enum ENDPOINT_ID_ENUM {
