@@ -9,6 +9,7 @@ export const FEDEX_URLS = {
     CANCEL_PICKUP: `${fedexBaseUrl}/pickup/v1/pickups/cancel`,
     CREATE_CONSOLIDATION: `${fedexBaseUrl}/ship/v1/consolidations`,
     CREATE_CONSOLIDATION_SHIPMENT: `${fedexBaseUrl}/ship/v1/consolidations/shipments`,
+    UPLOAD_DOCUMENTS: process.env.FEDEX_UPLOAD_DOCUMENT_URL
 }
 
 export const ACCOUNT_DETAILS = [
