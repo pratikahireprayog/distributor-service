@@ -193,9 +193,49 @@ export class IndiaPostDomesticAuthService implements AuthProvider {
       if (error.response) {
         this.logger.error("Response status:", error.response.status);
         this.logger.error(
-          "Response data:",
-          error.response.data ? "Data present" : "No response data"
+          "Response headers:",
+          error.response.headers ? "Headers present" : "No headers"
         );
+
+        // Log response data safely
+        try {
+          this.logger.error(
+            "Response data:",
+            JSON.stringify(error.response.data, null, 2)
+          );
+        } catch (jsonError) {
+          this.logger.error(
+            "Response data:",
+            error.response.data
+              ? "Data present but not JSON serializable"
+              : "No response data"
+          );
+        }
+
+        // Log request details for debugging
+        if (error.config) {
+          this.logger.error("Request URL:", error.config.url);
+          this.logger.error("Request method:", error.config.method);
+          this.logger.error(
+            "Request headers:",
+            error.config.headers ? "Headers present" : "No headers"
+          );
+
+          // Log request payload safely
+          try {
+            this.logger.error(
+              "Request payload:",
+              JSON.stringify(error.config.data, null, 2)
+            );
+          } catch (jsonError) {
+            this.logger.error(
+              "Request payload:",
+              error.config.data
+                ? "Data present but not JSON serializable"
+                : "No request data"
+            );
+          }
+        }
 
         if (error.response.status === 401) {
           throw new Error(
@@ -203,7 +243,7 @@ export class IndiaPostDomesticAuthService implements AuthProvider {
           );
         } else if (error.response.status === 400) {
           throw new Error(
-            "Bad request: Please check the authentication payload format"
+            `Bad request: Please check the authentication payload format. Server response: ${error.response.data?.message || "No message"}`
           );
         }
       }
