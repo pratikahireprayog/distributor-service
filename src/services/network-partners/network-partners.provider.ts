@@ -18,6 +18,7 @@ import { UrbanBoltService } from "./implementation/urbanbolt/urbanbolt.service";
 import { SHIPCUBEService } from "./implementation/shipcube/shipcube.service";
 import { XpressbeesService } from "./implementation/xpressbees/xpressbees.service";
 import { IndiaPostDomesticService } from "./implementation/india-post-domestic/india-post-domestic.service";
+import { IndiaPostInternationalService } from "./implementation/indiapost-international/indiapost-international.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -85,6 +86,10 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST_DOMESTIC,
     useClass: IndiaPostDomesticService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
+    useClass: IndiaPostInternationalService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -105,7 +110,8 @@ export const networkPartnersProviders: Provider[] = [
       baralService: BaralService,
       shipcubeService: SHIPCUBEService,
       xpressbeesService: XpressbeesService,
-      indiaPostDomesticService: IndiaPostDomesticService
+      indiaPostDomesticService: IndiaPostDomesticService,
+      indiaPostInternationalService: IndiaPostInternationalService
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -133,6 +139,10 @@ export const networkPartnersProviders: Provider[] = [
         PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         indiaPostDomesticService
       );
+      factory.registerPartner(
+        PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
+        indiaPostInternationalService
+      );
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
 
@@ -156,6 +166,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.SHIPCUBE,
       NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES,
       NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST_DOMESTIC,
+      NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
     ],
   },
 ];
