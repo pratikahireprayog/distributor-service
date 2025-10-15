@@ -93,3 +93,15 @@ export class XpressbessCancelOrderResponseDto {
   message: string;
   data?: any;
 }
+
+// Create Manifest Request DTO
+export class XpressbeesCreateManifestRequestDto {
+  awb_numbers: string;
+}
+
+// Create Manifest Response DTO
+export class XpressbeesCreateManifestResponseDto {
+  status: boolean;
+  message: string;
+  data?: any;
+}

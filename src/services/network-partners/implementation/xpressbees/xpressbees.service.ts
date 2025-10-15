@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { INetworkPartner } from '../../interfaces/network-partner.interface';
-import { BaseOrderResDto, BaseResDto } from 'src/common/dtos/base.dto';
+import { BaseOrderResDto, BaseResDto, ManifestReqDto } from 'src/common/dtos/base.dto';
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2 } from 'src/common/dtos/base2.dto';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
@@ -13,6 +13,8 @@ import {
   XpressbeesCreateOrderResponseDto,
   XpressbessCancelOrderRequestDto,
   XpressbessCancelOrderResponseDto,
+  XpressbeesCreateManifestRequestDto,
+  XpressbeesCreateManifestResponseDto,
   XpressbeesProductDto,
   XpressbeesInvoiceDto,
 } from './xpressbees.dto';
@@ -427,9 +429,107 @@ export class XpressbeesService implements INetworkPartner {
     }
   }
 
-  // Stub implementations for INetworkPartner interface methods
-  async createManifest<T, R>(manifestationDetails: T): Promise<R> {
-    throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for Xpressbees');
+  // Create Manifest implementation
+  async createManifest<T extends ManifestReqDto, R extends BaseResDto>(
+    manifestationDetails: T
+  ): Promise<R> {
+    try {
+      const baseUrl = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.BASE_URL,
+        XPRESSBEES_DEFAULTS.BASE_URL
+      );
+      const manifestPath = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.CREATE_MANIFEST_PATH,
+        XPRESSBEES_DEFAULTS.CREATE_MANIFEST_PATH
+      );
+      const url = `${baseUrl}${manifestPath}`;
+
+      // Validate AWB numbers
+      if (!manifestationDetails.awbNumbers || manifestationDetails.awbNumbers.length === 0) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'AWB numbers are required for manifest creation'
+        );
+      }
+
+      // Join AWB numbers with comma as per API requirement
+      const payload: XpressbeesCreateManifestRequestDto = {
+        awb_numbers: manifestationDetails.awbNumbers.join(','),
+      };
+
+      // Get authentication headers
+      const authHeaders = await this.xpressbeesAuthService.getAuthHeaders();
+
+      this.logger.log(`Creating manifest with Xpressbees: ${url}`);
+      this.logger.debug(`Manifest request payload: ${JSON.stringify(payload)}`);
+
+      const response = await firstValueFrom(
+        this.httpService.post<XpressbeesCreateManifestResponseDto>(url, payload, {
+          headers: authHeaders,
+          timeout: XPRESSBEES_CONSTANTS.DEFAULT_TIMEOUT,
+          validateStatus: () => true,
+          maxContentLength: Infinity as unknown as number,
+          maxBodyLength: Infinity as unknown as number,
+        })
+      );
+
+      // Check response status
+      if (response.status !== 200 && response.status !== 201) {
+        this.logger.error(`Xpressbees manifest API returned status ${response.status}`, response.data);
+        
+        // Return error in same format as success for debugging
+        return {
+          statusCode: response.status,
+          message: `Xpressbees manifest API returned error: ${response.data?.message || JSON.stringify(response.data)}`,
+          partnerCode: PARTNER_CODE_ENUM.XPRESSBEES,
+          data: {
+            originalResponse: response.data,
+            requestUrl: url,
+            requestBody: payload,
+            error: true,
+            awbNumbers: manifestationDetails.awbNumbers,
+          },
+        } as unknown as R;
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Manifest created successfully with Xpressbees',
+        partnerCode: PARTNER_CODE_ENUM.XPRESSBEES,
+        data: {
+          originalResponse: response.data,
+          requestUrl: url,
+          requestBody: payload,
+          awbNumbers: manifestationDetails.awbNumbers,
+        },
+      } as unknown as R;
+    } catch (error) {
+      this.logger.error(`Xpressbees createManifest failed: ${error.message}`, error.stack);
+      
+      // Try to include request details in error response
+      const baseUrl = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.BASE_URL,
+        XPRESSBEES_DEFAULTS.BASE_URL
+      );
+      const manifestPath = this.configService.get<string>(
+        XPRESSBEES_ENV_KEYS.CREATE_MANIFEST_PATH,
+        XPRESSBEES_DEFAULTS.CREATE_MANIFEST_PATH
+      );
+      const url = `${baseUrl}${manifestPath}`;
+      
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `Xpressbees createManifest failed: ${error.message}`,
+        {
+          requestUrl: url,
+          requestBody: {
+            awb_numbers: manifestationDetails.awbNumbers?.join(',') || '',
+          },
+          error: error.message,
+          stack: error.stack,
+        }
+      );
+    }
   }
 
   async createOrder<T, R>(orderDetails: T, partnerCode: string, eligiblePartners?: any): Promise<R> {
