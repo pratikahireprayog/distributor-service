@@ -5,15 +5,23 @@ import { firstValueFrom } from "rxjs";
 import * as https from "https";
 import { BaseNetworkPartner } from "../../base/base-network-partner.abstract";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
-import { BaseOrderResDto, BaseReqDto, BaseResDto } from "src/common/dtos/base.dto";
-import { BaseCancelOrderDtoV2, BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
+import {
+    BaseCancelOrderDtoV2,
+    BaseOrderReqDtoV2,
+} from "src/common/dtos/base2.dto";
+import { BaseReqDto, BaseResDto } from "src/common/dtos/base.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { PARTNER_CODE_ENUM } from "src/common/enums/global.enum";
 import { EndpointConfigRepository } from "src/common/repositories/endpoint-configs/endpoint-configs.repository";
 import { SchemaMapperService } from "src/infrastructure/schema-mapper";
-import { ACCOUNT_DETAILS, FEDEX_URLS, PACKAGING_TYPES } from "./fedex-constants";
+import { FEDEX_URLS } from "./fedex-constants";
 import { FEDEXAuthService } from "./fedex-auth.service";
-
+import axios from "axios";
+import * as path from "path";
+import * as mime from "mime-types";
+import * as fs from "fs";
+import * as FormData from "form-data";
+import { Readable } from "stream";
 @Injectable()
 export class FEDEXService extends BaseNetworkPartner {
     protected readonly logger = new Logger(FEDEXService.name);
@@ -36,15 +44,13 @@ export class FEDEXService extends BaseNetworkPartner {
     }
 
     /**
-     * Create an order with FedEx (Consolidation + Shipment)
+     * Create an order with FedEx (Shipment)
      */
     async createOrderV2<T extends BaseOrderReqDtoV2, R extends any>(
         orderDetails: T,
         partnerCode: string,
         eligiblePartners?: EligiblePartnersData
     ): Promise<R> {
-        const fedexBaseUrl = this.configService.get<string>("FEDEX_BASE_URL");
-
         try {
 
             // 1. Transform payload for consolidation
@@ -56,7 +62,6 @@ export class FEDEXService extends BaseNetworkPartner {
                 fedexShipment
             );
 
-            // 5. Format and return
             return response.data;
 
         } catch (error) {
@@ -81,10 +86,8 @@ export class FEDEXService extends BaseNetworkPartner {
     // 2. Transform Order Payload to FedEx Shipment
     // ----------------------
     private async transformToFedexShipment(order: any) {
-        const shipperAddress = order.addresses.find(a => a.type === 'PICKUP');
-        const recipientAddress = order.addresses.find(a => a.type === 'DELIVERY');
-        const item = order.parentShipment.items[0];
-        const account = this.getAccountNumberForFedex('Mumbai', 'FEDEX (IMP)');
+        const shipperAddress = order.addresses.find((a) => a.type === "PICKUP");
+        const recipientAddress = order.addresses.find((a) => a.type === "DELIVERY");
 
         const shipperCountryCode = await this.fetchAndValidateCountryCode(
             shipperAddress.zip || shipperAddress.postalCode || ""
@@ -92,6 +95,46 @@ export class FEDEXService extends BaseNetworkPartner {
         const receiverCountryCode = await this.fetchAndValidateCountryCode(
             recipientAddress.zip || recipientAddress.postalCode || ""
         );
+
+        const documentInfo = {
+            workflowName: "ETDPreshipment",
+            carrierCode: "FDXE",
+            originCountryCode: shipperCountryCode,
+            destinationCountryCode: receiverCountryCode,
+            shipmentDate: new Date().toISOString(),
+            trackingNumber: order.orderId,
+        };
+
+        // 🧾 Upload ETD docs - with error handling
+        let uploadedDocs = [];
+        if (order.documents && order.documents.length > 0) {
+            try {
+                // Uncomment this
+                uploadedDocs = await this.uploadFedexDocuments(
+                    order.documents,
+                    documentInfo
+                );
+                console.log("uploadedDocs", uploadedDocs)
+                // uploadedDocs = [{ documentType: 'COMMERCIAL_INVOICE', docId: 'ado31PTIESQlhuWA' }]
+            } catch (uploadError) {
+                this.logger.warn(`Document upload failed, proceeding without documents: ${uploadError.message}`);
+            }
+        }
+
+        // REMOVED THE EARLY RETURN STATEMENT THAT WAS HERE
+
+        const etdDetail = uploadedDocs.length > 0 ? {
+            attachedDocuments: uploadedDocs.map((d) => ({
+                documentType: "COMMERCIAL_INVOICE",
+                documentId: d.documentId,
+            })),
+        } : undefined;
+
+        const shipmentSpecialServices = etdDetail ? {
+            specialServiceTypes: ["ELECTRONIC_TRADE_DOCUMENTS"],
+            etdDetail,
+        } : undefined;
+
         return {
             includeBase64document: false,
             openShipmentAction: 'CONFIRM',
@@ -102,6 +145,8 @@ export class FEDEXService extends BaseNetworkPartner {
             labelResponseOptions: "URL_ONLY",
             requestedShipment: {
                 serviceType: this.mapServiceType(order.serviceType),
+                shipTimestamp: new Date().toISOString(),
+                packagingType: "YOUR_PACKAGING",
                 shipper: {
                     contact: {
                         personName: shipperAddress.name,
@@ -149,8 +194,23 @@ export class FEDEXService extends BaseNetworkPartner {
                     },
                     paymentType: 'SENDER',
                 },
+                requestedPackageLineItems: [
+                    {
+                        sequenceNumber: 1,
+                        weight: {
+                            units: "KG",
+                            value: 1
+                        },
+                        dimensions: {
+                            length: order.parentShipment.dimensions?.length || 10,
+                            width: order.parentShipment.dimensions?.width || 10,
+                            height: order.parentShipment.dimensions?.height || 10,
+                            units: "CM"
+                        },
+                    }
+                ],
                 customsClearanceDetail: {
-                    documentContent: 'DOCUMENT',
+                    documentContent: 'DOCUMENTS_ONLY',
                     dutiesPayment: {
                         payor: {
                             responsibleParty: {
@@ -180,32 +240,14 @@ export class FEDEXService extends BaseNetworkPartner {
                     labelStockType: 'PAPER_LETTER',
                     imageType: 'PDF',
                 },
-                pickupType: 'USE_SCHEDULED_PICKUP',
-                requestedPackageLineItems: order.parentShipment.items.map(i => ({
-                    weight: { units: 'KG', value: i.weight || 1 },
-                    dimensions: {
-                        length: i.dimensions?.length || 1,
-                        width: i.dimensions?.width || 1,
-                        height: i.dimensions?.height || 1,
-                        units: 'CM',
+                pickupType: "USE_SCHEDULED_PICKUP",
+                ...(shipmentSpecialServices && { shipmentSpecialServices }),
+                customerReferences: [
+                    {
+                        customerReferenceType: "CUSTOMER_REFERENCE",
+                        value: order.orderId,
                     },
-                    customerReferences: [{ type: 'CUSTOMER_REFERENCE', value: order.orderId }],
-                    description: i.name,
-                })),
-                shipTimestamp: order.orderDate,
-                emailNotificationDetail: {
-                    recipients: [
-                        {
-                            emailAddress: shipperAddress.email || '',
-                            notificationEventType: ['ON_DELIVERY', 'ON_EXCEPTION'],
-                            notificationType: 'EMAIL',
-                            notificationFormatType: 'HTML',
-                            emailNotificationRecipientType: 'SHIPPER',
-                            locale: 'en',
-                        },
-                    ],
-                },
-                packagingType: "YOUR_PACKAGING" //PACKAGING_TYPES.includes(order.productType) ? order.productType : null,
+                ],
             },
         };
     }
@@ -218,15 +260,6 @@ export class FEDEXService extends BaseNetworkPartner {
         return mapping[serviceType] || 'FEDEX_GROUND';
     }
 
-    private async getAccountNumberForFedex(location: string, network: string) {
-        return ACCOUNT_DETAILS.filter(
-            account => account.location === location && account.network === network
-        );
-    }
-
-    /**
-    *  Make FedEx API call with OAuth2 token
-    */
     private async callFedexPOSTAPI(url: string, body: any) {
         const authHeaders = await this.authProvider.getAuthHeaders();
         const response = await firstValueFrom(
@@ -388,6 +421,111 @@ export class FEDEXService extends BaseNetworkPartner {
         }
     }
 
+    /**
+     * ---------------------------
+     * UPLOAD DOCUMENTS (ETD)
+     * ---------------------------
+     */
+    private async uploadFedexDocuments(
+        documents: any[],
+        baseInfo: any
+    ): Promise<{ documentType: string; documentId: string }[]> {
+        const authHeaders = await this.authProvider.getAuthHeaders();
+        const uploadedDocs: { documentType: string; documentId: string }[] = [];
+        for (const doc of documents) {
+            try {
+                const { filename, contentType } = await this.getFileInfoFromUrl(doc.documentUrl);
+                let fileBuffer: Buffer;
+                if (doc.documentUrl) {
+                    this.logger.log(`Downloading document from URL: ${doc.documentUrl}`);
+                    const response = await axios.get(doc.documentUrl, {
+                        responseType: "arraybuffer",
+                        timeout: 30000,
+                    });
+                    fileBuffer = Buffer.from(response.data);
+                } else {
+                    throw new Error(`No file source (URL or path) found for ${doc.documentType}`);
+                }
+
+                // 🧩 2️⃣ Prepare FedEx Document JSON
+                const documentPayload = {
+                    workflowName: "ETDPreshipment",
+                    carrierCode: "FDXE",
+                    name: filename,
+                    contentType: contentType,
+                    meta: {
+                        shipDocumentType: "COMMERCIAL_INVOICE",
+                        formCode: "USMCA",
+                        trackingNumber: baseInfo.trackingNumber || "N/A",
+                        shipmentDate: baseInfo.shipmentDate || new Date().toISOString(),
+                        originLocationCode: baseInfo.originLocationCode || "",
+                        originCountryCode: baseInfo.originCountryCode || "IN",
+                        destinationLocationCode: baseInfo.destinationLocationCode || "",
+                        destinationCountryCode: baseInfo.destinationCountryCode || "",
+                    },
+                };
+
+                const formData = new FormData();
+
+                // 👉 Correct multipart key names required by FedEx
+                formData.append("document", JSON.stringify(documentPayload), {
+                    contentType: "application/json",
+                });
+
+                // Convert buffer to stream (this is required by FormData for binary file)
+                const stream = this.bufferToStream(fileBuffer);
+
+                formData.append("attachment", stream, {
+                    filename: filename,
+                    contentType,
+                });
+
+                const url = FEDEX_URLS.UPLOAD_DOCUMENTS;
+                this.logger.log(`📤 Uploading document '${doc.documentType}' to FedEx: ${url}`);
+
+                const response = await firstValueFrom(
+                    this.httpService.post(url, formData, {
+                        headers: {
+                            ...authHeaders,
+                            ...formData.getHeaders(),
+                        },
+                        httpsAgent: this.httpsAgent,
+                        maxContentLength: Infinity,
+                        maxBodyLength: Infinity,
+                        timeout: 60000,
+                    })
+                );
+
+                const meta = response.data?.output?.meta;
+                console.log("response response response ", meta);
+
+                if (meta?.docId) {
+                    uploadedDocs.push({
+                        documentType: "COMMERCIAL_INVOICE",
+                        documentId: meta.docId,
+                    });
+                    this.logger.log(
+                        `✅ Successfully uploaded FedEx document: ${doc.documentType}, ID: ${meta.docId}`
+                    );
+                } else {
+                    this.logger.error(
+                        `❌ FedEx upload succeeded but no document ID returned for ${doc.documentType}`
+                    );
+                    this.logger.debug(`FedEx raw response: ${JSON.stringify(response.data)}`);
+                    throw new Error("No document ID returned from FedEx");
+                }
+            } catch (error) {
+                this.logger.error(`❌ Failed to upload FedEx document ${doc.documentType}: ${error.message}`);
+                if (error.response?.data) {
+                    this.logger.error(`FedEx API response: ${JSON.stringify(error.response.data)}`);
+                }
+                throw error;
+            }
+        }
+
+        return uploadedDocs;
+    }
+
     async cancelPickupV2<T extends BaseReqDto, R extends BaseResDto>(
         data: T,
         partnerCode: string,
@@ -488,9 +626,32 @@ export class FEDEXService extends BaseNetworkPartner {
         } catch (err) {
             throw new CustomHttpException(
                 HttpStatus.BAD_REQUEST,
-                `Failed to fetch geo-location for postal code not CA or US ${postalCode}`
+                `Failed to fetch geo-location for postal code: ${postalCode}`
             );
         }
+    }
+
+    /**
+     * Convert buffer to readable stream
+     */
+    private bufferToStream(buffer: Buffer): Readable {
+        const readable = new Readable();
+        readable.push(buffer);
+        readable.push(null);
+        return readable;
+    }
+
+    private getFileInfoFromUrl(fileUrl: string) {
+        // 1️⃣ Extract filename from the last part of URL (after last '/')
+        const pathname = decodeURIComponent(new URL(fileUrl).pathname);
+
+        // 2️⃣ Extract filename and extension using path module
+        const filename = path.basename(pathname);
+
+        // 3️⃣ Get content type using mime-types
+        const contentType = mime.lookup(filename) || "application/octet-stream";
+
+        return { filename, contentType };
     }
 
 }

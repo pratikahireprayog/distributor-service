@@ -21,6 +21,7 @@ import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
 import { SHIPCUBEModule } from "./implementation/shipcube/shipcube.module";
 import { XpressbeesModule } from "./implementation/xpressbees/xpressbees.module";
 import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/india-post-domestic.module";
+import { IndiaPostInternationalModule } from "./implementation/indiapost-international/indiapost-international.module";
 
 /**
  * Module for network partners
@@ -46,6 +47,7 @@ import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/in
     SHIPCUBEModule,
     XpressbeesModule,
     IndiaPostDomesticModule,
+    IndiaPostInternationalModule,
   ],
   providers: [
     NetworkPartnerFactoryService,
