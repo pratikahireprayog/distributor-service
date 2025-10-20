@@ -182,7 +182,7 @@ export class UrbanBoltService extends BaseNetworkPartner {
     const dimensions = parentShipment?.dimensions;
 
     return {
-      customerCode: URBANBOLT_DEFAULT_VALUES.CUSTOMER_CODE,
+      customerCode: this.configService.get<string>("URBANBOLT_CUSTOMER_CODE"),
       orderNumber: orderData.orderId,
       payMode: paymentType === 'COD' ? URBANBOLT_PAY_MODES.COD : URBANBOLT_PAY_MODES.PPD,
       serviceType: URBANBOLT_SERVICE_TYPES.SDD, // Default to Same Day Delivery
