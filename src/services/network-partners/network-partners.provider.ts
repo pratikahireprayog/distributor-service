@@ -16,7 +16,8 @@ import { FEDEXService } from "./implementation/fedex/fedex.service";
 import { BaralService } from "./implementation/baral/baral.service";
 import { UrbanBoltService } from "./implementation/urbanbolt/urbanbolt.service";
 import { SHIPCUBEService } from "./implementation/shipcube/shipcube.service";
-import { XpressbeesService } from "./implementation/xpressbees/xpressbees.service";
+import { XpressbeesB2cService } from "./implementation/xpressbees_b2c/xpressbees_b2c.service";
+import { XpressbeesB2bService } from "./implementation/xpressbees_b2b/xpressbees_b2b.service";
 import { IndiaPostDomesticService } from "./implementation/india-post-domestic/india-post-domestic.service";
 import { IndiaPostInternationalService } from "./implementation/indiapost-international/indiapost-international.service";
 
@@ -79,8 +80,12 @@ export const networkPartnersProviders: Provider[] = [
     useClass: SHIPCUBEService,
   },
   {
-    provide: NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES,
-    useClass: XpressbeesService,
+    provide: NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES_B2C,
+    useClass: XpressbeesB2cService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES_B2B,
+    useClass: XpressbeesB2bService,
   },
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST_DOMESTIC,
@@ -109,7 +114,8 @@ export const networkPartnersProviders: Provider[] = [
       fedexService: FEDEXService,
       baralService: BaralService,
       shipcubeService: SHIPCUBEService,
-      xpressbeesService: XpressbeesService,
+      xpressbeesB2cService: XpressbeesB2cService,
+      xpressbeesB2bService: XpressbeesB2bService,
       indiaPostDomesticService: IndiaPostDomesticService,
       indiaPostInternationalService: IndiaPostInternationalService
     ) => {
@@ -134,7 +140,8 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
       factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPCUBE, shipcubeService);
-      factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES, xpressbeesService);
+      factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES_B2C, xpressbeesB2cService);
+      factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES_B2B, xpressbeesB2bService);
       factory.registerPartner(
         PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         indiaPostDomesticService
@@ -164,7 +171,8 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.FEDEX,
       NETWORK_PARTNER_PROVIDER_CONST.BARAL,
       NETWORK_PARTNER_PROVIDER_CONST.SHIPCUBE,
-      NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES,
+      NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES_B2C,
+      NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES_B2B,
       NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST_DOMESTIC,
       NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
     ],

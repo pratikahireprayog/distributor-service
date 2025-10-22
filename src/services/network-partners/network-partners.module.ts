@@ -19,7 +19,8 @@ import { FEDEXModule } from "./implementation/fedex/fedex.module";
 import { BaralModule } from "./implementation/baral/baral.module";
 import { UrbanBoltModule } from "./implementation/urbanbolt/urbanbolt.module";
 import { SHIPCUBEModule } from "./implementation/shipcube/shipcube.module";
-import { XpressbeesModule } from "./implementation/xpressbees/xpressbees.module";
+import { XpressbeesB2cModule } from "./implementation/xpressbees_b2c/xpressbees_b2c.module";
+import { XpressbeesB2bModule } from "./implementation/xpressbees_b2b/xpressbees_b2b.module";
 import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/india-post-domestic.module";
 import { IndiaPostInternationalModule } from "./implementation/indiapost-international/indiapost-international.module";
 
@@ -45,7 +46,8 @@ import { IndiaPostInternationalModule } from "./implementation/indiapost-interna
     FEDEXModule,
     BaralModule,
     SHIPCUBEModule,
-    XpressbeesModule,
+    XpressbeesB2cModule,
+    XpressbeesB2bModule,
     IndiaPostDomesticModule,
     IndiaPostInternationalModule,
   ],
