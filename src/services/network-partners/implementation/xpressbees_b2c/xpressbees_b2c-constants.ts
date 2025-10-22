@@ -1,0 +1,31 @@
+// XpressBees B2C Environment Keys
+export const XPRESSBEES_B2C_ENV_KEYS = {
+  BASE_URL: 'XPRESSBEES_B2C_BASE_URL',
+  AUTH_EMAIL: 'XPRESSBEES_B2C_AUTH_EMAIL',
+  AUTH_PASSWORD: 'XPRESSBEES_B2C_AUTH_PASSWORD',
+  AUTH_PATH: 'XPRESSBEES_B2C_AUTH_PATH',
+  CREATE_ORDER_PATH: 'XPRESSBEES_B2C_CREATE_ORDER_PATH',
+  CANCEL_ORDER_PATH: 'XPRESSBEES_B2C_CANCEL_ORDER_PATH',
+  CREATE_MANIFEST_PATH: 'XPRESSBEES_B2C_CREATE_MANIFEST_PATH',
+};
+
+// XpressBees B2C Default Values
+export const XPRESSBEES_B2C_DEFAULTS = {
+  BASE_URL: 'https://ship.xpressbees.com',
+  AUTH_PATH: '/api/users/franchise_login',
+  CREATE_ORDER_PATH: '/api/franchise/shipments',
+  CANCEL_ORDER_PATH: '/api/franchise/shipments/cancel_shipment',
+  CREATE_MANIFEST_PATH: '/api/franchise/manifest',
+  PICKUP_LOCATION: 'franchise',
+  COURIER_ID: '16948',
+};
+
+// XpressBees B2C Constants
+export const XPRESSBEES_B2C_CONSTANTS = {
+  DEFAULT_TIMEOUT: 30000,
+  TOKEN_EXPIRY_BUFFER: 300000, // 5 minutes buffer before token expires
+  PICKUP_LOCATION: XPRESSBEES_B2C_DEFAULTS.PICKUP_LOCATION,
+  COURIER_ID: XPRESSBEES_B2C_DEFAULTS.COURIER_ID,
+};
+
+

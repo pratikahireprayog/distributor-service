@@ -1,36 +1,40 @@
 // Authentication DTOs
-export class XpressbeesAuthRequestDto {
+export class XpressbeesB2bAuthRequestDto {
   email: string;
   password: string;
 }
 
-export class XpressbeesAuthResponseDto {
+export class XpressbeesB2bAuthResponseDto {
   status: boolean;
   data?: string; // Token is directly in data field as a string
 }
 
 // Product DTO
-export class XpressbeesProductDto {
+export class XpressbeesB2bProductDto {
   product_name: string;
   product_qty: string;
   product_price: string;
-  product_tax_per?: string;
+  product_tax_per: string;
   product_sku: string;
-  product_hsn?: string;
+  product_hsn_code?: string;
+  product_lbh_unit: string;
+  product_length: number;
+  product_breadth: number;
+  product_height: number;
 }
 
 // Invoice DTO
-export class XpressbeesInvoiceDto {
+export class XpressbeesB2bInvoiceDto {
   invoice_number: string;
   invoice_date: string;
+  invoice_value: number;
   ebill_number?: string;
   ebill_expiry_date?: string;
 }
 
 // Create Order Request DTO
-export class XpressbeesCreateOrderRequestDto {
+export class XpressbeesB2bCreateOrderRequestDto {
   id: string;
-  unique_order_number: string;
   payment_method: string;
   consigner_name: string;
   consigner_phone: string;
@@ -46,23 +50,20 @@ export class XpressbeesCreateOrderRequestDto {
   consignee_state: string;
   consignee_address: string;
   consignee_gst_number?: string;
-  products: XpressbeesProductDto[];
-  invoice: XpressbeesInvoiceDto[];
-  weight: string;
-  length: string;
-  height: string;
-  breadth: string;
+  products: XpressbeesB2bProductDto[];
+  invoice: XpressbeesB2bInvoiceDto[];
+  weight: number;
   courier_id: string;
   pickup_location: string;
-  shipping_charges?: string;
-  cod_charges?: string;
-  discount?: string;
-  order_amount: string;
-  collectable_amount: string;
+  discount: number;
+  order_amount: number;
+  no_of_invoices: number;
+  no_of_boxes: number;
+  global_weight_unit: string;
 }
 
 // Create Order Response DTO
-export class XpressbeesCreateOrderResponseDto {
+export class XpressbeesB2bCreateOrderResponseDto {
   response?: boolean;
   status?: number;
   message?: string;
@@ -83,25 +84,26 @@ export class XpressbeesCreateOrderResponseDto {
 }
 
 // Cancel Order Request DTO
-export class XpressbessCancelOrderRequestDto {
+export class XpressbeesB2bCancelOrderRequestDto {
   awb_number: string;
 }
 
 // Cancel Order Response DTO
-export class XpressbessCancelOrderResponseDto {
+export class XpressbeesB2bCancelOrderResponseDto {
   status: number;
   message: string;
   data?: any;
 }
 
 // Create Manifest Request DTO
-export class XpressbeesCreateManifestRequestDto {
+export class XpressbeesB2bCreateManifestRequestDto {
   awb_numbers: string;
 }
 
 // Create Manifest Response DTO
-export class XpressbeesCreateManifestResponseDto {
+export class XpressbeesB2bCreateManifestResponseDto {
   status: boolean;
   message: string;
   data?: any;
 }
+
