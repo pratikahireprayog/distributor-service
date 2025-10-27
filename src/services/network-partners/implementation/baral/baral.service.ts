@@ -109,7 +109,7 @@ export class BaralService extends BaseNetworkPartner {
                 format: "base64",
               },
               {
-                content: response.data?.PdfLabel || response.data?.Response?.PdfLabel || "",
+                content: response.data?.Pdfabel || response.data?.Response?.PdfLabel || "",
                 type: "label",
                 format: "base64",
               },
