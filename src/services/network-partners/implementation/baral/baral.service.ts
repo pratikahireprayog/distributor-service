@@ -279,6 +279,7 @@ export class BaralService extends BaseNetworkPartner {
       InvoiceNo: this.configService.get<string>("BARAL_INVOICE_NO", ""),
       InvoiceDate: this.configService.get<string>("BARAL_INVOICE_DATE", "15/02/2021"),
       CompanyCode: this.configService.get<string>("BARAL_COMPANY_CODE", "BRL"),
+      RequiredLable: "Y",
       Dimensions: dimensions,
       Performa: performa,
     };

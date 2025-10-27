@@ -309,13 +309,19 @@ export class XpressbeesB2bService implements INetworkPartner {
         const docAny = doc as any;
         const invoiceDate = docAny.invoiceDate || order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
         
-        return {
+        const invoiceObj: any = {
             invoice_number: doc.number || '',
             invoice_date: invoiceDate,
             invoice_value: invoiceValuePerDoc,
-            ebill_number: docAny.ebillNumber || undefined,
-            ebill_expiry_date: docAny.ebillExpiryDate || undefined,
         };
+        
+        // Only include ebill fields if ebill_number is present
+        if (docAny.ebillNumber) {
+            invoiceObj.ebill_number = docAny.ebillNumber;
+            invoiceObj.ebill_expiry_date = docAny.ebillExpiryDate || undefined;
+        }
+        
+        return invoiceObj;
     });
 
     // If no invoice documents, create a default one with full order amount
