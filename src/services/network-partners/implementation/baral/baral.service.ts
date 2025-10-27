@@ -105,6 +105,11 @@ export class BaralService extends BaseNetworkPartner {
             documents: [
               {
                 content: response.data?.Pdfdownload || response.data?.Response?.Pdfdownload || "",
+                type: "docket",
+                format: "base64",
+              },
+              {
+                content: response.data?.PdfLabel || response.data?.Response?.PdfLabel || "",
                 type: "label",
                 format: "base64",
               },
