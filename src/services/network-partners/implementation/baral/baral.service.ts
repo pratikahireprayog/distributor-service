@@ -85,6 +85,31 @@ export class BaralService extends BaseNetworkPartner {
       ];
       const partnerAwb = awbCandidates.map((k) => d?.[k]).find((v) => typeof v === "string" && v.trim().length > 0) || "";
 
+      // Extract PDF documents with various possible keys
+      const pdfDownloadCandidates = [
+        "Pdfdownload",
+        "PdfDownload",
+        "pdfdownload",
+        "PDFDownload",
+        "pdfDownload",
+      ];
+      const pdfLabelCandidates = [
+        "PdfLabel",
+        "Pdflabel",
+        "pdfLabel",
+        "pdflabel",
+        "PDFLabel",
+        "PdfLable", // Common typo
+      ];
+      
+      const pdfDownload = pdfDownloadCandidates
+        .map((k) => d?.[k] || d?.Response?.[k])
+        .find((v) => v && typeof v === "string" && v.trim().length > 0) || "";
+      
+      const pdfLabel = pdfLabelCandidates
+        .map((k) => d?.[k] || d?.Response?.[k])
+        .find((v) => v && typeof v === "string" && v.trim().length > 0) || "";
+
       return {
         statusCode: 200,
         message: "Order created successfully with BARAL",
@@ -104,12 +129,12 @@ export class BaralService extends BaseNetworkPartner {
             ],
             documents: [
               {
-                content: response.data?.Pdfdownload || response.data?.Response?.Pdfdownload || "",
+                content: pdfDownload,
                 type: "docket",
                 format: "base64",
               },
               {
-                content: response.data?.Pdfabel || response.data?.Response?.PdfLabel || "",
+                content: pdfLabel,
                 type: "label",
                 format: "base64",
               },
