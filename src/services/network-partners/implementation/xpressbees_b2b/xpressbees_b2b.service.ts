@@ -228,6 +228,7 @@ export class XpressbeesB2bService implements INetworkPartner {
     const paymentAny = order.payment as any;
     const pickupAny = pickup as any;
     const deliveryAny = delivery as any;
+    const metadataAny = order.metadata as any;
     
     // Extract charges from payment breakdown if available
     const getChargeFromBreakdown = (description: string): number => {
@@ -362,14 +363,14 @@ export class XpressbeesB2bService implements INetworkPartner {
         consigner_city: pickup.city || '',
         consigner_state: pickup.state || '',
         consigner_address: `${pickup.street || ''} ${pickup.landmark || ''}`.trim(),
-        consigner_gst_number: pickupAny?.gstNumber || parentShipmentAny?.sellerGstNumber || undefined,
+        consigner_gst_number: metadataAny?.pickupGST || pickupAny?.gstNumber || parentShipmentAny?.sellerGstNumber || undefined,
         consignee_name: delivery.name || '',
         consignee_phone: delivery.phone || '',
         consignee_pincode: delivery.zip || '',
         consignee_city: delivery.city || '',
         consignee_state: delivery.state || '',
         consignee_address: `${delivery.street || ''} ${delivery.landmark || ''}`.trim(),
-        consignee_gst_number: deliveryAny?.gstNumber || undefined,
+        consignee_gst_number: metadataAny?.deliveryGST || deliveryAny?.gstNumber || undefined,
         
         products: products,
         invoice: invoice,
