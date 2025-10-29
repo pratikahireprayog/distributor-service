@@ -301,7 +301,7 @@ export class BaralService extends BaseNetworkPartner {
       Weight: String(totalWeight || 1),
       Content: order.parentShipment?.items?.[0]?.description || order.parentShipment?.items?.[0]?.name || "",
       Currency: this.configService.get<string>("BARAL_CURRENCY", "INR"),
-      ShipmentValue: String(order.payment?.finalAmount || 0),
+      ShipmentValue: String(order.payment?.breakdown?.subTotal || 0),
       CODAmount: "0",
       CSBType: this.configService.get<string>("BARAL_CSB_TYPE", "CSB 4"),
       TermofInvoice: "",

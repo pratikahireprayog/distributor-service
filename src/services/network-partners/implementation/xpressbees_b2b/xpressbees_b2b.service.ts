@@ -282,7 +282,7 @@ export class XpressbeesB2bService implements INetworkPartner {
     const paymentMethod = paymentAny?.paymentMethod?.toLowerCase() || paymentAny?.type?.toLowerCase() || 'prepaid';
     const isPrepaid = paymentMethod === 'prepaid' || paymentMethod === 'online';
     
-    // Get amounts from payment breakdown
+    // Get amounts from payment breakdown - use subTotal for both invoice_value and order_amount
     const subTotal = parseAmount(paymentAny?.breakdown?.subTotal) || 0;
     
     // Calculate discount from breakdown
@@ -293,7 +293,7 @@ export class XpressbeesB2bService implements INetworkPartner {
         }, 0);
     }
     
-    const orderAmount = parseAmount(paymentAny?.finalAmount) || subTotal;
+    const orderAmount = subTotal || parseAmount(paymentAny?.finalAmount) || 0;
 
     // --- Transform Invoices from Documents ---
     
