@@ -23,6 +23,7 @@ import { XpressbeesB2cModule } from "./implementation/xpressbees_b2c/xpressbees_
 import { XpressbeesB2bModule } from "./implementation/xpressbees_b2b/xpressbees_b2b.module";
 import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/india-post-domestic.module";
 import { IndiaPostInternationalModule } from "./implementation/indiapost-international/indiapost-international.module";
+import { DpworldModule } from "./implementation/dpworld/dpworld.module";
 
 /**
  * Module for network partners
@@ -50,6 +51,7 @@ import { IndiaPostInternationalModule } from "./implementation/indiapost-interna
     XpressbeesB2bModule,
     IndiaPostDomesticModule,
     IndiaPostInternationalModule,
+    DpworldModule,
   ],
   providers: [
     NetworkPartnerFactoryService,
