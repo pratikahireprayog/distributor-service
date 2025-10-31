@@ -20,6 +20,7 @@ import { XpressbeesB2cService } from "./implementation/xpressbees_b2c/xpressbees
 import { XpressbeesB2bService } from "./implementation/xpressbees_b2b/xpressbees_b2b.service";
 import { IndiaPostDomesticService } from "./implementation/india-post-domestic/india-post-domestic.service";
 import { IndiaPostInternationalService } from "./implementation/indiapost-international/indiapost-international.service";
+import { DpworldService } from "./implementation/dpworld/dpworld.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -95,6 +96,10 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
     useClass: IndiaPostInternationalService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.DPWORLD,
+    useClass: DpworldService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -117,7 +122,8 @@ export const networkPartnersProviders: Provider[] = [
       xpressbeesB2cService: XpressbeesB2cService,
       xpressbeesB2bService: XpressbeesB2bService,
       indiaPostDomesticService: IndiaPostDomesticService,
-      indiaPostInternationalService: IndiaPostInternationalService
+      indiaPostInternationalService: IndiaPostInternationalService,
+      dpworldService: DpworldService
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -150,6 +156,7 @@ export const networkPartnersProviders: Provider[] = [
         PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
         indiaPostInternationalService
       );
+      factory.registerPartner(PARTNER_CODE_ENUM.DPWORLD, dpworldService);
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
 
@@ -175,6 +182,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.XPRESSBEES_B2B,
       NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST_DOMESTIC,
       NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
+      NETWORK_PARTNER_PROVIDER_CONST.DPWORLD,
     ],
   },
 ];

@@ -48,7 +48,8 @@ export enum PARTNER_CODE_ENUM {
   URBANBOLT = "urbanbolt",
   SHIPCUBE = "shipcube",
   XPRESSBEES_B2C = "ebb2c",
-  XPRESSBEES_B2B = "dharmendra"
+  XPRESSBEES_B2B = "dharmendra",
+  DPWORLD = "DPWORLD"
 }
 
 export enum ENDPOINT_ID_ENUM {
