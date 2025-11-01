@@ -177,13 +177,13 @@ export class XpressbeesB2bService implements INetworkPartner {
   private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2bCreateOrderRequestDto {
     this.logger.debug(`Transforming payload for XpressBees B2B, orderId: ${order?.orderId}`);
     
+    // --- Input Validation (Retained) ---
     if (!order) {
         throw new CustomHttpException(
             HttpStatus.BAD_REQUEST,
             'Order data is missing'
         );
     }
-
     if (!order.addresses || !Array.isArray(order.addresses)) {
         throw new CustomHttpException(
             HttpStatus.BAD_REQUEST,
@@ -202,23 +202,21 @@ export class XpressbeesB2bService implements INetworkPartner {
         );
     }
 
-    // --- Utility Functions ---
+    // --- Utility Functions (Retained) ---
 
     const parseAmount = (value: any): number => {
         const parsed = parseFloat(String(value || 0));
         return isNaN(parsed) ? 0 : parsed;
     };
 
-    // Calculate effective weight - use volumetric if physical is zero
     const getEffectiveWeight = (shipment: any): number => {
         const physicalWeight = parseAmount(shipment?.physicalWeight);
         const volumetricWeight = parseAmount(shipment?.volumetricWeight);
         return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 0);
     };
 
-    // Sanitize HSN code to only include numeric characters, use default if empty
     const sanitizeHsnCode = (hsn: any): string => {
-        if (!hsn && hsn !== 0) return '5678'; // Return default HSN code if falsy
+        if (!hsn && hsn !== 0) return '5678';
         const hsnString = String(hsn);
         const numericOnly = hsnString.replace(/\D/g, '');
         return numericOnly || '5678';
@@ -230,18 +228,10 @@ export class XpressbeesB2bService implements INetworkPartner {
     const deliveryAny = delivery as any;
     const metadataAny = order.metadata as any;
     
-    // Extract charges from payment breakdown if available
-    const getChargeFromBreakdown = (description: string): number => {
-        const otherCharges = paymentAny?.breakdown?.otherCharges || [];
-        const charge = otherCharges.find((c: any) => c.description === description);
-        return parseAmount(charge?.chargedAmount);
-    };
-
-    // --- Transform Products from Items ---
+    // --- Transform Products from Items (Retained) ---
     
     const items = order.parentShipment?.items || [];
     const products: XpressbeesB2bProductDto[] = items.map((item: any) => {
-        // Calculate tax percentage from taxes array
         let taxPercentage = 0;
         if (item.taxes && item.taxes.length > 0) {
             const totalTax = item.taxes.reduce((sum: number, tax: any) => {
@@ -250,16 +240,9 @@ export class XpressbeesB2bService implements INetworkPartner {
             taxPercentage = totalTax;
         }
 
-        // Get item dimensions if available, use defaults if missing
         const itemDimensions = item.dimensions || {};
-        
-        // Get and sanitize HSN code
         const hsnCode = sanitizeHsnCode(item.hsnCode);
-        
-        // Ensure product price is at least 1 (XpressBees requires positive amounts)
         const productPrice = parseAmount(item.unitPrice) || 1;
-        
-        // Ensure dimensions have default values (XpressBees B2B requires these fields)
         const productLength = parseAmount(itemDimensions.length) || 10;
         const productBreadth = parseAmount(itemDimensions.width) || 10;
         const productHeight = parseAmount(itemDimensions.height) || 10;
@@ -278,15 +261,13 @@ export class XpressbeesB2bService implements INetworkPartner {
         };
     });
 
-    // --- Calculate Amounts First (needed for invoice calculation) ---
+    // --- Calculate Amounts and Get E-Waybill Data ---
     
     const paymentMethod = paymentAny?.paymentMethod?.toLowerCase() || paymentAny?.type?.toLowerCase() || 'prepaid';
     const isPrepaid = paymentMethod === 'prepaid' || paymentMethod === 'online';
     
-    // Get amounts from payment breakdown - use subTotal for both invoice_value and order_amount
     const subTotal = parseAmount(paymentAny?.breakdown?.subTotal) || 0;
     
-    // Calculate discount from breakdown
     let discount = 0;
     if (paymentAny?.breakdown?.discounts && Array.isArray(paymentAny.breakdown.discounts)) {
         discount = paymentAny.breakdown.discounts.reduce((sum: number, d: any) => {
@@ -296,13 +277,23 @@ export class XpressbeesB2bService implements INetworkPartner {
     
     const orderAmount = subTotal || parseAmount(paymentAny?.finalAmount) || 0;
 
-    // --- Transform Invoices from Documents ---
+    // E-Waybill data
+    const eWaybills = order.eWaybills || [];
+    const primaryEbillNumber = String(eWaybills[0]) || null;
+    
+    // **UPDATED LOGIC**: Calculate EBN expiry date 7 days from orderDate
+    const orderDate = order.orderDate ? new Date(order.orderDate) : new Date();
+    const expiryDate = new Date(orderDate);
+    expiryDate.setDate(orderDate.getDate() + 7);
+    // Format the date as YYYY-MM-DD
+    const EbillExpiryDateCalculated = expiryDate.toISOString().split('T')[0];
+
+    // --- Transform Invoices from Documents (UPDATED LOGIC) ---
     
     const invoiceDocs = order.documents?.filter((doc: any) => 
         doc.type && doc.type.toUpperCase() === 'INVOICE'
     ) || [];
     
-    // Calculate invoice value per invoice (must sum to order amount)
     const numberOfInvoices = invoiceDocs.length || 1;
     const invoiceValuePerDoc = orderAmount / numberOfInvoices;
     
@@ -316,8 +307,13 @@ export class XpressbeesB2bService implements INetworkPartner {
             invoice_value: invoiceValuePerDoc,
         };
         
-        // Only include ebill fields if ebill_number is present
-        if (docAny.ebillNumber) {
+        // **CONDITIONAL EBN LOGIC**: Add EBN if the calculated invoice value is >= 50000
+        if (invoiceValuePerDoc >= 50000 && primaryEbillNumber) {
+            invoiceObj.ebill_number = primaryEbillNumber;
+            invoiceObj.ebill_expiry_date = EbillExpiryDateCalculated; 
+        } 
+        // Fallback/original logic for ebill if it exists on the document
+        else if (docAny.ebillNumber) {
             invoiceObj.ebill_number = docAny.ebillNumber;
             invoiceObj.ebill_expiry_date = docAny.ebillExpiryDate || undefined;
         }
@@ -325,34 +321,37 @@ export class XpressbeesB2bService implements INetworkPartner {
         return invoiceObj;
     });
 
-    // If no invoice documents, create a default one with full order amount
+    // If no invoice documents, create a default one with full order amount (UPDATED with EBN check)
     if (invoice.length === 0) {
-        invoice.push({
+        const defaultInvoiceObj: any = {
             invoice_number: order.referenceId || order.orderId || '',
             invoice_date: order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0],
             invoice_value: orderAmount,
-        });
+        };
+        
+        // Apply EBN logic to the default invoice
+        if (orderAmount >= 50000 && primaryEbillNumber) {
+            defaultInvoiceObj.ebill_number = primaryEbillNumber;
+            defaultInvoiceObj.ebill_expiry_date = EbillExpiryDateCalculated;
+        }
+        
+        invoice.push(defaultInvoiceObj);
     }
     
-    // --- Get Dimensions and Weight ---
-
-    const rawDimensions = order.parentShipment?.dimensions || { length: 12, width: 12, height: 12 };
+    // --- Get Dimensions and Weight (Retained) ---
 
     const effectiveWeight = 
         getEffectiveWeight(order.parentShipment) ||
         getEffectiveWeight(order.childShipments?.[0]) ||
         10; // Default to 10 kg
 
-    // Calculate total box count
     const totalItemQuantity = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
-    
-    // Use AWB number as the order reference for label generation
     const ourAwbNumber = order.awbNumber || order.parentShipment?.awbNumber || order.orderId;
     
     this.logger.log(`AWB Number used for XpressBees B2B label: ${ourAwbNumber}`);
     this.logger.debug(`Transformed - Weight: ${effectiveWeight}kg, Order amount: ${orderAmount}, Products: ${products.length}, Invoices: ${invoice.length}`);
 
-    // --- Final Payload Construction ---
+    // --- Final Payload Construction (Retained) ---
 
     return {
         id: String(ourAwbNumber),
@@ -375,18 +374,17 @@ export class XpressbeesB2bService implements INetworkPartner {
         products: products,
         invoice: invoice,
         
-        weight: effectiveWeight, // B2B uses number, not string
-        courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID, // Hardcoded as 16949
+        weight: effectiveWeight,
+        courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID,
         pickup_location: XPRESSBEES_B2B_CONSTANTS.PICKUP_LOCATION,
         
-        discount: discount || 0, // B2B uses number, not string
-        order_amount: orderAmount || 0, // B2B uses number, not string
+        discount: discount || 0,
+        order_amount: orderAmount || 0,
         no_of_invoices: invoice.length,
         no_of_boxes: totalItemQuantity || 1,
         global_weight_unit: 'kg',
     };
-  }
-
+}
   async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
     data: T,
     partnerCode: string,
