@@ -281,13 +281,14 @@ export class XpressbeesB2bService implements INetworkPartner {
     const eWaybills = order.eWaybills || [];
     const primaryEbillNumber = String(eWaybills[0]) || null;
     
-    // **UPDATED LOGIC**: Calculate EBN expiry date 7 days from orderDate
+    // Calculate EBN expiry date 7 days from orderDate
     const orderDate = order.orderDate ? new Date(order.orderDate) : new Date();
     const expiryDate = new Date(orderDate);
     expiryDate.setDate(orderDate.getDate() + 7);
     // Format the date as YYYY-MM-DD
     const EbillExpiryDateCalculated = expiryDate.toISOString().split('T')[0];
-
+    const formattedOrderDate = order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
+    
     // --- Transform Invoices from Documents (UPDATED LOGIC) ---
     
     const invoiceDocs = order.documents?.filter((doc: any) => 
@@ -299,11 +300,12 @@ export class XpressbeesB2bService implements INetworkPartner {
     
     const invoice: XpressbeesB2bInvoiceDto[] = invoiceDocs.map((doc: any) => {
         const docAny = doc as any;
-        const invoiceDate = docAny.invoiceDate || order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
+        // CHANGE 1: Use formatted order date for invoice date
+        const invoiceDate = formattedOrderDate; 
         
         const invoiceObj: any = {
             invoice_number: doc.number || '',
-            invoice_date: invoiceDate,
+            invoice_date: invoiceDate, // <--- UPDATED
             invoice_value: invoiceValuePerDoc,
         };
         
@@ -325,7 +327,8 @@ export class XpressbeesB2bService implements INetworkPartner {
     if (invoice.length === 0) {
         const defaultInvoiceObj: any = {
             invoice_number: order.referenceId || order.orderId || '',
-            invoice_date: order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+            // CHANGE 1: Use formatted order date for default invoice date
+            invoice_date: formattedOrderDate, // <--- UPDATED
             invoice_value: orderAmount,
         };
         
@@ -351,7 +354,7 @@ export class XpressbeesB2bService implements INetworkPartner {
     this.logger.log(`AWB Number used for XpressBees B2B label: ${ourAwbNumber}`);
     this.logger.debug(`Transformed - Weight: ${effectiveWeight}kg, Order amount: ${orderAmount}, Products: ${products.length}, Invoices: ${invoice.length}`);
 
-    // --- Final Payload Construction (Retained) ---
+    // --- Final Payload Construction (MODIFIED) ---
 
     return {
         id: String(ourAwbNumber),
@@ -376,7 +379,8 @@ export class XpressbeesB2bService implements INetworkPartner {
         
         weight: effectiveWeight,
         courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID,
-        pickup_location: XPRESSBEES_B2B_CONSTANTS.PICKUP_LOCATION,
+        // CHANGE 2: Use the customer name (consigner_name) for pickup_location
+        pickup_location: 'customer', // <--- UPDATED
         
         discount: discount || 0,
         order_amount: orderAmount || 0,
@@ -385,6 +389,8 @@ export class XpressbeesB2bService implements INetworkPartner {
         global_weight_unit: 'kg',
     };
 }
+
+
   async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
     data: T,
     partnerCode: string,
