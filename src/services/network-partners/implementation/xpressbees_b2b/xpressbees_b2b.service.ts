@@ -227,17 +227,28 @@ export class XpressbeesB2bService implements INetworkPartner {
     const pickupAny = pickup as any;
     const deliveryAny = delivery as any;
     const metadataAny = order.metadata as any;
+
+    // 🧮 NEW: Calculate the sum of the 'value' field from order-level taxes (Fallback for product tax)
+    const orderTaxesSum = (order.taxes || []).reduce((sum: number, tax: any) => {
+        return sum + parseAmount(tax.value); 
+    }, 0);
     
-    // --- Transform Products from Items (Retained) ---
+    // --- Transform Products from Items (UPDATED) ---
     
     const items = order.parentShipment?.items || [];
     const products: XpressbeesB2bProductDto[] = items.map((item: any) => {
         let taxPercentage = 0;
+        
+        // 1. Primary check: Use item-level taxes if available
         if (item.taxes && item.taxes.length > 0) {
             const totalTax = item.taxes.reduce((sum: number, tax: any) => {
                 return sum + parseAmount(tax.value);
             }, 0);
             taxPercentage = totalTax;
+        } 
+        // 2. Fallback check: Use the calculated order-level tax sum (NEW LOGIC)
+        else if (orderTaxesSum > 0) {
+            taxPercentage = orderTaxesSum; 
         }
 
         const itemDimensions = item.dimensions || {};
@@ -251,7 +262,7 @@ export class XpressbeesB2bService implements INetworkPartner {
             product_name: item.name || '',
             product_qty: String(item.quantity || 1),
             product_price: String(productPrice),
-            product_tax_per: String(taxPercentage),
+            product_tax_per: String(taxPercentage), // <--- NOW USES ORDER-LEVEL FALLBACK
             product_sku: item.sku || '',
             product_hsn_code: hsnCode,
             product_lbh_unit: 'cm',
@@ -379,7 +390,7 @@ export class XpressbeesB2bService implements INetworkPartner {
         
         weight: effectiveWeight,
         courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID,
-        // CHANGE 2: Use the customer name (consigner_name) for pickup_location
+        // CHANGE 2: Hardcoded 'customer' for pickup_location
         pickup_location: 'customer', // <--- UPDATED
         
         discount: discount || 0,
@@ -389,8 +400,6 @@ export class XpressbeesB2bService implements INetworkPartner {
         global_weight_unit: 'kg',
     };
 }
-
-
   async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
     data: T,
     partnerCode: string,
