@@ -234,6 +234,7 @@ export class FEDEXService extends BaseNetworkPartner {
                         customsValue: { amount: i.unitPrice || 1, currency: 'INR' },
                         numberOfPieces: i.quantity || 1,
                         weight: { units: 'KG', value: i.weight || 1 },
+                        harmonizedCode: i.hsnCode
                     })),
                 },
                 labelSpecification: {
