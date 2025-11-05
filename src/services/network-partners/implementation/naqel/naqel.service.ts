@@ -17,6 +17,7 @@ import { SchemaMapperService } from "src/infrastructure/schema-mapper";
 import axios from "axios";
 import * as xml2js from "xml2js";
 import { naqelCityList } from "./naqel_country_codes";
+import { CITYCODE_CURRENCY_MAPPING } from "./naqel.constants";
 
 @Injectable()
 export class NAQELService extends BaseNetworkPartner {
@@ -55,7 +56,6 @@ export class NAQELService extends BaseNetworkPartner {
 
       const xmlRequest = this.buildCreateWaybillXML(orderDetails, apiUser, apiPass);
 
-      console.log("xmlRequest ==>>", xmlRequest);
       const response = await firstValueFrom(
          this.httpService.post(wsdlUrl, xmlRequest, {
           headers: {
@@ -68,8 +68,8 @@ export class NAQELService extends BaseNetworkPartner {
         );
 
       const jsonResponse = await this.parseXML(response.data);
-      console.log("jsonResponse ==>>", jsonResponse);
-      const waybillNumber = jsonResponse?.Envelope?.Body?.CreateWaybillResponse?.CreateWaybillResult?.WaybillNo;
+      const waybillNumber = jsonResponse?.["soap:Envelope"]?.["soap:Body"]?.["CreateWaybillResponse"]?.["CreateWaybillResult"]?.["WaybillNo"];
+      const labelBase64 = await this.generateNaqelLabel(waybillNumber, orderDetails);
 
       return {
         statusCode: 200,
@@ -77,10 +77,10 @@ export class NAQELService extends BaseNetworkPartner {
         data: {
           cAwbNumber: waybillNumber || "",
           apiResponse: jsonResponse,
+          label: labelBase64
         },
       } as R;
     } catch (error) {
-      // console.log('aaaaaaaa', error)
       this.logger.error(`NAQEL createOrder error: ${error.message}`);
       throw new CustomHttpException(
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -133,79 +133,82 @@ export class NAQELService extends BaseNetworkPartner {
       );
     }
   }
+private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Promise<string | null> {
+  try {
+    const wsdlUrl = this.configService.get<string>("NAQEL_BASE_URL");
+    const apiUser = this.configService.get<string>("NAQEL_CLIENT_ID");
+    const apiPass = this.configService.get<string>("NAQEL_PASSWORD");
 
-  /**
-   * Build XML for creating shipment
-   */
-//   private buildCreateWaybillXML(order: any, username: string, password: string): string {
-//   const shipper = order.addresses.find(a => a.type === "PICKUP");
-//   const receiver = order.addresses.find(a => a.type === "DELIVERY");
+    const labelXml = `<?xml version="1.0" encoding="utf-8"?>
+      <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+        <soap:Body>
+          <GetWaybillSticker xmlns="http://tempuri.org/">
+            <clientInfo>
+              <ClientAddress>
+                <PhoneNumber/>
+                <NationalAddress/>
+                <POBox/>
+                <ZipCode/>
+                <Fax/>
+                <Latitude/>
+                <Longitude/>
+                <ShipperName>${orderDetails?.shipperName || "shipper"}</ShipperName>
+                <FirstAddress>${orderDetails?.originAddress || "riyadh"}</FirstAddress>
+                <Location>${orderDetails?.originCity || "Riyadh"}</Location>
+                <CountryCode>KSA</CountryCode>
+                <CityCode>RUH</CityCode>
+              </ClientAddress>
+              <ClientContact>
+                <Name>${orderDetails?.shipperName || "Shipper Name"}</Name>
+                <Email>${orderDetails?.shipperEmail || "shipper@example.com"}</Email>
+                <PhoneNumber/>
+                <MobileNo/>
+              </ClientContact>
+              <ClientID>${apiUser}</ClientID>
+              <Password>${apiPass}</Password>
+              <Version>9.0</Version>
+            </clientInfo>
+            <WaybillNo>${waybillNumber}</WaybillNo>
+            <StickerSize>ExpressLabel4x6Inches</StickerSize>
+          </GetWaybillSticker>
+        </soap:Body>
+      </soap:Envelope>`;
 
-//   return `<?xml version="1.0" encoding="utf-8"?>
-//   <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-//     <soap:Body>
-//       <CreateWaybillAlt xmlns="http://tempuri.org/">
-//         <_ManifestShipmentDetailsAlt>
-//           <ClientInfo>
-//             <ClientAddress>
-//               <PhoneNumber>${shipper.phone || ""}</PhoneNumber>
-//               <ShipperName>${shipper.name || ""}</ShipperName>
-//               <FirstAddress>${shipper.street || ""}</FirstAddress>
-//               <Location>${shipper.city || ""}</Location>
-//               <CountryCode>${shipper.country || ""}</CountryCode>
-//               <CityCode>${shipper.city || ""}</CityCode>
-//             </ClientAddress>
-//             <ClientContact>
-//               <Name>${shipper.name || ""}</Name>
-//               <Email>${shipper.email || ""}</Email>
-//               <PhoneNumber>${shipper.phone || ""}</PhoneNumber>
-//               <MobileNo>${shipper.phone || ""}</MobileNo>
-//             </ClientContact>
-//             <ClientID>${username}</ClientID>
-//             <Password>${password}</Password>
-//             <Version>9.0</Version>
-//           </ClientInfo>
+    const response = await firstValueFrom(
+      this.httpService.post(wsdlUrl, labelXml, {
+        headers: {
+          "Content-Type": "text/xml; charset=utf-8",
+          "SOAPAction": "http://tempuri.org/GetWaybillSticker",
+        },
+        httpsAgent: this.httpsAgent,
+        timeout: 30000,
+      })
+    );
+    const labelJson = await this.parseXML(response.data);
+    const base64Label =
+      labelJson?.["soap:Envelope"]?.["soap:Body"]?.["GetWaybillStickerResponse"]?.["GetWaybillStickerResult"] || null;
 
-//           <ConsigneeInfoAlt>
-//             <ConsigneeName>${receiver.name || ""}</ConsigneeName>
-//             <Email>${receiver.email || ""}</Email>
-//             <Mobile>${receiver.phone || ""}</Mobile>
-//             <PhoneNumber>${receiver.phone || ""}</PhoneNumber>
-//             <Address>${receiver.street || ""}</Address>
-//             <CityName>${receiver.city || ""}</CityName>
-//             <CountryName>${receiver.country || ""}</CountryName>
-//           </ConsigneeInfoAlt>
+    return base64Label || null;
+  } catch (err) {
+    this.logger.error(`NAQEL label generation failed: ${err.message}`);
+    return null;
+  }
+}
 
-//           <CurrenyID>1</CurrenyID>
-//           <BillingType>1</BillingType>
-//           <PicesCount>${order.parentShipment.items?.length || 1}</PicesCount>
-//           <Weight>${order.parentShipment.physicalWeight || 1}</Weight>
-//           <DeliveryInstruction>${order.parentShipment.note || ""}</DeliveryInstruction>
-//           <CODCharge>${order.payment?.codAmount || 0}</CODCharge>
-//           <CreateBooking>true</CreateBooking>
-//           <isRTO>false</isRTO>
-//           <GeneratePiecesBarCodes>true</GeneratePiecesBarCodes>
-//           <DeclareValue>${order.parentShipment.items?.[0]?.unitPrice || 0}</DeclareValue>
-//           <GoodDesc>${order.parentShipment.items?.[0]?.name || "Goods"}</GoodDesc>
-//           <RefNo>${order.orderId}</RefNo>
-//           <Width>${order.parentShipment.dimensions?.width || 0}</Width>
-//           <Length>${order.parentShipment.dimensions?.length || 0}</Length>
-//           <Height>${order.parentShipment.dimensions?.height || 0}</Height>
-//           <InsuredValue>${order.parentShipment.items?.[0]?.unitPrice || 0}</InsuredValue>
-//           <Reference1>${order.orderId}</Reference1>
-//           <IsCustomDutyPayByConsignee>true</IsCustomDutyPayByConsignee>
-//         </_ManifestShipmentDetailsAlt>
-//       </CreateWaybillAlt>
-//     </soap:Body>
-//   </soap:Envelope>`;
-// }
 
   private buildCreateWaybillXML(orderDetails: any, apiUser: string, apiPass: string): string {
   const pickupAddress = orderDetails.addresses.find(a => a.type === "PICKUP");
   const deliveryAddress = orderDetails.addresses.find(a => a.type === "DELIVERY");
   const invoice = orderDetails.documents.find(d => d.documentType === "INVOICE");
   const totalCost = orderDetails.parentShipment.items.reduce((sum, i) => sum + Number(i.unitPrice || 0), 0);
-  //CODCharge  // reference number ${orderDetails.orderId} // unit type pecies
+    
+  const currencyCode = orderDetails?.payment?.currency || "USD";
+  const currencyId = getCurrencyId(currencyCode);
+  
+  const orderType = orderDetails.serviceType; 
+  const loadTypeId = mapServiceToLoadTypeID(orderType, pickupAddress.country, deliveryAddress.country)
+
+    
   return `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
     <soapenv:Header/>
     <soapenv:Body>
@@ -233,7 +236,6 @@ export class NAQELService extends BaseNetworkPartner {
                     <Version>9.0</Version>
                 </ClientInfo>
                 <ConsigneeInfo>
-                    <ConsigneeNationalID>0</ConsigneeNationalID>
                     <ConsigneeName>${escapeXml(deliveryAddress.name)}</ConsigneeName>
                     <Email>${deliveryAddress.email || ''}</Email>
                     <Mobile>${deliveryAddress.phone}</Mobile>
@@ -245,8 +247,8 @@ export class NAQELService extends BaseNetworkPartner {
                     <CityCode>${deliveryAddress.postal_code}</CityCode>
                 </ConsigneeInfo>
                 <_CommercialInvoice>
-                    <RefNo>${orderDetails.orderId}</RefNo>
-                    <InvoiceNo>${invoice?.documentNumber || orderDetails.orderId}</InvoiceNo>
+                    <RefNo>TestHSCodeInvoice100</RefNo>
+                    <InvoiceNo>${invoice.documentNumber}</InvoiceNo>
                     <InvoiceDate>${new Date().toISOString().split('T')[0]}</InvoiceDate>
                     <Consignee>${escapeXml(deliveryAddress.name)}</Consignee>
                     <ConsigneeAddress>${escapeXml(deliveryAddress.street)}</ConsigneeAddress>
@@ -259,36 +261,36 @@ export class NAQELService extends BaseNetworkPartner {
                         ${orderDetails.parentShipment.items.map(item => `
                         <CommercialInvoiceDetail>
                             <Quantity>${item.quantity}</Quantity>
-                            <UnitType>pieces</UnitType>
+                            <UnitType>KG</UnitType>
                             <CountryofManufacture>${deliveryAddress.country}</CountryofManufacture>
                             <Description>${escapeXml(item.name)}</Description>
                             <ChineseDescription>${escapeXml(item.name)}</ChineseDescription>
                             <UnitCost>${item.unitPrice}</UnitCost>
-                            <CustomsCommodityCode>${item.hsnCode || '12332995'}</CustomsCommodityCode>
-                            <Currency>${deliveryAddress.country}</Currency>
+                            <CustomsCommodityCode>${item.hsnCode}</CustomsCommodityCode>
+                            <Currency>${orderDetails?.payment?.currency || "USD"}</Currency>
                         </CommercialInvoiceDetail>
                         `).join('')}
                     </CommercialInvoiceDetailList>
                 </_CommercialInvoice>
-                <CurrenyID>2</CurrenyID>
+                <CurrenyID>${currencyId}</CurrenyID>
                 <BillingType>5</BillingType>
                 <PicesCount>${orderDetails.parentShipment.items.reduce((sum, item) => sum + parseInt(item.quantity), 0)}</PicesCount>
                 <Weight>${orderDetails.parentShipment.physicalWeight || orderDetails.parentShipment.items.reduce((sum, item) => sum + parseFloat(item.weight), 0)}</Weight>
                 <DeliveryInstruction>${orderDetails.parentShipment.note || ''}</DeliveryInstruction>
-                <CODCharge>1</CODCharge>
+                <CODCharge>1</CODCharge>   
                 <CreateBooking>false</CreateBooking>
                 <isRTO>false</isRTO>
-                <GeneratePiecesBarCodes>false</GeneratePiecesBarCodes>
-                <LoadTypeID>34</LoadTypeID>
+                <GeneratePiecesBarCodes>true</GeneratePiecesBarCodes>
+                <LoadTypeID>${loadTypeId}</LoadTypeID>
                 <DeclareValue>${totalCost}</DeclareValue>
                 <GoodDesc>${orderDetails.parentShipment.items.map(item => item.name).join(', ')}</GoodDesc>
                 <Latitude>${deliveryAddress.latitude || ''}</Latitude>
                 <Longitude>${deliveryAddress.longitude || ''}</Longitude>
-                <RefNo>TestWaybillWorkFlow</RefNo>
+                <RefNo>${orderDetails.orderId}</RefNo>
                 <InsuredValue>0</InsuredValue>
                 <IsInsurance>false</IsInsurance>
                 <Reference1>${orderDetails.referenceId || ''}</Reference1>
-                <Reference2>${orderDetails.awbNumber || ''}</Reference2>
+                <Reference2></Reference2>
                 <GoodsVATAmount>0</GoodsVATAmount>
                 <IsCustomDutyPayByConsignee>false</IsCustomDutyPayByConsignee>
             </_ManifestShipmentDetails>
@@ -297,6 +299,7 @@ export class NAQELService extends BaseNetworkPartner {
 </soapenv:Envelope>`;
 }
 
+// <ConsigneeNationalID>0</ConsigneeNationalID> optional
 
 
   /**
@@ -354,7 +357,6 @@ async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
 
     // Build CreateBooking XML
     const xmlRequest = this.buildCreateBookingXML(data, apiUser, apiPass);
-
     const response = await firstValueFrom(
       this.httpService.post(wsdlUrl, xmlRequest, {
         headers: {
@@ -403,14 +405,12 @@ async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
   const shipper = order.addresses?.find(a => a.type === "PICKUP");
   const receiver = order.addresses?.find(a => a.type === "DELIVERY");
 
-    console.log("shipper", shipper)
-    console.log("receiver", receiver)
-
-  const shipperCityCode = shipper?.postalCode;
-  const receiverCityCode = receiver?.postalCode;
+  const shipperCityCode = shipper?.postal_code;
+  const receiverCityCode = receiver?.postal_code;
     
   const originStationId = getStationIdByCityCode(shipperCityCode);
   const destinationStationId = getStationIdByCityCode(receiverCityCode);
+
   
   return `
   <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -422,12 +422,12 @@ async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
           <ClientInfo>
             <ClientAddress>
               <PhoneNumber>${shipper?.phone || ""}</PhoneNumber>
-              <NationalAddress>${shipper?.address1 || ""}</NationalAddress>
-              <ZipCode>${shipper?.zip || ""}</ZipCode>
+              <NationalAddress>${shipper?.street || ""}</NationalAddress>
+              <ZipCode>${shipper?.zip || 0}</ZipCode>
               <ShipperName>${shipper?.name || ""}</ShipperName>
-              <FirstAddress>${shipper?.address1 || ""}</FirstAddress>
+              <FirstAddress>${shipper?.street || ""}</FirstAddress>
               <Location>${shipper?.city || ""}</Location>
-              <CountryCode>${shipper?.countryCode || "SA"}</CountryCode>
+              <CountryCode>${shipper?.countryCode}</CountryCode>
               <CityCode>${shipper?.postal_code || ""}</CityCode>
             </ClientAddress>
             <ClientContact>
@@ -479,4 +479,49 @@ function escapeXml(unsafe: string): string {
       default: return c;
     }
   });
+}
+
+function getCurrencyId(currencyCode: string): number {
+  const currency = CITYCODE_CURRENCY_MAPPING.find(
+    (c) => c.code.toUpperCase() === currencyCode.toUpperCase()
+  );
+  return currency ? currency.ID : 4; 
+}
+
+function mapServiceToLoadTypeID(serviceType, originCountry, destCountry) {
+  if (!serviceType || !originCountry || !destCountry) return 36; 
+
+  const isInternational = originCountry.toUpperCase() !== destCountry.toUpperCase();
+  const serviceTypeLower = serviceType.toLowerCase();
+
+  if (isInternational) {
+    // --- International routes ---
+    switch (serviceTypeLower) {
+      case "express":
+      case "priority":
+        return 33; // Document Int'l – International Courier
+      case "standard":
+      case "economy":
+        return 34; // Non Document Int'l – International Courier
+      default:
+        // GCC neighbors (road courier)
+        const gccCountries = ["AE", "BH", "KW", "OM", "QA"];
+        if (gccCountries.includes(destCountry.toUpperCase())) {
+          return 65; // IRC – International Road Courier
+        }
+        return 34; // Default to Non Document Int'l
+    }
+  }
+
+  // --- Domestic routes ---
+  switch (serviceTypeLower) {
+    case "express":
+    case "priority":
+      return 39; // Express Domestic
+    case "standard":
+    case "economy":
+      return 36; // Non Document – Domestic Courier
+    default:
+      return 36; // Default fallback
+  }
 }
