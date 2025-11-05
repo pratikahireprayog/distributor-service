@@ -24,6 +24,7 @@ import { XpressbeesB2bModule } from "./implementation/xpressbees_b2b/xpressbees_
 import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/india-post-domestic.module";
 import { IndiaPostInternationalModule } from "./implementation/indiapost-international/indiapost-international.module";
 import { DpworldModule } from "./implementation/dpworld/dpworld.module";
+import { NAQELModule } from "./implementation/naqel/naqel.module";
 
 /**
  * Module for network partners
@@ -52,6 +53,7 @@ import { DpworldModule } from "./implementation/dpworld/dpworld.module";
     IndiaPostDomesticModule,
     IndiaPostInternationalModule,
     DpworldModule,
+    NAQELModule
   ],
   providers: [
     NetworkPartnerFactoryService,

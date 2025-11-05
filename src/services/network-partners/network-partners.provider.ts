@@ -21,6 +21,7 @@ import { XpressbeesB2bService } from "./implementation/xpressbees_b2b/xpressbees
 import { IndiaPostDomesticService } from "./implementation/india-post-domestic/india-post-domestic.service";
 import { IndiaPostInternationalService } from "./implementation/indiapost-international/indiapost-international.service";
 import { DpworldService } from "./implementation/dpworld/dpworld.service";
+import { NAQELService } from "./implementation/naqel/naqel.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -100,6 +101,10 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.DPWORLD,
     useClass: DpworldService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.NAQEL,
+    useClass: NAQELService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -123,7 +128,8 @@ export const networkPartnersProviders: Provider[] = [
       xpressbeesB2bService: XpressbeesB2bService,
       indiaPostDomesticService: IndiaPostDomesticService,
       indiaPostInternationalService: IndiaPostInternationalService,
-      dpworldService: DpworldService
+      dpworldService: DpworldService,
+      naqelService: NAQELService,
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -159,6 +165,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.DPWORLD, dpworldService);
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
+      factory.registerPartner(PARTNER_CODE_ENUM.NAQEL, naqelService);
 
       return factory;
     },
@@ -183,6 +190,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.INDIA_POST_DOMESTIC,
       NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
       NETWORK_PARTNER_PROVIDER_CONST.DPWORLD,
+      NETWORK_PARTNER_PROVIDER_CONST.NAQEL,
     ],
   },
 ];
