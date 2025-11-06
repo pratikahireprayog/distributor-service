@@ -132,6 +132,68 @@ export class PackagingDto {
   fragileHandling: boolean;
 }
 
+class ProductTypesDto {
+  @IsBoolean()
+  commercial: boolean;
+
+  @IsBoolean()
+  document: boolean;
+
+  @IsBoolean()
+  nonDocument: boolean;
+}
+
+class PriceDto {
+  @IsString()
+  currency: string;
+
+  @IsNumber()
+  amount: number;
+
+  @IsString()
+  type: string;
+}
+
+class RateDto {
+  @IsString()
+  rateId: string;
+
+  @ValidateNested()
+  @Type(() => PriceDto)
+  price: PriceDto;
+}
+
+export class ServiceDto {
+  @IsString()
+  serviceCode: string;
+
+  @IsString()
+  serviceName: string;
+
+  @IsNumber()
+  tatDays: number;
+
+  @IsBoolean()
+  isCod: boolean;
+
+  @IsBoolean()
+  pickup: boolean;
+
+  @IsBoolean()
+  delivery: boolean;
+
+  @IsBoolean()
+  insurance: boolean;
+
+  @ValidateNested()
+  @Type(() => ProductTypesDto)
+  productTypes: ProductTypesDto;
+
+  @ValidateNested()
+  @Type(() => RateDto)
+  rate: RateDto;
+}
+
 export class ParentShipmentDto {
   @IsOptional()
   @IsNumber()
@@ -702,6 +764,14 @@ export class OrderDtov2 {
   @ValidateNested({ each: true })
   @Type(() => DocumentDto)
   documents: DocumentDto[];
+
+
+  @IsArray()
+  @Type(() => ServiceDto)
+  @ValidateNested({ each: true })
+  @IsOptional()  
+  services?: ServiceDto[];
+    
 
   @ValidateNested()
   @Type(() => ParentShipmentDto)
