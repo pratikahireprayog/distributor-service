@@ -174,7 +174,7 @@ export class XpressbeesB2bService implements INetworkPartner {
     }
   }
 
-  private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2bCreateOrderRequestDto {
+private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2bCreateOrderRequestDto {
     this.logger.debug(`Transforming payload for XpressBees B2B, orderId: ${order?.orderId}`);
     
     // --- Input Validation (Retained) ---
@@ -203,7 +203,6 @@ export class XpressbeesB2bService implements INetworkPartner {
     }
 
     // --- Utility Functions (Retained) ---
-
     const parseAmount = (value: any): number => {
         const parsed = parseFloat(String(value || 0));
         return isNaN(parsed) ? 0 : parsed;
@@ -228,27 +227,23 @@ export class XpressbeesB2bService implements INetworkPartner {
     const deliveryAny = delivery as any;
     const metadataAny = order.metadata as any;
 
-    // 🧮 NEW: Calculate the sum of the 'value' field from order-level taxes (Fallback for product tax)
+    // --- Aggregate order-level taxes for fallback ---
     const orderTaxesSum = (order.taxes || []).reduce((sum: number, tax: any) => {
         return sum + parseAmount(tax.value); 
     }, 0);
     
-    // --- Transform Products from Items (UPDATED) ---
-    
+    // --- Transform Products from Items ---
     const items = order.parentShipment?.items || [];
     const products: XpressbeesB2bProductDto[] = items.map((item: any) => {
         let taxPercentage = 0;
         
-        // 1. Primary check: Use item-level taxes if available
         if (item.taxes && item.taxes.length > 0) {
             const totalTax = item.taxes.reduce((sum: number, tax: any) => {
                 return sum + parseAmount(tax.value);
             }, 0);
             taxPercentage = totalTax;
-        } 
-        // 2. Fallback check: Use the calculated order-level tax sum (NEW LOGIC)
-        else if (orderTaxesSum > 0) {
-            taxPercentage = orderTaxesSum; 
+        } else if (orderTaxesSum > 0) {
+            taxPercentage = orderTaxesSum;
         }
 
         const itemDimensions = item.dimensions || {};
@@ -262,7 +257,7 @@ export class XpressbeesB2bService implements INetworkPartner {
             product_name: item.name || '',
             product_qty: String(item.quantity || 1),
             product_price: String(productPrice),
-            product_tax_per: String(taxPercentage), // <--- NOW USES ORDER-LEVEL FALLBACK
+            product_tax_per: String(taxPercentage),
             product_sku: item.sku || '',
             product_hsn_code: hsnCode,
             product_lbh_unit: 'cm',
@@ -273,7 +268,6 @@ export class XpressbeesB2bService implements INetworkPartner {
     });
 
     // --- Calculate Amounts and Get E-Waybill Data ---
-    
     const paymentMethod = paymentAny?.paymentMethod?.toLowerCase() || paymentAny?.type?.toLowerCase() || 'prepaid';
     const isPrepaid = paymentMethod === 'prepaid' || paymentMethod === 'online';
     
@@ -288,72 +282,65 @@ export class XpressbeesB2bService implements INetworkPartner {
     
     const orderAmount = subTotal || parseAmount(paymentAny?.finalAmount) || 0;
 
-    // E-Waybill data
+    // E-Waybill data - only from order.eWaybills (array of objects)
     const eWaybills = order.eWaybills || [];
-    const primaryEbillNumber = String(eWaybills[0]) || null;
+    const primaryEway = (order.eWaybills?.[0] ?? null) as any;
+    const primaryEbillNumber =
+      typeof primaryEway === 'string' ? primaryEway : primaryEway?.waybillNumber || null;
+    const primaryEbillValidUntil =
+      typeof primaryEway === 'string' ? null : primaryEway?.validUntil || null;
     
-    // Calculate EBN expiry date 7 days from orderDate
+
+    // Fallback expiry (7 days after orderDate) if validUntil missing
     const orderDate = order.orderDate ? new Date(order.orderDate) : new Date();
     const expiryDate = new Date(orderDate);
     expiryDate.setDate(orderDate.getDate() + 7);
-    // Format the date as YYYY-MM-DD
     const EbillExpiryDateCalculated = expiryDate.toISOString().split('T')[0];
     const formattedOrderDate = order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
     
-    // --- Transform Invoices from Documents (UPDATED LOGIC) ---
-    
+    // --- Transform Invoices from Documents (DOCUMENTS USED ONLY FOR invoice_number/date/value) ---
     const invoiceDocs = order.documents?.filter((doc: any) => 
         doc.type && doc.type.toUpperCase() === 'INVOICE'
     ) || [];
     
     const numberOfInvoices = invoiceDocs.length || 1;
-    const invoiceValuePerDoc = orderAmount / numberOfInvoices;
+    const invoiceValuePerDoc = numberOfInvoices > 0 ? (orderAmount / numberOfInvoices) : orderAmount;
     
     const invoice: XpressbeesB2bInvoiceDto[] = invoiceDocs.map((doc: any) => {
-        const docAny = doc as any;
-        // CHANGE 1: Use formatted order date for invoice date
-        const invoiceDate = formattedOrderDate; 
+        const invoiceDate = formattedOrderDate;
         
         const invoiceObj: any = {
             invoice_number: doc.number || '',
-            invoice_date: invoiceDate, // <--- UPDATED
+            invoice_date: invoiceDate,
             invoice_value: invoiceValuePerDoc,
         };
         
-        // **CONDITIONAL EBN LOGIC**: Add EBN if the calculated invoice value is >= 50000
+        // ✅ E-Waybill assignment: ONLY from order.eWaybills when invoice value >= 50000
         if (invoiceValuePerDoc >= 50000 && primaryEbillNumber) {
             invoiceObj.ebill_number = primaryEbillNumber;
-            invoiceObj.ebill_expiry_date = EbillExpiryDateCalculated; 
-        } 
-        // Fallback/original logic for ebill if it exists on the document
-        else if (docAny.ebillNumber) {
-            invoiceObj.ebill_number = docAny.ebillNumber;
-            invoiceObj.ebill_expiry_date = docAny.ebillExpiryDate || undefined;
+            invoiceObj.ebill_expiry_date = primaryEbillValidUntil || EbillExpiryDateCalculated;
         }
         
         return invoiceObj;
     });
 
-    // If no invoice documents, create a default one with full order amount (UPDATED with EBN check)
+    // Default invoice when no documents exist
     if (invoice.length === 0) {
         const defaultInvoiceObj: any = {
             invoice_number: order.referenceId || order.orderId || '',
-            // CHANGE 1: Use formatted order date for default invoice date
-            invoice_date: formattedOrderDate, // <--- UPDATED
+            invoice_date: formattedOrderDate,
             invoice_value: orderAmount,
         };
         
-        // Apply EBN logic to the default invoice
         if (orderAmount >= 50000 && primaryEbillNumber) {
             defaultInvoiceObj.ebill_number = primaryEbillNumber;
-            defaultInvoiceObj.ebill_expiry_date = EbillExpiryDateCalculated;
+            defaultInvoiceObj.ebill_expiry_date = primaryEbillValidUntil || EbillExpiryDateCalculated;
         }
-        
+
         invoice.push(defaultInvoiceObj);
     }
     
     // --- Get Dimensions and Weight (Retained) ---
-
     const effectiveWeight = 
         getEffectiveWeight(order.parentShipment) ||
         getEffectiveWeight(order.childShipments?.[0]) ||
@@ -365,8 +352,7 @@ export class XpressbeesB2bService implements INetworkPartner {
     this.logger.log(`AWB Number used for XpressBees B2B label: ${ourAwbNumber}`);
     this.logger.debug(`Transformed - Weight: ${effectiveWeight}kg, Order amount: ${orderAmount}, Products: ${products.length}, Invoices: ${invoice.length}`);
 
-    // --- Final Payload Construction (MODIFIED) ---
-
+    // --- Final Payload Construction ---
     return {
         id: String(ourAwbNumber),
         payment_method: isPrepaid ? 'prepaid' : 'cod',
@@ -390,8 +376,7 @@ export class XpressbeesB2bService implements INetworkPartner {
         
         weight: effectiveWeight,
         courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID,
-        // CHANGE 2: Hardcoded 'customer' for pickup_location
-        pickup_location: 'customer', // <--- UPDATED
+        pickup_location: 'customer',
         
         discount: discount || 0,
         order_amount: orderAmount || 0,
@@ -400,6 +385,8 @@ export class XpressbeesB2bService implements INetworkPartner {
         global_weight_unit: 'kg',
     };
 }
+
+
   async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
     data: T,
     partnerCode: string,
