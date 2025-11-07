@@ -151,16 +151,22 @@ export class ARAMEXService extends BaseNetworkPartner {
     }
   }
 
-
+// post code and country code issue
   async transformCreateAramexPayload(order, cityCode) {
     const shipperAddr = order.addresses.find(a => a.type === "PICKUP");
     const consigneeAddr = order.addresses.find(a => a.type === "DELIVERY");
     const clientInfo = await this.fetchAramexClientInfo(cityCode);
     const accountNumber = clientInfo.AccountNumber;
 
+    const Shipper = await this.convertAddressAndContactsToAramexParty(shipperAddr, accountNumber);
+    const Consignee = await this.convertAddressAndContactsToAramexParty(consigneeAddr, "");
+      
+    const invoiceDocs = order.documents?.filter((doc: any) => 
+          doc.type && doc.type.toUpperCase() === 'INVOICE'
+    ) || [];
     const shipment = {
-      Shipper: await this.convertAddressAndContactsToAramexParty(shipperAddr, accountNumber),
-      Consignee: await this.convertAddressAndContactsToAramexParty(consigneeAddr, ""),
+      Shipper: Shipper,
+      Consignee: Consignee,
       ShippingDateTime: `/Date(${new Date(order.orderDate).getTime()}+0530)/`,
       DueDate: `/Date(${new Date(order.expectedDeliveryDate).getTime()}+0530)/`,
       Comments: order.parentShipment?.note || "",
@@ -182,21 +188,18 @@ export class ARAMEXService extends BaseNetworkPartner {
         },
         ChargeableWeight: null,
         DescriptionOfGoods: order.parcelCategory || "",
-        GoodsOriginCountry: "IN",
+        GoodsOriginCountry: Shipper.PartyAddress.CountryCode || "IN",
         NumberOfPieces: order.parentShipment?.items?.length || 1,
-        ProductGroup: order.orderType === ORDER_TYPE.FORWARD ? ORDER_TYPE.EXP : ORDER_TYPE.DOM,
-        ProductType: ARAMEX_PRODUCT_TYPE.includes(order.productType) ? order.productType : null,
+        ProductGroup: ORDER_TYPE.EXP,
+        ProductType: order.services[0].service_code, //ARAMEX_PRODUCT_TYPE.includes(order.productType) ? order.productType : null,
         PaymentType: 'P', // Prepaid Transportation Charges payable by shipper
         PaymentOptions: '', // Optional - Based on the Payment Type P
 
         /**  Value charged by destination customs.
           Conditional - Based on the ProductType "Dutible" **/
         CustomsValueAmount: {
-          CurrencyCode: "INR",
-          Value: (order.parentShipment?.items || []).reduce(
-            (sum, i) => sum + (i.unitPrice || 0),
-            0
-          ),
+          CurrencyCode: order.services[0].rate.price.currency,
+          Value: order.services[0].rate.price.amount
         },
 
         /**  Amount of Cash that is paid by the receiver of the package.
@@ -208,29 +211,19 @@ export class ARAMEXService extends BaseNetworkPartner {
         CollectAmount: null,
         CashAdditionalAmountDescription: "",
 
-        Services: order.serviceType || "",
+        // Services: order.Services[0].service_name,
         Items: order.parentShipment?.items?.map(this.transformItem) || [],
         AdditionalProperties: [
           {
             "CategoryName": "CustomsClearance",
             "Name": "InvoiceDate",
-            "Value": this.formatDateToMMDDYYYY(order.orderDate)
+            "Value": invoiceDocs?.documentDate || this.formatDateToMMDDYYYY(order.orderDate)
           },
           {
             "CategoryName": "CustomsClearance",
             "Name": "InvoiceNumber",
-            "Value": `INV-${order.parentShipment?.awbNumber}` // creating custom invoice number
-          },
-          {
-            "CategoryName": "CustomsClearance",
-            "Name": "ExporterType",
-            "Value": "UT"
-          },
-          {
-            "CategoryName": "CustomsClearance",
-            "Name": "ShipperTaxIdVATEINNumber",
-            "Value": "535453366"
-          },
+            "Value": invoiceDocs?.documentNumber || `INV-${order.parentShipment?.awbNumber}` // creating custom invoice number
+          }
         ],
       },
       ForeignHAWB: "",  // Clients Shipment number
@@ -240,7 +233,7 @@ export class ARAMEXService extends BaseNetworkPartner {
     const labelInfo = await this.fetchLabelInfo();
 
     // Fetch Transactions Details
-    const transactionDetails = await this.fetchTransactionsDetails();
+    // const transactionDetails = await this.fetchTransactionsDetails();
     return {
       ClientInfo: clientInfo,
       LabelInfo: labelInfo,
@@ -287,7 +280,7 @@ export class ARAMEXService extends BaseNetworkPartner {
         Line3: "",
         City: addr?.city || "",
         StateOrProvinceCode: addr?.state || "",
-        PostCode: addr?.zip || "",
+        PostCode: addr?.zip || addr?.postal_code,
         CountryCode: await this.fetchAndValidateCountryCode(
           addr?.zip || addr?.postalCode || ""
         ),
