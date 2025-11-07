@@ -89,10 +89,12 @@ export class FEDEXService extends BaseNetworkPartner {
         const shipperAddress = order.addresses.find((a) => a.type === "PICKUP");
         const recipientAddress = order.addresses.find((a) => a.type === "DELIVERY");
 
-        const shipperCountryCode = await this.fetchAndValidateCountryCode(
+        const shipperCountryCode = "IN"
+            await this.fetchAndValidateCountryCode(
             shipperAddress.zip || shipperAddress.postalCode || ""
         );
-        const receiverCountryCode = await this.fetchAndValidateCountryCode(
+        const receiverCountryCode = "DE"
+            await this.fetchAndValidateCountryCode(
             recipientAddress.zip || recipientAddress.postalCode || ""
         );
 
@@ -144,7 +146,7 @@ export class FEDEXService extends BaseNetworkPartner {
             },
             labelResponseOptions: "URL_ONLY",
             requestedShipment: {
-                serviceType: this.mapServiceType(order.serviceType),
+                serviceType: order.services[0].service_name,
                 shipTimestamp: new Date().toISOString(),
                 packagingType: "YOUR_PACKAGING",
                 shipper: {
@@ -157,7 +159,7 @@ export class FEDEXService extends BaseNetworkPartner {
                     address: {
                         streetLines: [shipperAddress.street],
                         city: shipperAddress.city,
-                        postalCode: shipperAddress.zip,
+                        postalCode: shipperAddress?.postal_code || shipperAddress.zip,
                         stateOrProvinceCode: shipperAddress.state || '',
                         countryCode: shipperCountryCode,
                         residential: false,
@@ -174,7 +176,7 @@ export class FEDEXService extends BaseNetworkPartner {
                         address: {
                             streetLines: [recipientAddress.street],
                             city: recipientAddress.city,
-                            postalCode: recipientAddress.zip,
+                            postalCode: recipientAddress?.postal_code || recipientAddress.zip,
                             stateOrProvinceCode: recipientAddress.state || '',
                             countryCode: receiverCountryCode,
                             residential: false,
@@ -199,12 +201,12 @@ export class FEDEXService extends BaseNetworkPartner {
                         sequenceNumber: 1,
                         weight: {
                             units: "KG",
-                            value: 1
+                            value: order.parentShipment.physicalWeight
                         },
                         dimensions: {
-                            length: order.parentShipment.dimensions?.length || 10,
-                            width: order.parentShipment.dimensions?.width || 10,
-                            height: order.parentShipment.dimensions?.height || 10,
+                            length: order.parentShipment.dimensions?.length,
+                            width: order.parentShipment.dimensions?.width,
+                            height: order.parentShipment.dimensions?.height,
                             units: "CM"
                         },
                     }
