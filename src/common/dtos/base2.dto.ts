@@ -698,21 +698,6 @@ export class BaseOrderReqDtoV2 extends BaseReqDto {
   @Type(() => PartnerDto)
   partner: PartnerDto;
 }
-
-export class ProductTypesDto {
-  @IsBoolean()
-  @IsOptional()
-  commercial: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  document: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  non_document: boolean;
-}
-
 export class DeliveryModesDto {
   @IsBoolean()
   @IsOptional()
@@ -721,74 +706,6 @@ export class DeliveryModesDto {
   @IsBoolean()
   @IsOptional()
   standard: boolean;
-}
-
-export class PriceDto {
-  @IsString()
-  @IsOptional()
-  currency: string;
-
-  @IsNumber()
-  @IsOptional()
-  amount: number;
-
-  @IsString()
-  @IsOptional()
-  type: string;
-}
-
-export class RateDto {
-  @IsString()
-  rate_id: string;
-
-  @ValidateNested()
-  @Type(() => PriceDto)
-  price: PriceDto;
-}
-
-export class ServiceDto {
-  @IsString()
-  @IsOptional()
-  service_code: string;
-
-  @IsString()
-  @IsOptional() 
-  service_name: string;
-
-  @IsNumber()
-  @IsOptional()
-  tat_days: number;
-
-  @IsBoolean()
-  @IsOptional()
-  is_cod: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  pickup: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  delivery: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  insurance: boolean;
-
-  @ValidateNested()
-  @IsOptional()
-  @Type(() => ProductTypesDto)
-  product_types: ProductTypesDto;
-
-  @ValidateNested()
-  @IsOptional()
-  @Type(() => DeliveryModesDto)
-  delivery_modes: DeliveryModesDto;
-
-  @ValidateNested()
-  @IsOptional()
-  @Type(() => RateDto)
-  rate: RateDto;
 }
 
 export class OrderDtov2 {
@@ -908,12 +825,6 @@ export class OrderDtov2 {
   @ValidateNested()
   @Type(() => PartnerDto)
   partner: PartnerDto;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ServiceDto)
-  services?: ServiceDto[];
 
 }
 
