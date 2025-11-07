@@ -35,7 +35,8 @@ export class StandardRequestDto {
 }
 
 export class StandardRequestDtoV2 {
-  order: OrderDtov2;
+  order?: OrderDtov2;
+  orders?: OrderDtov2[] | OrderDtov2; // Support both array and single object
   partnerCode: PARTNER_CODE_ENUM | string;
   eligiblePartners?: EligiblePartnersData;
 }
@@ -150,7 +151,33 @@ export class DistributorService {
   async createOrderV2<R extends BaseOrderResDto>(
     requestDto: StandardRequestDtoV2
   ): Promise<R> {
-    //this.logger.log(`Creating Order for ${requestDto.order.awbNumber || "unknown"}`);
+    // Normalize input: support both 'order' and 'orders' formats
+    // 'orders' can be either an array or a single object
+    let orderToProcess: OrderDtov2;
+    
+    if (requestDto.order) {
+      // Single order format: { "order": { ... } }
+      orderToProcess = requestDto.order;
+    } else if (requestDto.orders) {
+      // Check if orders is an array
+      if (Array.isArray(requestDto.orders)) {
+        // Multiple orders format: { "orders": [ { ... } ] }
+        if (requestDto.orders.length > 0) {
+          orderToProcess = requestDto.orders[0];
+          this.logger.log(`Multiple orders format detected. Processing first order from array (${requestDto.orders.length} total orders)`);
+        } else {
+          throw new Error('"orders" array cannot be empty');
+        }
+      } else {
+        // Single order as object format: { "orders": { ... } }
+        orderToProcess = requestDto.orders as OrderDtov2;
+        this.logger.log(`Single order format detected in "orders" field`);
+      }
+    } else {
+      throw new Error('Either "order" or "orders" field must be provided');
+    }
+
+    //this.logger.log(`Creating Order for ${orderToProcess.awbNumber || "unknown"}`);
 
     try {
       const partnerActivity = this.networkPartnerFactory.getPartner(
@@ -158,7 +185,7 @@ export class DistributorService {
       );
 
       const result = await partnerActivity.createOrderV2<BaseOrderReqDtoV2, R>(
-        requestDto.order as BaseOrderReqDtoV2,
+        orderToProcess as BaseOrderReqDtoV2,
         requestDto.partnerCode as string,
         requestDto.eligiblePartners
       );
@@ -183,7 +210,7 @@ export class DistributorService {
 
         await this.discordAlertService.sendOrderCreationErrorAlert(
           errorForAlert,
-          requestDto.order.awbNumber,
+          orderToProcess.awbNumber,
           requestDto.partnerCode as string,
           undefined,
           { eligiblePartners: requestDto.eligiblePartners, responseError: true }
@@ -191,7 +218,7 @@ export class DistributorService {
       }
 
       this.logger.log(
-        `✅ Order creation completed successfully for ${requestDto.order.awbNumber}`
+        `✅ Order creation completed successfully for ${orderToProcess.awbNumber}`
       );
       return result;
     } catch (error) {
@@ -204,7 +231,7 @@ export class DistributorService {
 
       await this.discordAlertService.sendOrderCreationErrorAlert(
         error,
-        requestDto.order.orderId,
+        orderToProcess.orderId,
         requestDto.partnerCode as string,
         undefined,
         { eligiblePartners: requestDto.eligiblePartners }
