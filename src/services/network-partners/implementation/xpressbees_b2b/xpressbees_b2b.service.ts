@@ -232,24 +232,24 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
         return sum + parseAmount(tax.value); 
     }, 0);
     
-    // --- Collect Items from Child Shipments (or Parent if no children) ---
+    // --- Collect Items from Both Parent and Child Shipments ---
     const allItems: any[] = [];
     
-    // Priority: Use child shipments if they exist (they represent actual packages)
-    // Fallback: Use parent shipment items if no child shipments exist
-    if (order.childShipments && Array.isArray(order.childShipments) && order.childShipments.length > 0) {
-        // Add items from all childShipments (actual physical packages)
+    // Add items from parentShipment
+    if (order.parentShipment?.items && Array.isArray(order.parentShipment.items)) {
+        allItems.push(...order.parentShipment.items);
+    }
+    
+    // Add items from all childShipments
+    if (order.childShipments && Array.isArray(order.childShipments)) {
         order.childShipments.forEach((childShipment: any) => {
             if (childShipment?.items && Array.isArray(childShipment.items)) {
                 allItems.push(...childShipment.items);
             }
         });
-        this.logger.debug(`Collected ${allItems.length} items from ${order.childShipments.length} child shipments`);
-    } else if (order.parentShipment?.items && Array.isArray(order.parentShipment.items)) {
-        // Fallback: Use parent shipment items if no child shipments
-        allItems.push(...order.parentShipment.items);
-        this.logger.debug(`Collected ${allItems.length} items from parent shipment (no child shipments found)`);
     }
+    
+    this.logger.debug(`Collected ${allItems.length} items total (${order.parentShipment?.items?.length || 0} from parent, ${order.childShipments?.length || 0} child shipments)`);
     
     // --- Transform Products from Items ---
     const products: XpressbeesB2bProductDto[] = allItems.map((item: any) => {
@@ -358,19 +358,19 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
         invoice.push(defaultInvoiceObj);
     }
     
-    // --- Get Dimensions and Weight (Sum from child shipments, or parent if no children) ---
+    // --- Get Dimensions and Weight (Sum from all shipments) ---
     let effectiveWeight = 0;
     
-    // Priority: Sum weights from child shipments (actual packages)
-    // Fallback: Use parent shipment weight if no child shipments
-    if (order.childShipments && Array.isArray(order.childShipments) && order.childShipments.length > 0) {
-        // Sum weights from all childShipments
+    // Add weight from parentShipment
+    if (order.parentShipment) {
+        effectiveWeight += getEffectiveWeight(order.parentShipment);
+    }
+    
+    // Add weights from all childShipments
+    if (order.childShipments && Array.isArray(order.childShipments)) {
         order.childShipments.forEach((childShipment: any) => {
             effectiveWeight += getEffectiveWeight(childShipment);
         });
-    } else if (order.parentShipment) {
-        // Fallback: Use parent shipment weight
-        effectiveWeight = getEffectiveWeight(order.parentShipment);
     }
     
     // Default to 10 kg if no weight found
