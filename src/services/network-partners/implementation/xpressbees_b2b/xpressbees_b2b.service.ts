@@ -232,9 +232,27 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
         return sum + parseAmount(tax.value); 
     }, 0);
     
+    // --- Collect Items from Child Shipments (or Parent if no children) ---
+    const allItems: any[] = [];
+    
+    // Priority: Use child shipments if they exist (they represent actual packages)
+    // Fallback: Use parent shipment items if no child shipments exist
+    if (order.childShipments && Array.isArray(order.childShipments) && order.childShipments.length > 0) {
+        // Add items from all childShipments (actual physical packages)
+        order.childShipments.forEach((childShipment: any) => {
+            if (childShipment?.items && Array.isArray(childShipment.items)) {
+                allItems.push(...childShipment.items);
+            }
+        });
+        this.logger.debug(`Collected ${allItems.length} items from ${order.childShipments.length} child shipments`);
+    } else if (order.parentShipment?.items && Array.isArray(order.parentShipment.items)) {
+        // Fallback: Use parent shipment items if no child shipments
+        allItems.push(...order.parentShipment.items);
+        this.logger.debug(`Collected ${allItems.length} items from parent shipment (no child shipments found)`);
+    }
+    
     // --- Transform Products from Items ---
-    const items = order.parentShipment?.items || [];
-    const products: XpressbeesB2bProductDto[] = items.map((item: any) => {
+    const products: XpressbeesB2bProductDto[] = allItems.map((item: any) => {
         let taxPercentage = 0;
         
         if (item.taxes && item.taxes.length > 0) {
@@ -340,13 +358,27 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
         invoice.push(defaultInvoiceObj);
     }
     
-    // --- Get Dimensions and Weight (Retained) ---
-    const effectiveWeight = 
-        getEffectiveWeight(order.parentShipment) ||
-        getEffectiveWeight(order.childShipments?.[0]) ||
-        10; // Default to 10 kg
+    // --- Get Dimensions and Weight (Sum from child shipments, or parent if no children) ---
+    let effectiveWeight = 0;
+    
+    // Priority: Sum weights from child shipments (actual packages)
+    // Fallback: Use parent shipment weight if no child shipments
+    if (order.childShipments && Array.isArray(order.childShipments) && order.childShipments.length > 0) {
+        // Sum weights from all childShipments
+        order.childShipments.forEach((childShipment: any) => {
+            effectiveWeight += getEffectiveWeight(childShipment);
+        });
+    } else if (order.parentShipment) {
+        // Fallback: Use parent shipment weight
+        effectiveWeight = getEffectiveWeight(order.parentShipment);
+    }
+    
+    // Default to 10 kg if no weight found
+    if (effectiveWeight === 0) {
+        effectiveWeight = 10;
+    }
 
-    const totalItemQuantity = items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+    const totalItemQuantity = allItems.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
     const ourAwbNumber = order.awbNumber || order.parentShipment?.awbNumber || order.orderId;
     
     this.logger.log(`AWB Number used for XpressBees B2B label: ${ourAwbNumber}`);
