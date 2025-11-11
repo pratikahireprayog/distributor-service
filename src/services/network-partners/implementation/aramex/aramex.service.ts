@@ -118,13 +118,14 @@ export class ARAMEXService extends BaseNetworkPartner {
       );
 
       // 7. Format and return response
-      return this.formatCreateOrderResponse<any>(apiResult);
+      return this.formatCreateOrderResponse<any>(apiResult, orderDetails);
     } catch (error) {
       this.logger.error(`ARAMEX createOrder error: ${JSON.stringify(error)}`);
       // Return consistent error structure for exceptions
       const errorResponse = {
         statusCode: error.status || error.response?.status || 500,
         message: `ARAMEX createOrder failed: ${error.message || "Unknown error"}`,
+        partnerCode: this.partnerCode,
         data: {
           originalResponse: error.response?.data || null,
           requestUrl: (error as any).requestUrl || endpoint?.url || "unknown",
@@ -134,6 +135,11 @@ export class ARAMEXService extends BaseNetworkPartner {
             message: error.message,
             code: error.code,
           },
+          shipmentDetails: {
+            trackingDetails: [],
+            documents: [],
+          },
+          error: true,
         },
         trace: {
           timestamp: new Date().toISOString(),
@@ -417,11 +423,14 @@ export class ARAMEXService extends BaseNetworkPartner {
   }
 
   // Format Create Order API Response
-  private async formatCreateOrderResponse<R extends BaseOrderResDto>(apiResult: {
-    response: AxiosResponse<any>;
-    requestUrl: string;
-    requestBody: any;
-  }): Promise<R> {
+  private async formatCreateOrderResponse<R extends BaseOrderResDto>(
+    apiResult: {
+      response: AxiosResponse<any>;
+      requestUrl: string;
+      requestBody: any;
+    },
+    orderDetails?: BaseOrderReqDtoV2
+  ): Promise<R> {
     const { response, requestUrl, requestBody } = apiResult;
 
     let responseData = response.data;
@@ -432,11 +441,11 @@ export class ARAMEXService extends BaseNetworkPartner {
     }
 
     // Navigate Aramex response safely
-    const root = responseData["ShipmentCreationResponse"];
+    const root = responseData["ShipmentCreationResponse"] || responseData;
     const hasErrors = root?.HasErrors === "true" || root?.HasErrors === true;
 
     if (hasErrors) {
-      const errors = root?.Notifications?.Notification;
+      const errors = root?.Notifications?.Notification || root?.Notifications;
       const errorMessage = errors
         ? Array.isArray(errors)
           ? errors[0]?.Message
@@ -446,10 +455,16 @@ export class ARAMEXService extends BaseNetworkPartner {
       return {
         statusCode: 400,
         message: `Aramex API Error: ${errorMessage}`,
+        partnerCode: this.partnerCode,
         data: {
           originalResponse: responseData,
           requestUrl,
           requestBody,
+          shipmentDetails: {
+            trackingDetails: [],
+            documents: [],
+          },
+          error: true,
         },
         trace: {
           timestamp: new Date().toISOString(),
@@ -458,13 +473,28 @@ export class ARAMEXService extends BaseNetworkPartner {
       } as R;
     }
 
-    const processedShipment = root?.Shipments?.ProcessedShipment;
-    const trackingId = processedShipment?.ID;
-    const labelUrl = processedShipment?.ShipmentLabel?.LabelURL;
+    // Extract shipment from Shipments array (can be array or single object)
+    const shipments = root?.Shipments;
+    const shipment = Array.isArray(shipments) 
+      ? shipments[0] 
+      : shipments?.ProcessedShipment || shipments;
+    
+    const trackingId = shipment?.ID || '';
+    const labelUrl = shipment?.ShipmentLabel?.LabelURL || '';
+    const foreignHAWB = shipment?.ForeignHAWB || '';
+
+    // Extract AWB number: prefer ForeignHAWB from response, then order details, then fallback
+    const awbNumber = foreignHAWB || 
+                     orderDetails?.parentShipment?.awbNumber || 
+                     orderDetails?.awbNumber || 
+                     orderDetails?.orderId ||
+                     requestBody?.Shipments?.[0]?.ForeignHAWB || 
+                     '';
 
     return {
       statusCode: 200,
       message: "Order created successfully with Aramex",
+      partnerCode: this.partnerCode,
       data: {
         originalResponse: responseData,
         requestUrl,
@@ -472,7 +502,23 @@ export class ARAMEXService extends BaseNetworkPartner {
         trackingId,
         referenceNumber: trackingId,
         labelUrl,
-        shipmentDetails: processedShipment?.ShipmentDetails,
+        shipmentDetails: {
+          trackingDetails: [
+            {
+              awbNumber: awbNumber,
+              partnerAwbNumber: trackingId || '',
+              partnerName: PARTNER_CODE_ENUM.ARAMEX,
+              transporterId: 'ARAMEX',
+            },
+          ],
+          documents: labelUrl ? [
+            {
+              content: labelUrl,
+              type: 'label',
+              format: 's3Link',
+            },
+          ] : [],
+        },
       },
       trace: {
         timestamp: new Date().toISOString(),
@@ -489,10 +535,11 @@ export class ARAMEXService extends BaseNetworkPartner {
     if (["BENGALURU", "BANGALORE", "BLR"].includes(normalized)) return ARAMEX_ACCOUNTS.BLR;
     if (["HYDERABAD", "HYD"].includes(normalized)) return ARAMEX_ACCOUNTS.HYD;
     if (["MUMBAI", "BOMBAY", "THANE", "BOM"].includes(normalized)) return ARAMEX_ACCOUNTS.BOM;
-    if (["AHMEDABAD", "AMD"].includes(normalized)) return ARAMEX_ACCOUNTS.AMD;
+    // if (["AHMEDABAD", "AMD"].includes(normalized)) return ARAMEX_ACCOUNTS.AMD;
     if (["CHENNAI", "MAA"].includes(normalized)) return ARAMEX_ACCOUNTS.CHENNAI;
 
-    throw new Error(`No Aramex account configured for city: ${city}`);
+    return ARAMEX_ACCOUNTS.BOM; //default
+    // throw new Error(`No Aramex account configured for city: ${city}`);
   }
 
   private formatDateToMMDDYYYY(dateString: string): string {

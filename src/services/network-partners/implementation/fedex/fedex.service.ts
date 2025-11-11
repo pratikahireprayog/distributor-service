@@ -57,22 +57,30 @@ export class FEDEXService extends BaseNetworkPartner {
             const fedexShipment = await this.transformToFedexShipment(orderDetails);
 
             // 2. Create Consolidation
+            const requestUrl = FEDEX_URLS.CREATE_SHIPMENT;
             const response = await this.callFedexPOSTAPI(
-                FEDEX_URLS.CREATE_SHIPMENT,
+                requestUrl,
                 fedexShipment
             );
 
-            return response.data;
+            // 3. Format response with standardized shipmentDetails
+            return this.formatCreateOrderResponse(response, orderDetails, requestUrl, fedexShipment);
 
         } catch (error) {
             this.logger.error(`FEDEX createOrder error: ${JSON.stringify(error)}`);
             return {
                 statusCode: error.status || error.response?.status || 500,
                 message: `FEDEX createOrder failed: ${error.message || "Unknown error"}`,
+                partnerCode: this.partnerCode,
                 data: {
                     originalResponse: error.response?.data || null,
                     requestUrl: (error as any).requestUrl || "unknown",
                     requestBody: (error as any).requestBody || null,
+                    shipmentDetails: {
+                        trackingDetails: [],
+                        documents: [],
+                    },
+                    error: true,
                 },
                 trace: {
                     timestamp: new Date().toISOString(),
@@ -285,6 +293,100 @@ export class FEDEXService extends BaseNetworkPartner {
             })
         );
         return response;
+    }
+
+    /**
+     * Format FedEx create order response with standardized shipmentDetails
+     */
+    private formatCreateOrderResponse(
+        response: any, 
+        orderDetails: BaseOrderReqDtoV2, 
+        requestUrl?: string, 
+        requestBody?: any
+    ): any {
+        const responseData = response.data;
+        const output = responseData?.output || {};
+
+        // Extract tracking numbers from FedEx response
+        const transactionShipments = output.transactionShipments || [];
+        const trackingDetails = [];
+        const documents = [];
+
+        // Process each shipment
+        transactionShipments.forEach((shipment: any) => {
+            const masterTrackingNumber = shipment.masterTrackingNumber || shipment.trackingNumber || '';
+            
+            // Extract AWB number from order details
+            const awbNumber = orderDetails?.parentShipment?.awbNumber || 
+                            orderDetails?.awbNumber || 
+                            orderDetails?.orderId || 
+                            '';
+
+            if (masterTrackingNumber) {
+                trackingDetails.push({
+                    awbNumber: awbNumber,
+                    partnerAwbNumber: masterTrackingNumber,
+                    partnerName: PARTNER_CODE_ENUM.FEDEX,
+                    transporterId: 'FEDEX',
+                });
+            }
+
+            // Extract documents from piece responses
+            const pieceResponses = shipment.pieceResponses || [];
+            pieceResponses.forEach((piece: any) => {
+                if (piece.packageDocuments) {
+                    piece.packageDocuments.forEach((doc: any) => {
+                        const docUrl = doc.url || doc.content || '';
+                        if (docUrl) {
+                            documents.push({
+                                content: docUrl,
+                                format: doc.imageFormat || (docUrl.startsWith('http') ? 's3Link' : 'PDF'),
+                                type: doc.type || 'label',
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        // If no tracking details found, create a default one
+        if (trackingDetails.length === 0) {
+            const awbNumber = orderDetails?.parentShipment?.awbNumber || 
+                            orderDetails?.awbNumber || 
+                            orderDetails?.orderId || 
+                            '';
+            const partnerAwbNumber = output.masterTrackingNumber || 
+                                   output.trackingNumber || 
+                                   '';
+            
+            if (partnerAwbNumber || awbNumber) {
+                trackingDetails.push({
+                    awbNumber: awbNumber,
+                    partnerAwbNumber: partnerAwbNumber,
+                    partnerName: PARTNER_CODE_ENUM.FEDEX,
+                    transporterId: 'FEDEX',
+                });
+            }
+        }
+
+        return {
+            statusCode: 200,
+            message: 'Order created successfully with FEDEX',
+            partnerCode: PARTNER_CODE_ENUM.FEDEX,
+            data: {
+                originalResponse: responseData,
+                requestUrl: requestUrl || (response as any).config?.url || FEDEX_URLS.CREATE_SHIPMENT,
+                requestBody: requestBody || (response as any).config?.data || null,
+                shipmentDetails: {
+                    trackingDetails: trackingDetails,
+                    documents: documents,
+                },
+            },
+            trace: {
+                timestamp: new Date().toISOString(),
+                partnerCode: this.partnerCode,
+            },
+        };
     }
 
     async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(

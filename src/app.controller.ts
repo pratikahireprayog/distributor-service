@@ -59,6 +59,18 @@ export class AppController {
 
   @Post("create-order-v2")
   async createOrderV2(@Body() requestDto: StandardRequestDtoV2): Promise<any> {
+    // Normalize partnerCode to canonical enum value, case-insensitive
+    if (requestDto?.partnerCode) {
+      const input = String(requestDto.partnerCode);
+      const entries = Object.entries(PARTNER_CODE_ENUM);
+      const keyMatch = entries.find(([key]) => key.toUpperCase() === input.toUpperCase());
+      const valueMatch = entries.find(([, value]) => String(value).toUpperCase() === input.toUpperCase());
+      if (keyMatch) {
+        requestDto.partnerCode = keyMatch[1] as PARTNER_CODE_ENUM;
+      } else if (valueMatch) {
+        requestDto.partnerCode = valueMatch[1] as PARTNER_CODE_ENUM;
+      }
+    }
     return this.distributorService.createOrderV2(requestDto);
   }
 

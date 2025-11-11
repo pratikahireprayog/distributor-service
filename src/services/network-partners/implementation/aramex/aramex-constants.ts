@@ -35,12 +35,12 @@ export const ARAMEX_ACCOUNTS = {
         AccountEntity: "BOM",
         AccountCountryCode: "IN",
     },
-    AMD: {
-        AccountNumber: "BOM6661056",
-        AccountPin: "543643",
-        AccountEntity: "AMD",
-        AccountCountryCode: "IN",
-    },
+    // AMD: {
+    //     AccountNumber: "BOM6661056",
+    //     AccountPin: "543643",
+    //     AccountEntity: "AMD",
+    //     AccountCountryCode: "IN",
+    // },
     CHENNAI: {
         AccountNumber: "60520426",
         AccountPin: "432432",
