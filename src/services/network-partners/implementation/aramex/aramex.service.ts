@@ -168,7 +168,9 @@ export class ARAMEXService extends BaseNetworkPartner {
       Shipper: Shipper,
       Consignee: Consignee,
       ShippingDateTime: `/Date(${new Date(order.orderDate).getTime()}+0530)/`,
-      DueDate: `/Date(${new Date(order.expectedDeliveryDate).getTime()}+0530)/`,
+      ...order?.expectedDeliveryDate && { 
+          DueDate: `/Date(${new Date(order.expectedDeliveryDate).getTime()}+0530)/`
+      },
       Comments: order.parentShipment?.note || "",
       PickupLocation: "",
       OperationsInstructions: "",
@@ -223,7 +225,17 @@ export class ARAMEXService extends BaseNetworkPartner {
             "CategoryName": "CustomsClearance",
             "Name": "InvoiceNumber",
             "Value": invoiceDocs?.documentNumber || `INV-${order.parentShipment?.awbNumber}` // creating custom invoice number
-          }
+          },
+          {
+            "CategoryName": "CustomsClearance",
+            "Name": "ExporterType",
+            "Value": "CO"
+          },
+          {
+            "CategoryName": "CustomsClearance",
+            "Name": "ShipperTaxIdVATEINNumber",
+            "Value": "535453366"
+           }
         ],
       },
       ForeignHAWB: "",  // Clients Shipment number
