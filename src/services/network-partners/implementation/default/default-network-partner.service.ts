@@ -543,6 +543,11 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         : "",
     };
 
+    // Extract child AWB numbers (childShipments is a string array in BaseOrderReqDto)
+    const childAwbs = data.childShipments || data.childAwbs || [];
+    // Extract child CAWB numbers if available (checking for childCawbs field in data)
+    const childCawbs = data.childShipments || data.childAwbs || [];
+
     return {
       cAWB_No: data.cAwbNumber || data.awbNumber,
       AWB_No: data.awbNumber,
@@ -571,6 +576,8 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       shipmentStatus: data.orderStatus,
       source: "ORCHESTRATION",
       serviceType,
+      childAwbs,
+      childCawbs,
     };
   }
 
