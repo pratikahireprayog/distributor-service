@@ -46,7 +46,7 @@ export enum PARTNER_CODE_ENUM {
   FEDEX = "FEDEX",
   BARAL = "sunil_baral",
   URBANBOLT = "urbanbolt",
-  SHIPCUBE = "shipcube",
+  SHIPCUBE = "SHIPCUBE",
   XPRESSBEES_B2C = "ebb2c",
   XPRESSBEES_B2B = "dharmendra",
   DPWORLD = "DPWORLD",
