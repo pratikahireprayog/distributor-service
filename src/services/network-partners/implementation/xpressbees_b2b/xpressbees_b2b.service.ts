@@ -300,19 +300,17 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
     
     const orderAmount = subTotal || parseAmount(paymentAny?.finalAmount) || 0;
 
-    // E-Waybill data - only from order.eWaybills (array of objects)
+    // E-Waybill data - from order.eWaybills (array of strings)
+    // Format: ["491641801714", "491641801712"]
     const eWaybills = order.eWaybills || [];
-    const primaryEway = (order.eWaybills?.[0] ?? null) as any;
-    const primaryEbillNumber =
-      typeof primaryEway === 'string' ? primaryEway : primaryEway?.waybillNumber || null;
-    const primaryEbillValidUntil =
-      typeof primaryEway === 'string' ? null : primaryEway?.validUntil || null;
+    const primaryEbillNumber = Array.isArray(eWaybills) && eWaybills.length > 0 
+      ? (typeof eWaybills[0] === 'string' ? eWaybills[0] : (eWaybills[0] as any)?.waybillNumber || null)
+      : null;
     
-
-    // Fallback expiry (7 days after orderDate) if validUntil missing
+    // Expiry date: 10 days after orderDate (no validUntil from string format)
     const orderDate = order.orderDate ? new Date(order.orderDate) : new Date();
     const expiryDate = new Date(orderDate);
-    expiryDate.setDate(orderDate.getDate() + 7);
+    expiryDate.setDate(orderDate.getDate() + 10);
     const EbillExpiryDateCalculated = expiryDate.toISOString().split('T')[0];
     const formattedOrderDate = order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
     
@@ -336,7 +334,7 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
         // ✅ E-Waybill assignment: ONLY from order.eWaybills when invoice value >= 50000
         if (invoiceValuePerDoc >= 50000 && primaryEbillNumber) {
             invoiceObj.ebill_number = primaryEbillNumber;
-            invoiceObj.ebill_expiry_date = primaryEbillValidUntil || EbillExpiryDateCalculated;
+            invoiceObj.ebill_expiry_date = EbillExpiryDateCalculated; // Always use calculated expiry (10 days from order date)
         }
         
         return invoiceObj;
@@ -352,7 +350,7 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
         
         if (orderAmount >= 50000 && primaryEbillNumber) {
             defaultInvoiceObj.ebill_number = primaryEbillNumber;
-            defaultInvoiceObj.ebill_expiry_date = primaryEbillValidUntil || EbillExpiryDateCalculated;
+            defaultInvoiceObj.ebill_expiry_date = EbillExpiryDateCalculated; // Always use calculated expiry (10 days from order date)
         }
 
         invoice.push(defaultInvoiceObj);
