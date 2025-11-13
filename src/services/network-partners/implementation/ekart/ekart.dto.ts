@@ -80,7 +80,20 @@ export class EkartCreateOrderRequestDto {
 export class EkartCreateOrderResponseDto {
   status?: boolean;
   message?: string;
-  data?: any;
+  data?: {
+    pickupPincode?: number;
+    poNumber?: string;
+    docketNo?: number;
+    pickupRegistrationId?: number;
+    docketPdfLink?: string;
+    labelsLink?: string;
+    startPktNo?: number;
+    endPktNo?: number;
+    awbNumber?: string;
+    orderId?: string;
+    trackingNumber?: string;
+  };
+  statusCode?: number;
   orderId?: string;
   trackingNumber?: string;
   awbNumber?: string;
