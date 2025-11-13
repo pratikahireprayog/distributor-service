@@ -356,6 +356,36 @@ export class EkartService implements INetworkPartner {
     // Determine travel mode from deliveryMode
     const travelMode = order.deliveryMode?.toUpperCase() === 'AIR' ? 'Air' : 'Road';
 
+    // Format delivery appointment date from expectedDeliveryDate (DD-MM-YYYY)
+    let deliveryAppointmentDate: string | undefined;
+    if (order.expectedDeliveryDate) {
+        const deliveryDate = new Date(order.expectedDeliveryDate);
+        deliveryAppointmentDate = `${String(deliveryDate.getDate()).padStart(2, '0')}-${String(deliveryDate.getMonth() + 1).padStart(2, '0')}-${deliveryDate.getFullYear()}`;
+    }
+
+    // Extract delivery time slot from slots array or metadata, or use default
+    let deliveryTimeSlot: string | undefined;
+    if (order.slots && Array.isArray(order.slots) && order.slots.length > 0) {
+        // Try to extract time slot from slots array
+        const firstSlot = order.slots[0];
+        if (firstSlot?.timeSlot) {
+            deliveryTimeSlot = firstSlot.timeSlot;
+        } else if (firstSlot?.startTime && firstSlot?.endTime) {
+            // Format as "HH-HH" if we have start and end times
+            const startHour = new Date(firstSlot.startTime).getHours();
+            const endHour = new Date(firstSlot.endTime).getHours();
+            deliveryTimeSlot = `${startHour}-${endHour}`;
+        }
+    }
+    // If not found in slots, check metadata
+    if (!deliveryTimeSlot && (order.metadata as any)?.deliveryTimeSlot) {
+        deliveryTimeSlot = (order.metadata as any).deliveryTimeSlot;
+    }
+    // Default time slot if not found
+    if (!deliveryTimeSlot) {
+        deliveryTimeSlot = '16-20'; // Default time slot
+    }
+
     // Build final payload
     return {
         poNumber: order.awbNumber || order.referenceId || order.orderId || '',
@@ -373,6 +403,9 @@ export class EkartService implements INetworkPartner {
         ftlOrPtl: '0', // Changed to "0" (PTL) as per requirement
         openBoxPickup: 0, // Delivery type = 0
         truckType: null, // Changed to null as per requirement
+        deliveryAppointmentDate: deliveryAppointmentDate,
+        deliveryTimeSlot: deliveryTimeSlot,
+        deliveryType: 0,
     };
   }
 
