@@ -91,16 +91,33 @@ export class EkartService implements INetworkPartner {
 
       const responseData = response.data;
 
-      // Extract AWB number from response
-      const partnerAwbNumber =
-        responseData?.awbNumber ||
-        responseData?.data?.awbNumber ||
-        responseData?.data?.orderId ||
-        responseData?.data?.trackingNumber ||
-        responseData?.docketNo ||
-        '';
+      // Extract docket number from response (used as partnerAwbNumber)
+      const docketNo = responseData?.data?.docketNo;
+      const partnerAwbNumber = docketNo ? String(docketNo) : '';
 
-      this.logger.log(`Partner AWB Number extracted: ${partnerAwbNumber}`);
+      // Extract document links
+      const labelsLink = responseData?.data?.labelsLink || '';
+      const docketPdfLink = responseData?.data?.docketPdfLink || '';
+
+      this.logger.log(`Partner AWB Number (docketNo) extracted: ${partnerAwbNumber}`);
+      this.logger.log(`Labels link: ${labelsLink}, Docket PDF link: ${docketPdfLink}`);
+
+      // Build documents array
+      const documents: any[] = [];
+      if (labelsLink) {
+        documents.push({
+          content: labelsLink,
+          type: 'label',
+          format: 'pdf',
+        });
+      }
+      if (docketPdfLink) {
+        documents.push({
+          content: docketPdfLink,
+          type: 'docket',
+          format: 'pdf',
+        });
+      }
 
       return {
         statusCode: 200,
@@ -119,6 +136,7 @@ export class EkartService implements INetworkPartner {
                 transporterId: 'EKART',
               },
             ],
+            documents: documents,
           },
         },
       } as unknown as R;
