@@ -71,6 +71,9 @@ export class EkartCreateOrderRequestDto {
   ftlOrPtl: string; // "1" | "0"
   openBoxPickup: number; // 0 | 1
   truckType?: string | null; // "20FT" | null
+  deliveryAppointmentDate?: string; // DD-MM-YYYY format
+  deliveryTimeSlot?: string; // e.g., "16-20"
+  deliveryType?: number; // e.g., 1
 }
 
 // Create Order Response DTO
