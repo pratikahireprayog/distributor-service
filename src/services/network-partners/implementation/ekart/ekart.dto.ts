@@ -100,3 +100,17 @@ export class EkartCreateOrderResponseDto {
   docketNo?: string;
 }
 
+// Cancel Order Request DTO
+export class EkartCancelOrderRequestDto {
+  remarks: string; // Hardcoded: "destination changed"
+  reason: string; // Hardcoded: "CC"
+  docketList: number[]; // Array of docket numbers
+}
+
+// Cancel Order Response DTO
+export class EkartCancelOrderResponseDto {
+  status?: boolean;
+  message?: string;
+  data?: any;
+  statusCode?: number;
+}

@@ -15,6 +15,8 @@ import {
   EkartInvoiceDetailsDto,
   EkartConsignorDto,
   EkartConsigneeDto,
+  EkartCancelOrderRequestDto,
+  EkartCancelOrderResponseDto,
 } from './ekart.dto';
 import { EKART_ENV_KEYS, EKART_DEFAULTS, EKART_CONSTANTS } from './ekart-constants';
 
@@ -445,7 +447,128 @@ export class EkartService implements INetworkPartner {
     partnerCode: string,
     eligiblePartners?: any
   ): Promise<R> {
-    throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for Ekart');
+    try {
+      this.logger.debug(`Ekart cancelOrderV2 called with data: ${JSON.stringify(data)}`);
+
+      if (!data || !data.cAwbNumbers || data.cAwbNumbers.length === 0) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'At least one AWB number (docket number) is required for cancellation'
+        );
+      }
+
+      const baseUrl = this.configService.get<string>(
+        EKART_ENV_KEYS.BASE_URL,
+        EKART_DEFAULTS.BASE_URL
+      );
+      const cancelOrderPath = this.configService.get<string>(
+        EKART_ENV_KEYS.CANCEL_ORDER_PATH,
+        EKART_DEFAULTS.CANCEL_ORDER_PATH
+      );
+      const url = `${baseUrl}${cancelOrderPath}`;
+
+      // Convert cAwbNumbers (docket numbers as strings) to numbers for docketList
+      const docketList = data.cAwbNumbers.map(awb => {
+        const docketNum = parseInt(awb, 10);
+        if (isNaN(docketNum)) {
+          throw new CustomHttpException(
+            HttpStatus.BAD_REQUEST,
+            `Invalid docket number: ${awb}. Must be a valid number.`
+          );
+        }
+        return docketNum;
+      });
+
+      // Build cancel payload with hardcoded remarks and reason
+      const payload: EkartCancelOrderRequestDto = {
+        remarks: 'destination changed', // Hardcoded as per requirement
+        reason: 'CC', // Hardcoded as per requirement
+        docketList: docketList,
+      };
+
+      // Get authentication headers (same as createOrderV2)
+      const authHeaders = await this.ekartAuthService.getAuthHeaders();
+
+      this.logger.log(`Cancelling order with Ekart: ${url}`);
+      this.logger.debug(`Cancel request payload: ${JSON.stringify(payload)}`);
+
+      const response = await firstValueFrom(
+        this.httpService.post<EkartCancelOrderResponseDto>(url, payload, {
+          headers: authHeaders,
+          timeout: EKART_CONSTANTS.DEFAULT_TIMEOUT,
+          validateStatus: () => true,
+          maxContentLength: Infinity as unknown as number,
+          maxBodyLength: Infinity as unknown as number,
+        })
+      );
+
+      // Check response status
+      if (response.status !== 200 && response.status !== 201) {
+        this.logger.error(`Ekart cancel API returned status ${response.status}`, response.data);
+        
+        return {
+          statusCode: response.status,
+          message: `Ekart cancel API returned error: ${response.data?.message || JSON.stringify(response.data)}`,
+          partnerCode: PARTNER_CODE_ENUM.EKART,
+          data: {
+            originalResponse: response.data,
+            requestUrl: url,
+            requestBody: payload,
+            error: true,
+          },
+        } as unknown as R;
+      }
+
+      const responseData = response.data;
+
+      this.logger.log(`Order cancelled successfully with Ekart. Docket numbers: ${docketList.join(', ')}`);
+
+      return {
+        statusCode: 200,
+        message: 'Order cancelled successfully with Ekart',
+        partnerCode: PARTNER_CODE_ENUM.EKART,
+        data: {
+          originalResponse: responseData,
+          requestUrl: url,
+          requestBody: payload,
+          docketNumbers: docketList,
+        },
+      } as unknown as R;
+    } catch (error) {
+      this.logger.error(`Ekart cancelOrderV2 failed: ${error.message}`, error.stack);
+      
+      const baseUrl = this.configService.get<string>(
+        EKART_ENV_KEYS.BASE_URL,
+        EKART_DEFAULTS.BASE_URL
+      );
+      const cancelOrderPath = this.configService.get<string>(
+        EKART_ENV_KEYS.CANCEL_ORDER_PATH,
+        EKART_DEFAULTS.CANCEL_ORDER_PATH
+      );
+      const url = `${baseUrl}${cancelOrderPath}`;
+      
+      let payload = null;
+      try {
+        if (data?.cAwbNumbers) {
+          payload = {
+            remarks: 'destination changed',
+            reason: 'CC',
+            docketList: data.cAwbNumbers.map(awb => parseInt(awb, 10)).filter(num => !isNaN(num)),
+          };
+        }
+      } catch (e) {
+        // Ignore payload construction errors
+      }
+
+      if (error instanceof CustomHttpException) {
+        throw error;
+      }
+
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `Ekart cancelOrderV2 failed: ${error.message}`
+      );
+    }
   }
 
   async createManifest<T extends ManifestReqDto, R extends BaseResDto>(

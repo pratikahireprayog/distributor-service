@@ -5,6 +5,7 @@ export const EKART_ENV_KEYS = {
   AUTH_PASSWORD: 'EKART_AUTH_PASSWORD',
   AUTH_PATH: 'EKART_AUTH_PATH',
   CREATE_ORDER_PATH: 'EKART_CREATE_ORDER_PATH',
+  CANCEL_ORDER_PATH: 'EKART_CANCEL_ORDER_PATH',
 };
 
 // Ekart Default Values
@@ -12,6 +13,7 @@ export const EKART_DEFAULTS = {
   BASE_URL: 'http://103.73.191.220:8080',
   AUTH_PATH: '/flipkart/api/customer/login',
   CREATE_ORDER_PATH: '/flipkart/api/customer/order/create',
+  CANCEL_ORDER_PATH: '/flipkart/api/customer/order/cancel',
 };
 
 // Ekart Constants
