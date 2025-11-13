@@ -22,6 +22,7 @@ import { IndiaPostDomesticService } from "./implementation/india-post-domestic/i
 import { IndiaPostInternationalService } from "./implementation/indiapost-international/indiapost-international.service";
 import { DpworldService } from "./implementation/dpworld/dpworld.service";
 import { NAQELService } from "./implementation/naqel/naqel.service";
+import { EkartService } from "./implementation/ekart/ekart.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -105,6 +106,10 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.NAQEL,
     useClass: NAQELService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.EKART,
+    useClass: EkartService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -130,6 +135,7 @@ export const networkPartnersProviders: Provider[] = [
       indiaPostInternationalService: IndiaPostInternationalService,
       dpworldService: DpworldService,
       naqelService: NAQELService,
+      ekartService: EkartService,
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -166,6 +172,7 @@ export const networkPartnersProviders: Provider[] = [
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
       factory.registerPartner(PARTNER_CODE_ENUM.NAQEL, naqelService);
+      factory.registerPartner(PARTNER_CODE_ENUM.EKART, ekartService);
 
       return factory;
     },
@@ -191,6 +198,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
       NETWORK_PARTNER_PROVIDER_CONST.DPWORLD,
       NETWORK_PARTNER_PROVIDER_CONST.NAQEL,
+      NETWORK_PARTNER_PROVIDER_CONST.EKART,
     ],
   },
 ];
