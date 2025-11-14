@@ -10,7 +10,7 @@ export const EKART_ENV_KEYS = {
 
 // Ekart Default Values
 export const EKART_DEFAULTS = {
-  BASE_URL: 'http://103.73.191.220:8080',
+  BASE_URL: 'https://ekart.apptmyz.com',
   AUTH_PATH: '/flipkart/api/customer/login',
   CREATE_ORDER_PATH: '/flipkart/api/customer/order/create',
   CANCEL_ORDER_PATH: '/flipkart/api/customer/order/cancel',
