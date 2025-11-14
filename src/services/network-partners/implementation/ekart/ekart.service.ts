@@ -481,7 +481,7 @@ export class EkartService implements INetworkPartner {
 
       // Build cancel payload with hardcoded remarks and reason
       const payload: EkartCancelOrderRequestDto = {
-        remarks: 'destination changed', // Hardcoded as per requirement
+        remarks: '', // Hardcoded empty string
         reason: 'CC', // Hardcoded as per requirement
         docketList: docketList,
       };
