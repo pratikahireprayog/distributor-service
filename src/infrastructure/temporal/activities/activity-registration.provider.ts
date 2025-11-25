@@ -54,6 +54,9 @@ export class ActivityRegistrationProvider implements OnModuleInit {
         cancelOrder: this.distributorService.cancelOrder.bind(
           this.distributorService
         ),
+        cancelOrderV2: this.distributorService.cancelOrderV2.bind(
+          this.distributorService
+        ),
         pushOrderToDRS: this.distributorService.pushOrderToDRS.bind(
           this.distributorService
         ),
