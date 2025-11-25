@@ -154,7 +154,7 @@ export class FEDEXService extends BaseNetworkPartner {
             },
             labelResponseOptions: "URL_ONLY",
             requestedShipment: {
-                serviceType: order.services[0].service_name,
+                serviceType: order.services[0].service_code,
                 shipTimestamp: new Date().toISOString(),
                 packagingType: "YOUR_PACKAGING",
                 shipper: {
