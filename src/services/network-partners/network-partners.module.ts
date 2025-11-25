@@ -25,6 +25,7 @@ import { IndiaPostDomesticModule } from "./implementation/india-post-domestic/in
 import { IndiaPostInternationalModule } from "./implementation/indiapost-international/indiapost-international.module";
 import { DpworldModule } from "./implementation/dpworld/dpworld.module";
 import { NAQELModule } from "./implementation/naqel/naqel.module";
+import { EkartModule } from "./implementation/ekart/ekart.module";
 
 /**
  * Module for network partners
@@ -53,7 +54,8 @@ import { NAQELModule } from "./implementation/naqel/naqel.module";
     IndiaPostDomesticModule,
     IndiaPostInternationalModule,
     DpworldModule,
-    NAQELModule
+    NAQELModule,
+    EkartModule
   ],
   providers: [
     NetworkPartnerFactoryService,
