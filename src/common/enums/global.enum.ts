@@ -51,7 +51,7 @@ export enum PARTNER_CODE_ENUM {
   XPRESSBEES_B2B = "dharmendra",
   DPWORLD = "DPWORLD",
   NAQEL = "NAQEL",
-  EKART = "pratik"
+  EKART = "EKART",
 }
 
 export enum ENDPOINT_ID_ENUM {

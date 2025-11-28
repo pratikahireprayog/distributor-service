@@ -26,6 +26,8 @@ import { IndiaPostInternationalModule } from "./implementation/indiapost-interna
 import { DpworldModule } from "./implementation/dpworld/dpworld.module";
 import { NAQELModule } from "./implementation/naqel/naqel.module";
 import { EkartModule } from "./implementation/ekart/ekart.module";
+import { DelhiveryModule } from "./implementation/delhivery/delhivery.module";
+import { DatabaseModule } from "src/infrastructure/database/database.module";
 
 /**
  * Module for network partners
@@ -34,6 +36,7 @@ import { EkartModule } from "./implementation/ekart/ekart.module";
   imports: [
     HttpModule,
     ConfigModule,
+    DatabaseModule,
     BigshipModule,
     TsawModule,
     DefaultNetworkPartnerModule,
@@ -55,7 +58,8 @@ import { EkartModule } from "./implementation/ekart/ekart.module";
     IndiaPostInternationalModule,
     DpworldModule,
     NAQELModule,
-    EkartModule
+    EkartModule,
+    DelhiveryModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

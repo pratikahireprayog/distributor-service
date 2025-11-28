@@ -31,6 +31,10 @@ export const networkPartnersProviders: Provider[] = [
     useClass: BaralService,
   },
   {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.EKART,
+    useClass: EkartService,
+  },
+  {
     provide: NETWORK_PARTNER_PROVIDER_CONST.BIGSHIP,
     useClass: BigshipService,
   },

@@ -1,0 +1,341 @@
+{
+  "info": {
+    "name": "Delhivery LTL API",
+    "description": "Collection for Delhivery Less Than Truckload (LTL) APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "delhivery-ltl"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{bearer_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "bearer_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Extract token from response and set as environment variable",
+              "if (pm.response.code === 200) {",
+              "    const jsonData = pm.response.json();",
+              "    if (jsonData.data && jsonData.data.token) {",
+              "        pm.collectionVariables.set('bearer_token', jsonData.data.token);",
+              "        console.log('Token saved:', jsonData.data.token);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"your_username\",\n  \"password\": \"your_password\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/delhivery/login",
+          "host": ["{{base_url}}"],
+          "path": ["delhivery", "login"]
+        },
+        "description": "Login to Delhivery and get Bearer token. Token will be automatically saved to collection variable."
+      },
+      "response": []
+    },
+    {
+      "name": "2. Get Pincode Service",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/delhivery/pincode-service/122001?weight=1",
+          "host": ["{{base_url}}"],
+          "path": ["delhivery", "pincode-service", "122001"],
+          "query": [
+            {
+              "key": "weight",
+              "value": "1",
+              "description": "Weight in kg (optional)"
+            }
+          ]
+        },
+        "description": "Check pincode serviceability with optional weight parameter."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Create Manifest",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "multipart/form-data"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "lrn",
+              "value": "",
+              "description": "Load Receipt Number (optional, leave empty for auto-generation)",
+              "type": "text"
+            },
+            {
+              "key": "pickup_location_name",
+              "value": "Main Warehouse Delhi",
+              "description": "Registered warehouse name",
+              "type": "text"
+            },
+            {
+              "key": "payment_mode",
+              "value": "cod",
+              "description": "Payment mode: cod, prepaid, etc.",
+              "type": "text"
+            },
+            {
+              "key": "cod_amount",
+              "value": "122",
+              "description": "COD amount (optional if not COD)",
+              "type": "text"
+            },
+            {
+              "key": "weight",
+              "value": "100",
+              "description": "Total weight in kg",
+              "type": "text"
+            },
+            {
+              "key": "dropoff_location",
+              "value": "{\"consignee_name\": \"Utkarsh\", \"address\": \"sector 7a\", \"city\": \"jajpur\", \"state\": \"odisha\", \"zip\": \"756043\", \"phone\": \"9876543210\", \"email\": \"\"}",
+              "description": "Delivery address as JSON",
+              "type": "text"
+            },
+            {
+              "key": "rov_insurance",
+              "value": "true",
+              "description": "Risk of Value insurance (true/false)",
+              "type": "text"
+            },
+            {
+              "key": "invoices",
+              "value": "[{\"ewaybill\": \"\", \"inv_num\": \"I22331030453\", \"inv_amt\": 59729.67, \"inv_qr_code\": \"\"}, {\"ewaybill\": \"\", \"inv_num\": \"DEL/1122/0095407\", \"inv_amt\": 2520480.0, \"inv_qr_code\": \"\"}]",
+              "description": "Array of invoice details as JSON",
+              "type": "text"
+            },
+            {
+              "key": "shipment_details",
+              "value": "[{\"order_id\": \"oid1\", \"box_count\": 1, \"description\": \"Test description\", \"weight\": 1000, \"waybills\": [], \"master\": false}]",
+              "description": "Array of shipment details as JSON",
+              "type": "text"
+            },
+            {
+              "key": "doc_data",
+              "value": "[{\"doc_type\": \"INVOICE_COPY\", \"doc_meta\": {\"invoice_num\": [\"1/2/2025\"]}}]",
+              "description": "Document metadata as JSON (optional)",
+              "type": "text"
+            },
+            {
+              "key": "doc_file",
+              "description": "Upload invoice file (optional)",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "fm_pickup",
+              "value": "false",
+              "description": "First mile pickup (true/false)",
+              "type": "text"
+            },
+            {
+              "key": "freight_mode",
+              "value": "fop",
+              "description": "Freight mode: fop, fod, etc.",
+              "type": "text"
+            },
+            {
+              "key": "billing_address",
+              "value": "{\"name\": \"Company Name\", \"company\": \"ABC Pvt Ltd\", \"consignor\": \"John Doe\", \"address\": \"123 Main Street\", \"city\": \"Mumbai\", \"state\": \"Maharashtra\", \"pin\": \"400001\", \"phone\": \"9876543210\", \"pan_number\": \"ABCDE1234F\", \"gst_number\": \"29ABCDE1234F1Z5\"}",
+              "description": "Billing address as JSON (either pan_number or gst_number mandatory)",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/delhivery/manifest",
+          "host": ["{{base_url}}"],
+          "path": ["delhivery", "manifest"]
+        },
+        "description": "Create a new shipment manifest with all required details including pickup, delivery, and billing information."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Update LRN",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearer_token}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "multipart/form-data"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "invoices",
+              "value": "[{\"inv_num\": \"I22331030453\", \"inv_amt\": 59729.67, \"inv_qr_code\": \"\", \"ewaybill\": \"\"}]",
+              "description": "Updated invoice details (optional)",
+              "type": "text"
+            },
+            {
+              "key": "cod_amount",
+              "value": "0",
+              "description": "Updated COD amount (optional)",
+              "type": "text"
+            },
+            {
+              "key": "consignee_name",
+              "value": "Rahul Kumar",
+              "description": "Updated consignee name (optional)",
+              "type": "text"
+            },
+            {
+              "key": "consignee_address",
+              "value": "New Address, Jammu",
+              "description": "Updated consignee address (optional)",
+              "type": "text"
+            },
+            {
+              "key": "consignee_pincode",
+              "value": "844120",
+              "description": "Updated pincode (optional)",
+              "type": "text"
+            },
+            {
+              "key": "consignee_phone",
+              "value": "9999999999",
+              "description": "Updated phone number (optional)",
+              "type": "text"
+            },
+            {
+              "key": "weight_g",
+              "value": "30",
+              "description": "Updated weight in grams (optional)",
+              "type": "text"
+            },
+            {
+              "key": "cb",
+              "value": "{\"uri\": \"https://your-callback-url.com/docket/upload_callback\", \"method\": \"POST\", \"authorization\": \"Bearer Token\"}",
+              "description": "Callback configuration (optional)",
+              "type": "text"
+            },
+            {
+              "key": "dimensions",
+              "value": "[{\"width_cm\": 5, \"height_cm\": 4, \"length_cm\": 3, \"box_count\": 1}]",
+              "description": "Package dimensions (optional)",
+              "type": "text"
+            },
+            {
+              "key": "invoice_files_meta",
+              "value": "[{\"invoices\": [\"inv00\"]}]",
+              "description": "Invoice file metadata (optional)",
+              "type": "text"
+            },
+            {
+              "key": "invoice_file",
+              "description": "Upload new invoice file (optional)",
+              "type": "file",
+              "src": []
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/delhivery/lrn/update/220110457",
+          "host": ["{{base_url}}"],
+          "path": ["delhivery", "lrn", "update", "220110457"]
+        },
+        "description": "Update an existing LRN with new details. All fields are optional - only send the fields you want to update."
+      },
+      "response": []
+    },
+    {
+      "name": "5. Cancel LRN",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearer_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/delhivery/lrn/cancel/220110457",
+          "host": ["{{base_url}}"],
+          "path": ["delhivery", "lrn", "cancel", "220110457"]
+        },
+        "description": "Cancel an existing LRN. Replace 220110457 with the actual LRN number."
+      },
+      "response": []
+    }
+  ]
+}
+
