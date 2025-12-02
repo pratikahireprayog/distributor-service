@@ -97,12 +97,10 @@ export class FEDEXService extends BaseNetworkPartner {
         const shipperAddress = order.addresses.find((a) => a.type === "PICKUP");
         const recipientAddress = order.addresses.find((a) => a.type === "DELIVERY");
 
-        const shipperCountryCode = "IN"
-            await this.fetchAndValidateCountryCode(
+        const shipperCountryCode = await this.fetchAndValidateCountryCode(
             shipperAddress.zip || shipperAddress.postalCode || ""
         );
-        const receiverCountryCode = "DE"
-            await this.fetchAndValidateCountryCode(
+        const receiverCountryCode = await this.fetchAndValidateCountryCode(
             recipientAddress.zip || recipientAddress.postalCode || ""
         );
 
@@ -317,7 +315,8 @@ export class FEDEXService extends BaseNetworkPartner {
             const masterTrackingNumber = shipment.masterTrackingNumber || shipment.trackingNumber || '';
             
             // Extract AWB number from order details
-            const awbNumber = orderDetails?.parentShipment?.awbNumber || 
+            const awbNumber = orderDetails?.
+                parentShipment?.awbNumber || 
                             orderDetails?.awbNumber || 
                             orderDetails?.orderId || 
                             '';

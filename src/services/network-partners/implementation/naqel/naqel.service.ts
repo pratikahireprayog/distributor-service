@@ -248,7 +248,7 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
                 </ConsigneeInfo>
                 <_CommercialInvoice>
                     <RefNo>TestHSCodeInvoice100</RefNo>
-                    <InvoiceNo>${invoice.documentNumber}</InvoiceNo>
+                    <InvoiceNo>${invoice?.id || ''}</InvoiceNo>
                     <InvoiceDate>${new Date().toISOString().split('T')[0]}</InvoiceDate>
                     <Consignee>${escapeXml(deliveryAddress.name)}</Consignee>
                     <ConsigneeAddress>${escapeXml(deliveryAddress.street)}</ConsigneeAddress>

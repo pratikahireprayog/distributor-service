@@ -230,7 +230,7 @@ export class ARAMEXService extends BaseNetworkPartner {
           {
             "CategoryName": "CustomsClearance",
             "Name": "InvoiceNumber",
-            "Value": invoiceDocs?.documentNumber || `INV-${order.parentShipment?.awbNumber}` // creating custom invoice number
+            "Value": invoiceDocs?.[0]?.id || `INV-${order.parentShipment?.awbNumber}` // creating custom invoice number
           },
           {
             "CategoryName": "CustomsClearance",
