@@ -322,7 +322,7 @@ export class ARAMEXService extends BaseNetworkPartner {
         PhoneNumber2Ext: "",
         FaxNumber: "",
         CellPhone: addr?.phone || "",
-        EmailAddress: addr?.email || "",
+        EmailAddress: addr?.email || "test@test.com",
         Type: "",
       },
     }
