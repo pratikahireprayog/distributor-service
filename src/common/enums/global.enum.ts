@@ -40,7 +40,7 @@ export enum PARTNER_CODE_ENUM {
   INDIA_POST_DOMESTIC = "INDIA_POST_DOMESTIC",
   UNIUNI = "UNIUNI",
   PORTER = "porter_2w",
-  DELHIVERY = "DELHIVERY",
+  DELHIVERY = "tarun_gupta",
   SMILE_HUBOPS = "smile_hubops",
   ARAMEX = "ARAMEX",
   FEDEX = "FEDEX",
