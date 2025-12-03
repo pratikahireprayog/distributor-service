@@ -77,15 +77,15 @@ export class DelhiveryAuthService implements AuthProvider {
           },
           {
             headers: { "Content-Type": "application/json" },
-            timeout: 30000,
+            timeout: this.configService.get<number>("DELHIVERY_LOGIN_TIMEOUT_MS", 30000),
           }
         )
       );
 
       const responseData = response.data || {};
 
-      // Extract token from response
-      const token = responseData.token || responseData.data?.token;
+      // Extract token from response - check data.jwt first (as per API spec)
+      const token = responseData.data?.jwt || responseData.jwt || responseData.token || responseData.data?.token;
       
       if (!token) {
         throw new CustomHttpException(
