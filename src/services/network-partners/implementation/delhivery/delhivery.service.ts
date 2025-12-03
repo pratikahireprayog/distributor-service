@@ -332,8 +332,9 @@ export class DelhiveryService extends BaseNetworkPartner {
       const polledResponse = await this.pollManifestStatusAdaptive(jobId, maxPollAttempts);
       
       // Step 4: Extract lrnnum from polled response
+      // Response structure: { success: true, data: { lrnum: "...", ... } }
       const polledData = polledResponse.data?.data || polledResponse.data || {};
-      const lrnnum = polledData.lrnnum || polledData.lrn || polledData.LRN || '';
+      const lrnnum = polledData.lrnum || polledData.lrnnum || polledData.lrn || polledData.LRN || '';
       
       if (!lrnnum) {
         throw new CustomHttpException(
@@ -346,14 +347,17 @@ export class DelhiveryService extends BaseNetworkPartner {
       this.logger.debug(`LRN number extracted: ${lrnnum}`);
       
       // Step 5: Fetch label URLs using lrnnum
-      const labelContent = await this.getLabelUrls(lrnnum);
+      const labelUrls = await this.getLabelUrls(lrnnum);
       
-      // Step 6: Transform response to BaseOrderResDto format (like Xpressbees)
+      // Step 6: Fetch label contents (base64) from each URL
+      const labelContents = await this.fetchLabelContents(labelUrls);
+      
+      // Step 7: Transform response to BaseOrderResDto format (like Xpressbees)
       return this.transformManifestResponseToOrderResponse<R>(
         polledResponse,
         orderDetails,
         lrnnum,
-        labelContent
+        labelContents
       );
     } catch (error) {
       this.logger.error(`Failed to create Delhivery order V2: ${error.message}`);
@@ -626,8 +630,9 @@ export class DelhiveryService extends BaseNetworkPartner {
         const responseData = response.data || {};
         const polledData = responseData.data || responseData;
         
-        // Check specifically for lrnnum - continue polling until it's found
-        const lrnnum = polledData.lrnnum || polledData.lrn || polledData.LRN || '';
+        // Check specifically for lrnum (single 'n') - continue polling until it's found
+        // Response structure: { success: true, data: { lrnum: "...", ... } }
+        const lrnnum = polledData.lrnum || polledData.lrnnum || polledData.lrn || polledData.LRN || '';
         
         if (lrnnum) {
           this.logger.log(`LRN number received after ${attempt} polling attempts: ${lrnnum}`);
@@ -668,66 +673,129 @@ export class DelhiveryService extends BaseNetworkPartner {
 
   /**
    * Get label URLs using LRN number
+   * Response structure: { success: true, data: [ "url1", "url2", ... ] }
    * @param lrnnum - LRN number
+   * @returns Array of label URLs (as-is, no conversion)
    */
-  private async getLabelUrls(lrnnum: string): Promise<string> {
+  private async getLabelUrls(lrnnum: string): Promise<string[]> {
     try {
       const baseUrl = this.getBaseUrl();
       const url = `${baseUrl}/label/get_urls/std/${lrnnum}`;
       
-      this.logger.debug(`Fetching label URLs for LRN: ${lrnnum}`);
+      this.logger.debug(`Fetching label URLs for LRN: ${lrnnum} from URL: ${url}`);
       
       const headers = await this.delhiveryAuthService.getAuthHeaders();
+      const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
       
       const response = await firstValueFrom(
         this.httpService.get(url, {
           headers,
-          timeout: 30000,
+          timeout: timeout,
         })
       );
       
       const responseData = response.data || {};
+      this.logger.debug(`Label URLs API response for LRN ${lrnnum}: ${JSON.stringify(responseData)}`);
       
-      // Extract label URL from response
-      // The response structure may vary, try common fields
-      const labelUrl = responseData.data?.label_url || 
-                      responseData.data?.labelUrl || 
-                      responseData.label_url || 
-                      responseData.labelUrl ||
-                      responseData.url ||
-                      '';
+      // Extract label URLs array from response
+      // Response structure: { success: true, data: [ "url1", "url2", ... ] }
+      const labelUrls: string[] = [];
       
-      if (!labelUrl) {
-        this.logger.warn(`No label URL found in response for LRN ${lrnnum}, response: ${JSON.stringify(responseData)}`);
-        return '';
+      if (Array.isArray(responseData.data)) {
+        // If data is an array of URLs
+        labelUrls.push(...responseData.data);
+        this.logger.debug(`Extracted ${labelUrls.length} URLs from data array`);
+      } else if (responseData.data?.label_url || responseData.data?.labelUrl) {
+        // Fallback: single URL in data object
+        labelUrls.push(responseData.data.label_url || responseData.data.labelUrl);
+        this.logger.debug(`Extracted single URL from data object`);
+      } else if (responseData.label_url || responseData.labelUrl || responseData.url) {
+        // Fallback: single URL at root level
+        labelUrls.push(responseData.label_url || responseData.labelUrl || responseData.url);
+        this.logger.debug(`Extracted single URL from root level`);
       }
       
-      this.logger.debug(`Label URL retrieved: ${labelUrl}`);
+      if (labelUrls.length === 0) {
+        this.logger.warn(`No label URLs found in response for LRN ${lrnnum}. Full response: ${JSON.stringify(responseData, null, 2)}`);
+        return [];
+      }
       
-      // Fetch the label content and convert to base64
+      this.logger.log(`Found ${labelUrls.length} label URL(s) for LRN ${lrnnum}: ${JSON.stringify(labelUrls)}`);
+      return labelUrls;
+    } catch (error) {
+      this.logger.error(`Failed to get label URLs for LRN ${lrnnum}: ${error.message}`, error.stack);
+      if (error.response) {
+        this.logger.error(`Error response status: ${error.response.status}, data: ${JSON.stringify(error.response.data)}`);
+      }
+      // Don't throw, return empty array as fallback
+      return [];
+    }
+  }
+
+  /**
+   * Fetch label contents (base64) from label URLs
+   * Response structure: { success: true, data: "data:image/png;base64,..." } or { success: true, data: "base64string" }
+   * @param labelUrls - Array of label URLs
+   * @returns Array of base64-encoded label contents
+   */
+  private async fetchLabelContents(labelUrls: string[]): Promise<string[]> {
+    if (!labelUrls || labelUrls.length === 0) {
+      this.logger.warn('No label URLs provided to fetchLabelContents');
+      return [];
+    }
+
+    const labelContents: string[] = [];
+    const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
+
+    for (let i = 0; i < labelUrls.length; i++) {
+      const labelUrl = labelUrls[i];
       try {
-        const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
-        const labelResponse = await firstValueFrom(
+        this.logger.debug(`Fetching label content from URL ${i + 1}/${labelUrls.length}: ${labelUrl}`);
+        
+        const response = await firstValueFrom(
           this.httpService.get(labelUrl, {
-            responseType: 'arraybuffer',
             timeout: timeout,
           })
         );
+
+        const responseData = response.data || {};
         
-        // Convert to base64
-        const base64Content = Buffer.from(labelResponse.data).toString('base64');
-        this.logger.debug(`Label content converted to base64, length: ${base64Content.length}`);
-        return base64Content;
-      } catch (labelError) {
-        this.logger.warn(`Failed to fetch label content from URL: ${labelError.message}`);
-        // Return the URL as fallback
-        return labelUrl;
+        // Extract base64 content from responseData.data
+        // Response can be: { success: true, data: "data:image/png;base64,..." } or { success: true, data: "base64string" }
+        let base64Content = '';
+        
+        if (responseData.data) {
+          const dataValue = responseData.data;
+          
+          // Check if it's a data URI (starts with "data:image/...;base64,")
+          if (typeof dataValue === 'string' && dataValue.startsWith('data:image/')) {
+            // Extract base64 part after the comma
+            const base64Index = dataValue.indexOf(',');
+            if (base64Index !== -1) {
+              base64Content = dataValue.substring(base64Index + 1);
+            } else {
+              base64Content = dataValue;
+            }
+          } else if (typeof dataValue === 'string') {
+            // Direct base64 string
+            base64Content = dataValue;
+          }
+        }
+        
+        if (base64Content) {
+          labelContents.push(base64Content);
+          this.logger.debug(`Label ${i + 1} base64 content extracted, length: ${base64Content.length}`);
+        } else {
+          this.logger.warn(`No base64 content found in response for label URL ${i + 1}. Response: ${JSON.stringify(responseData)}`);
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to fetch label content from URL ${i + 1}: ${error.message}`);
+        // Continue with other labels even if one fails
       }
-    } catch (error) {
-      this.logger.error(`Failed to get label URLs: ${error.message}`);
-      // Don't throw, return empty string as fallback
-      return '';
     }
+
+    this.logger.log(`Successfully fetched ${labelContents.length} label content(s) out of ${labelUrls.length} URL(s)`);
+    return labelContents;
   }
 
   /**
@@ -735,13 +803,13 @@ export class DelhiveryService extends BaseNetworkPartner {
    * @param manifestResponse - Response from polled manifest status
    * @param originalOrder - Original order request
    * @param lrnnum - LRN number
-   * @param labelContent - Label content (base64)
+   * @param labelContents - Array of base64-encoded label contents
    */
   private transformManifestResponseToOrderResponse<R extends BaseOrderResDto>(
     manifestResponse: any,
     originalOrder: BaseOrderReqDtoV2,
     lrnnum: string,
-    labelContent: string
+    labelContents: string[]
   ): R {
     // Build tracking details
     const trackingDetails = [];
@@ -776,14 +844,21 @@ export class DelhiveryService extends BaseNetworkPartner {
       });
     }
 
-    // Build documents array (like Xpressbees format)
+    // Build documents array (like Xpressbees format) - one document per label content
     const documents = [];
-    if (labelContent) {
-      documents.push({
-        content: labelContent,
-        type: 'label',
-        format: 'base64',
+    this.logger.debug(`Building documents array. labelContents length: ${labelContents?.length || 0}`);
+    
+    if (labelContents && labelContents.length > 0) {
+      labelContents.forEach((labelContent) => {
+        documents.push({
+          content: labelContent,
+          type: 'label',
+          format: 'base64',
+        });
       });
+      this.logger.log(`Added ${documents.length} label document(s) to response`);
+    } else {
+      this.logger.warn(`No label contents provided to transformManifestResponseToOrderResponse. labelContents length: ${labelContents?.length || 0}`);
     }
 
     // Format response like Xpressbees
