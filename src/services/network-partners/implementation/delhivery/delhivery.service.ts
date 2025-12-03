@@ -13,7 +13,14 @@ import {
   UpdateLrnDto,
   CancelLrnDto,
   DelhiveryPincodeQueryDto,
+  DropoffLocationDto,
+  InvoiceDto,
+  ShipmentDetailDto,
+  BillingAddressDto,
 } from "./delhivery.dto";
+import { BaseOrderReqDtoV2 } from "src/common/dtos/base2.dto";
+import { BaseOrderResDto } from "src/common/dtos/base.dto";
+import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import * as FormData from "form-data";
 
 /**
@@ -66,13 +73,14 @@ export class DelhiveryService extends BaseNetworkPartner {
       
       const headers = await this.delhiveryAuthService.getAuthHeaders();
       
+      const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
       const response = await firstValueFrom(
         this.httpService.get(url, {
           headers,
-          timeout: 30000,
+          timeout: timeout,
         })
       );
-
+      
       this.logger.log(`Pincode service fetched successfully for: ${pincode}`);
       return {
         statusCode: HttpStatus.OK,
@@ -126,20 +134,25 @@ export class DelhiveryService extends BaseNetworkPartner {
         formData.append('doc_file', manifestData.doc_file);
       }
       if (manifestData.fm_pickup !== undefined) {
-        formData.append('fm_pickup', manifestData.fm_pickup.toString());
+        // Convert boolean to Python-style string (False/True)
+        const fmPickupValue = manifestData.fm_pickup ? 'True' : 'False';
+        formData.append('fm_pickup', fmPickupValue);
       }
-      formData.append('freight_mode', manifestData.freight_mode);
+      if (manifestData.freight_mode) {
+        formData.append('freight_mode', manifestData.freight_mode);
+      }
       formData.append('billing_address', JSON.stringify(manifestData.billing_address));
 
-      const response = await firstValueFrom(
-        this.httpService.post(url, formData, {
-          headers: {
-            ...headers,
-            ...formData.getHeaders(),
-          },
-          timeout: 60000,
-        })
-      );
+        const timeout = this.configService.get<number>('DELHIVERY_MANIFEST_TIMEOUT_MS', 60000);
+        const response = await firstValueFrom(
+          this.httpService.post(url, formData, {
+            headers: {
+              ...headers,
+              ...formData.getHeaders(),
+            },
+            timeout: timeout,
+          })
+        );
 
       this.logger.log(`Manifest created successfully`);
       return {
@@ -149,10 +162,17 @@ export class DelhiveryService extends BaseNetworkPartner {
       };
     } catch (error) {
       this.logger.error(`Failed to create manifest: ${error.message}`);
+      
+      // Include transformed payload in error response for debugging
+      const errorData: any = {
+        ...(error.response?.data || {}),
+        transformedPayload: manifestData || null,
+      };
+      
       throw new CustomHttpException(
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
         `Failed to create manifest: ${error.message}`,
-        error.response?.data
+        errorData
       );
     }
   }
@@ -208,13 +228,14 @@ export class DelhiveryService extends BaseNetworkPartner {
         formData.append('invoice_file', updateData.invoice_file);
       }
 
+      const timeout = this.configService.get<number>('DELHIVERY_MANIFEST_TIMEOUT_MS', 60000);
       const response = await firstValueFrom(
         this.httpService.put(url, formData, {
           headers: {
             ...headers,
             ...formData.getHeaders(),
           },
-          timeout: 60000,
+          timeout: timeout,
         })
       );
 
@@ -247,10 +268,11 @@ export class DelhiveryService extends BaseNetworkPartner {
       
       const headers = await this.delhiveryAuthService.getAuthHeaders();
       
+      const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
       const response = await firstValueFrom(
         this.httpService.delete(url, {
           headers,
-          timeout: 30000,
+          timeout: timeout,
         })
       );
 
@@ -268,5 +290,516 @@ export class DelhiveryService extends BaseNetworkPartner {
         error.response?.data
       );
     }
+  }
+
+  /**
+   * Create order V2 - Transform BaseOrderReqDtoV2 to Delhivery manifest format
+   * @param orderDetails - Order details in V2 format
+   * @param partnerCode - Partner code
+   * @param eligiblePartners - Eligible partners data
+   */
+  async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
+    orderDetails: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    let manifestData: CreateManifestDto | null = null;
+    try {
+      this.logger.debug(`Creating Delhivery order V2 for orderId: ${orderDetails?.orderId}`);
+      
+      // Transform BaseOrderReqDtoV2 to CreateManifestDto
+      manifestData = this.transformToDelhiveryManifestPayload(orderDetails);
+      
+      // Step 1: Create manifest using existing method
+      const manifestResponse = await this.createDelhiveryManifest(manifestData);
+      
+      // Step 2: Extract job_id from response
+      const responseData = manifestResponse.data?.data || manifestResponse.data || {};
+      const jobId = responseData.job_id || responseData.jobId;
+      
+      if (!jobId) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'No job_id received from manifest creation response',
+          manifestResponse
+        );
+      }
+      
+      this.logger.debug(`Manifest created with job_id: ${jobId}, polling for completion...`);
+      
+      // Step 3: Poll for manifest completion - adaptive polling (fast then slow)
+      const maxPollAttempts = this.configService.get<number>('DELHIVERY_MAX_POLL_ATTEMPTS', 30);
+      const polledResponse = await this.pollManifestStatusAdaptive(jobId, maxPollAttempts);
+      
+      // Step 4: Extract lrnnum from polled response
+      const polledData = polledResponse.data?.data || polledResponse.data || {};
+      const lrnnum = polledData.lrnnum || polledData.lrn || polledData.LRN || '';
+      
+      if (!lrnnum) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          'No lrnnum received from manifest status response',
+          polledResponse
+        );
+      }
+      
+      this.logger.debug(`LRN number extracted: ${lrnnum}`);
+      
+      // Step 5: Fetch label URLs using lrnnum
+      const labelContent = await this.getLabelUrls(lrnnum);
+      
+      // Step 6: Transform response to BaseOrderResDto format (like Xpressbees)
+      return this.transformManifestResponseToOrderResponse<R>(
+        polledResponse,
+        orderDetails,
+        lrnnum,
+        labelContent
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create Delhivery order V2: ${error.message}`);
+      
+      // Include transformed payload in error response for debugging
+      const errorData: any = {
+        ...(error.response?.data || {}),
+        transformedPayload: manifestData || null,
+      };
+      
+      if (error instanceof CustomHttpException) {
+        // Enhance existing CustomHttpException with transformed payload
+        const existingData = error.getData || {};
+        const existingTrace = error.getTrace || {};
+        throw new CustomHttpException(
+          error.getStatus(),
+          error.message,
+          {
+            ...existingData,
+            transformedPayload: manifestData,
+          },
+          {
+            ...existingTrace,
+            transformedPayload: manifestData,
+          },
+          error.getPartnerCode
+        );
+      }
+      throw new CustomHttpException(
+        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        `Failed to create Delhivery order: ${error.message}`,
+        errorData
+      );
+    }
+  }
+
+  /**
+   * Transform BaseOrderReqDtoV2 to CreateManifestDto
+   * @param order - Order in V2 format
+   */
+  private transformToDelhiveryManifestPayload(order: BaseOrderReqDtoV2): CreateManifestDto {
+    this.logger.debug(`Transforming payload for Delhivery manifest, orderId: ${order?.orderId}`);
+    
+    if (!order) {
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'Order data is missing'
+      );
+    }
+
+    if (!order.addresses || !Array.isArray(order.addresses)) {
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'Addresses array is missing or invalid'
+      );
+    }
+
+    // Find addresses
+    const pickup = order.addresses.find((a) => a.type === 'PICKUP');
+    const delivery = order.addresses.find((a) => a.type === 'DELIVERY');
+    const billing = order.addresses.find((a) => a.type === 'BILLING') || pickup;
+
+    if (!pickup || !delivery) {
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'Both PICKUP and DELIVERY addresses are required for Delhivery'
+      );
+    }
+
+    // Helper functions
+    const parseAmount = (value: any): number => {
+      const parsed = parseFloat(String(value || 0));
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const getEffectiveWeight = (shipment: any): number => {
+      const physicalWeight = parseAmount(shipment?.physicalWeight);
+      const volumetricWeight = parseAmount(shipment?.volumetricWeight);
+      return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 0);
+    };
+
+    // Calculate total weight (in kg)
+    let totalWeight = 0;
+    if (order.parentShipment) {
+      totalWeight += getEffectiveWeight(order.parentShipment);
+    }
+    if (order.childShipments && Array.isArray(order.childShipments)) {
+      order.childShipments.forEach((childShipment: any) => {
+        totalWeight += getEffectiveWeight(childShipment);
+      });
+    }
+    if (totalWeight === 0) {
+      totalWeight = 10; // Default to 10 kg
+    }
+
+    // Payment mode
+    const paymentMode = order.payment?.type === 'COD' ? 'cod' : 'prepaid';
+    const codAmount = paymentMode === 'cod' ? parseAmount(order.payment?.finalAmount) : undefined;
+
+    // Get pickup location name from config or metadata
+    const metadataAny = order.metadata as any;
+    const pickupLocationName = this.configService.get<string>(
+      'DELHIVERY_PICKUP_LOCATION_NAME',
+      metadataAny?.pickupLocationName || 'Main Warehouse'
+    );
+
+    // Transform dropoff location
+    const dropoffLocation: DropoffLocationDto = {
+      consignee_name: delivery.name || '',
+      address: delivery.street || '',
+      city: delivery.city || '',
+      state: delivery.state || '',
+      zip: delivery.zip || '',
+      phone: delivery.phone || '',
+      email: delivery.email || '',
+    };
+
+    // Transform invoices
+    const invoices: InvoiceDto[] = [];
+    if (order.documents && Array.isArray(order.documents)) {
+      order.documents.forEach((doc: any) => {
+        if (doc.type === 'invoice') {
+          const invoiceAmount = parseAmount(doc.amount || order.payment?.breakdown?.subTotal || 0);
+          const ewaybill = order.eWaybills && Array.isArray(order.eWaybills) && order.eWaybills.length > 0
+            ? (typeof order.eWaybills[0] === 'string' ? order.eWaybills[0] : (order.eWaybills[0] as any)?.waybillNumber || '')
+            : '';
+          
+          invoices.push({
+            ewaybill: ewaybill,
+            inv_num: doc.number || doc.invoiceNumber || '',
+            inv_amt: invoiceAmount,
+            inv_qr_code: doc.qrCode || '',
+          });
+        }
+      });
+    }
+
+    // If no invoices found, create a default one
+    if (invoices.length === 0) {
+      const invoiceAmount = parseAmount(order.payment?.breakdown?.subTotal || order.payment?.finalAmount || 0);
+      const ewaybill = order.eWaybills && Array.isArray(order.eWaybills) && order.eWaybills.length > 0
+        ? (typeof order.eWaybills[0] === 'string' ? order.eWaybills[0] : (order.eWaybills[0] as any)?.waybillNumber || '')
+        : '';
+      
+      invoices.push({
+        ewaybill: ewaybill,
+        inv_num: order.referenceId || order.orderId || '',
+        inv_amt: invoiceAmount,
+        inv_qr_code: '',
+      });
+    }
+
+    // Transform shipment details
+    const shipmentDetails: ShipmentDetailDto[] = [];
+    
+    // Add parent shipment
+    if (order.parentShipment) {
+      const parentWeight = getEffectiveWeight(order.parentShipment) * 1000; // Convert to grams
+      shipmentDetails.push({
+        order_id: order.parentShipment.awbNumber || order.awbNumber || order.orderId || '',
+        box_count: 1,
+        description: order.parentShipment.items?.[0]?.name || order.parentShipment.items?.[0]?.description || 'Shipment',
+        weight: parentWeight,
+        waybills: [], // Always empty
+        master: 'False', // Always False
+      });
+    }
+
+    // Add child shipments
+    if (order.childShipments && Array.isArray(order.childShipments)) {
+      order.childShipments.forEach((childShipment: any) => {
+        const childWeight = getEffectiveWeight(childShipment) * 1000; // Convert to grams
+        shipmentDetails.push({
+          order_id: childShipment.awbNumber || '',
+          box_count: 1,
+          description: childShipment.items?.[0]?.name || childShipment.items?.[0]?.description || 'Shipment',
+          weight: childWeight,
+          waybills: [], // Always empty
+          master: 'False', // Always False
+        });
+      });
+    }
+
+    // If no shipments found, create a default one
+    if (shipmentDetails.length === 0) {
+      shipmentDetails.push({
+        order_id: order.awbNumber || order.orderId || '',
+        box_count: 1,
+        description: 'Shipment',
+        weight: totalWeight * 1000, // Convert to grams
+        waybills: [], // Always empty
+        master: 'False', // Always False
+      });
+    }
+
+    // Transform billing address
+    const billingAny = billing as any;
+    const panNumber =  billingAny?.panNumber || '';
+    const billingAddress: BillingAddressDto = {
+      name: billing.name || pickup.name || '',
+      company: metadataAny?.companyName || billing.name || '',
+      consignor: pickup.name || '',
+      address: billing.street || pickup.street || '',
+      city: billing.city || pickup.city || '',
+      state: billing.state || pickup.state || '',
+      pin: billing.zip || pickup.zip || '',
+      phone: billing.phone || pickup.phone || '',
+      pan_number: panNumber || 'AAAAA1111A',
+      gst_number: metadataAny?.pickupGST || billingAny?.gstNumber || '',
+    };
+
+    // Freight mode - only include if provided
+    const freightMode = metadataAny?.freightMode;
+
+    // Build manifest DTO
+    const manifestData: CreateManifestDto = {
+      lrn: '', // Empty for auto-generation
+      pickup_location_name: pickupLocationName,
+      payment_mode: paymentMode,
+      cod_amount: codAmount,
+      weight: totalWeight,
+      dropoff_location: dropoffLocation,
+      rov_insurance: metadataAny?.rovInsurance || false,
+      invoices: invoices,
+      shipment_details: shipmentDetails,
+      fm_pickup: metadataAny?.fmPickup !== undefined ? metadataAny.fmPickup : false,
+      billing_address: billingAddress,
+    };
+
+    // Only add freight_mode if provided
+    if (freightMode) {
+      manifestData.freight_mode = freightMode;
+    }
+
+    return manifestData;
+  }
+
+  /**
+   * Poll manifest status until lrnnum is received - adaptive polling
+   * Fast polling (1 second) for first 5 attempts, then slower (3 seconds)
+   * @param jobId - Job ID from manifest creation
+   * @param maxAttempts - Maximum number of polling attempts
+   */
+  private async pollManifestStatusAdaptive(
+    jobId: string, 
+    maxAttempts: number = 30
+  ): Promise<any> {
+    const baseUrl = this.getBaseUrl();
+    const url = `${baseUrl}/manifest?job_id=${jobId}`;
+    
+    // Fast polling for first 5 attempts (1 second), then slower (3 seconds)
+    const fastPollAttempts = 5;
+    const fastDelayMs = 1000; // 1 second
+    const slowDelayMs = 3000; // 3 seconds
+    
+    this.logger.debug(`Polling manifest status for job_id: ${jobId}, adaptive polling (${fastDelayMs}ms for first ${fastPollAttempts} attempts, then ${slowDelayMs}ms)`);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const headers = await this.delhiveryAuthService.getAuthHeaders();
+        const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
+        
+        const response = await firstValueFrom(
+          this.httpService.get(url, {
+            headers,
+            timeout: timeout,
+          })
+        );
+        
+        const responseData = response.data || {};
+        const polledData = responseData.data || responseData;
+        
+        // Check specifically for lrnnum - continue polling until it's found
+        const lrnnum = polledData.lrnnum || polledData.lrn || polledData.LRN || '';
+        
+        if (lrnnum) {
+          this.logger.log(`LRN number received after ${attempt} polling attempts: ${lrnnum}`);
+          return {
+            statusCode: HttpStatus.OK,
+            message: 'Manifest status retrieved successfully',
+            data: responseData,
+          };
+        }
+        
+        // If lrnnum not found yet, wait and retry with adaptive delay
+        if (attempt < maxAttempts) {
+          const currentDelay = attempt <= fastPollAttempts ? fastDelayMs : slowDelayMs;
+          const pollingMode = attempt <= fastPollAttempts ? 'fast' : 'slow';
+          this.logger.debug(`LRN number not yet available, attempt ${attempt}/${maxAttempts} (${pollingMode} mode), waiting ${currentDelay}ms before next poll...`);
+          await new Promise(resolve => setTimeout(resolve, currentDelay));
+        }
+      } catch (error) {
+        if (attempt === maxAttempts) {
+          throw new CustomHttpException(
+            error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+            `Failed to poll manifest status: ${error.message}`,
+            error.response?.data
+          );
+        }
+        // Wait before retry with adaptive delay
+        const currentDelay = attempt <= fastPollAttempts ? fastDelayMs : slowDelayMs;
+        this.logger.debug(`Error during polling attempt ${attempt}, retrying after ${currentDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, currentDelay));
+      }
+    }
+    
+    throw new CustomHttpException(
+      HttpStatus.REQUEST_TIMEOUT,
+      `Manifest status polling timed out after ${maxAttempts} attempts. LRN number not received.`
+    );
+  }
+
+  /**
+   * Get label URLs using LRN number
+   * @param lrnnum - LRN number
+   */
+  private async getLabelUrls(lrnnum: string): Promise<string> {
+    try {
+      const baseUrl = this.getBaseUrl();
+      const url = `${baseUrl}/label/get_urls/std/${lrnnum}`;
+      
+      this.logger.debug(`Fetching label URLs for LRN: ${lrnnum}`);
+      
+      const headers = await this.delhiveryAuthService.getAuthHeaders();
+      
+      const response = await firstValueFrom(
+        this.httpService.get(url, {
+          headers,
+          timeout: 30000,
+        })
+      );
+      
+      const responseData = response.data || {};
+      
+      // Extract label URL from response
+      // The response structure may vary, try common fields
+      const labelUrl = responseData.data?.label_url || 
+                      responseData.data?.labelUrl || 
+                      responseData.label_url || 
+                      responseData.labelUrl ||
+                      responseData.url ||
+                      '';
+      
+      if (!labelUrl) {
+        this.logger.warn(`No label URL found in response for LRN ${lrnnum}, response: ${JSON.stringify(responseData)}`);
+        return '';
+      }
+      
+      this.logger.debug(`Label URL retrieved: ${labelUrl}`);
+      
+      // Fetch the label content and convert to base64
+      try {
+        const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
+        const labelResponse = await firstValueFrom(
+          this.httpService.get(labelUrl, {
+            responseType: 'arraybuffer',
+            timeout: timeout,
+          })
+        );
+        
+        // Convert to base64
+        const base64Content = Buffer.from(labelResponse.data).toString('base64');
+        this.logger.debug(`Label content converted to base64, length: ${base64Content.length}`);
+        return base64Content;
+      } catch (labelError) {
+        this.logger.warn(`Failed to fetch label content from URL: ${labelError.message}`);
+        // Return the URL as fallback
+        return labelUrl;
+      }
+    } catch (error) {
+      this.logger.error(`Failed to get label URLs: ${error.message}`);
+      // Don't throw, return empty string as fallback
+      return '';
+    }
+  }
+
+  /**
+   * Transform manifest response to BaseOrderResDto format (like Xpressbees)
+   * @param manifestResponse - Response from polled manifest status
+   * @param originalOrder - Original order request
+   * @param lrnnum - LRN number
+   * @param labelContent - Label content (base64)
+   */
+  private transformManifestResponseToOrderResponse<R extends BaseOrderResDto>(
+    manifestResponse: any,
+    originalOrder: BaseOrderReqDtoV2,
+    lrnnum: string,
+    labelContent: string
+  ): R {
+    // Build tracking details
+    const trackingDetails = [];
+    
+    if (originalOrder.parentShipment) {
+      trackingDetails.push({
+        awbNumber: originalOrder.parentShipment.awbNumber || originalOrder.awbNumber || originalOrder.orderId || '',
+        partnerAwbNumber: lrnnum,
+        partnerName: PARTNER_CODE_ENUM.DELHIVERY,
+        transporterId: 'DELHIVERY',
+      });
+    }
+
+    if (originalOrder.childShipments && Array.isArray(originalOrder.childShipments)) {
+      originalOrder.childShipments.forEach((childShipment: any) => {
+        trackingDetails.push({
+          awbNumber: childShipment.awbNumber || '',
+          partnerAwbNumber: lrnnum, // All shipments share the same LRN
+          partnerName: PARTNER_CODE_ENUM.DELHIVERY,
+          transporterId: 'DELHIVERY',
+        });
+      });
+    }
+
+    // If no shipments, create default
+    if (trackingDetails.length === 0) {
+      trackingDetails.push({
+        awbNumber: originalOrder.awbNumber || originalOrder.orderId || '',
+        partnerAwbNumber: lrnnum,
+        partnerName: PARTNER_CODE_ENUM.DELHIVERY,
+        transporterId: 'DELHIVERY',
+      });
+    }
+
+    // Build documents array (like Xpressbees format)
+    const documents = [];
+    if (labelContent) {
+      documents.push({
+        content: labelContent,
+        type: 'label',
+        format: 'base64',
+      });
+    }
+
+    // Format response like Xpressbees
+    const result = {
+      statusCode: HttpStatus.OK,
+      message: 'Order created successfully with Delhivery',
+      partnerCode: PARTNER_CODE_ENUM.DELHIVERY,
+      data: {
+        originalResponse: manifestResponse.data,
+        shipmentDetails: {
+          trackingDetails: trackingDetails,
+          documents: documents,
+        },
+      },
+    } as unknown as R;
+
+    return result;
   }
 }
