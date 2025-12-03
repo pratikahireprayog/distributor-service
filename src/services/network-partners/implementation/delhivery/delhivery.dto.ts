@@ -113,9 +113,9 @@ export class ShipmentDetailDto {
   @IsOptional()
   waybills?: string[];
 
-  @IsBoolean()
+  @IsString()
   @IsOptional()
-  master?: boolean;
+  master?: string; // Python-style boolean: "True" or "False"
 }
 
 /**
@@ -241,8 +241,8 @@ export class CreateManifestDto {
   fm_pickup?: boolean;
 
   @IsString()
-  @IsNotEmpty()
-  freight_mode: string;
+  @IsOptional()
+  freight_mode?: string;
 
   @ValidateNested()
   @Type(() => BillingAddressDto)
