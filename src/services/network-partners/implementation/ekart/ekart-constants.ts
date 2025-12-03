@@ -19,7 +19,5 @@ export const EKART_DEFAULTS = {
 // Ekart Constants
 export const EKART_CONSTANTS = {
   DEFAULT_TIMEOUT: 30000, // 30 seconds
-  TOKEN_EXPIRY_BUFFER: 300000, // 5 minutes buffer before token expires
+  TOKEN_EXPIRY_BUFFER: 5 * 60 * 1000, // 5 minutes in milliseconds
 };
-
-
