@@ -168,7 +168,7 @@ export class ARAMEXService extends BaseNetworkPartner {
     const Consignee = await this.convertAddressAndContactsToAramexParty(consigneeAddr, "");
       
     const invoiceDocs = order.documents?.filter((doc: any) => 
-          doc.type && doc.type.toUpperCase() === 'INVOICE'
+          doc.type && doc.type.toUpperCase() === 'COMMERCIAL_INVOICE'
     ) || [];
     const shipment = {
       Shipper: Shipper,
