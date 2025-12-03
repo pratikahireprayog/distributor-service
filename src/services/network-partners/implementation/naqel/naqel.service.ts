@@ -54,8 +54,7 @@ export class NAQELService extends BaseNetworkPartner {
       const apiUser = this.configService.get<string>("NAQEL_CLIENT_ID");
       const apiPass = this.configService.get<string>("NAQEL_PASSWORD");
 
-      const xmlRequest = this.buildCreateWaybillXML(orderDetails, apiUser, apiPass);
-
+      const xmlRequest = await this.buildCreateWaybillXML(orderDetails, apiUser, apiPass);
       const response = await firstValueFrom(
          this.httpService.post(wsdlUrl, xmlRequest, {
           headers: {
@@ -71,13 +70,43 @@ export class NAQELService extends BaseNetworkPartner {
       const waybillNumber = jsonResponse?.["soap:Envelope"]?.["soap:Body"]?.["CreateWaybillResponse"]?.["CreateWaybillResult"]?.["WaybillNo"];
       const labelBase64 = await this.generateNaqelLabel(waybillNumber, orderDetails);
 
+      // Extract AWB number from order details
+      const awbNumber = orderDetails?.parentShipment?.awbNumber || 
+                       orderDetails?.awbNumber || 
+                       orderDetails?.orderId ||
+                       '';
+
       return {
         statusCode: 200,
         message: "NAQEL shipment created successfully",
+        partnerCode: this.partnerCode,
         data: {
+          originalResponse: jsonResponse,
+          trackingId: waybillNumber || "",
+          referenceNumber: waybillNumber || "",
           cAwbNumber: waybillNumber || "",
-          apiResponse: jsonResponse,
-          label: labelBase64
+          // label: labelBase64,
+          shipmentDetails: {
+            trackingDetails: [
+              {
+                awbNumber: awbNumber,
+                partnerAwbNumber: waybillNumber || '',
+                partnerName: PARTNER_CODE_ENUM.NAQEL,
+                transporterId: 'NAQEL',
+              },
+            ],
+            documents: labelBase64 ? [
+              {
+                content: labelBase64,
+                type: 'label',
+                format: 'base64',
+              },
+            ] : [],
+          },
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: this.partnerCode,
         },
       } as R;
     } catch (error) {
@@ -139,30 +168,60 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
     const apiUser = this.configService.get<string>("NAQEL_CLIENT_ID");
     const apiPass = this.configService.get<string>("NAQEL_PASSWORD");
 
+    // Get pickup address from order details
+    const pickupAddress = orderDetails.addresses?.find((a: any) => a.type === "PICKUP");
+    if (!pickupAddress) {
+      this.logger.error("Pickup address not found in order details");
+      return null;
+    }
+
+    // Check serviceability in database - this will return locations with country codes from database
+    // CityCode is considered as zip code
+    const sourceCityCode = pickupAddress.zip;
+    if (!sourceCityCode) {
+      this.logger.error("Source city code (zip) not found in pickup address");
+      return null;
+    }
+
+    // For label generation, we only need source location (pickup)
+    // Query source location from naqel_cities table (using static list for now, can be replaced with DB query)
+    // In database: WHERE city_code = ? AND is_serviceable = true
+    const sourceLocation = naqelCityList.find(
+      (c) => c.CityCode.toLowerCase() === sourceCityCode?.toLowerCase()
+    );
+    
+    if (!sourceLocation) {
+      this.logger.error(`Source city code ${sourceCityCode} not found or not serviceable`);
+      return null;
+    }
+
+    // Extract country code from database location (from naqel_cities table)
+    const sourceCountryCode = sourceLocation.CountryCode;
+
     const labelXml = `<?xml version="1.0" encoding="utf-8"?>
       <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
         <soap:Body>
           <GetWaybillSticker xmlns="http://tempuri.org/">
             <clientInfo>
               <ClientAddress>
-                <PhoneNumber/>
-                <NationalAddress/>
-                <POBox/>
-                <ZipCode/>
+                <PhoneNumber>${pickupAddress.phone || ''}</PhoneNumber>
+                <NationalAddress>${escapeXml(pickupAddress.street || '')}</NationalAddress>
+                <POBox>0</POBox>
+                <ZipCode>0</ZipCode>
                 <Fax/>
-                <Latitude/>
-                <Longitude/>
-                <ShipperName>${orderDetails?.shipperName || "shipper"}</ShipperName>
-                <FirstAddress>${orderDetails?.originAddress || "riyadh"}</FirstAddress>
-                <Location>${orderDetails?.originCity || "Riyadh"}</Location>
-                <CountryCode>KSA</CountryCode>
-                <CityCode>RUH</CityCode>
+                <Latitude>${pickupAddress.latitude || ''}</Latitude>
+                <Longitude>${pickupAddress.longitude || ''}</Longitude>
+                <ShipperName>${escapeXml(pickupAddress.name || "shipper")}</ShipperName>
+                <FirstAddress>${escapeXml(pickupAddress.street || "")}</FirstAddress>
+                <Location>${escapeXml(pickupAddress.city || "")}</Location>
+                <CountryCode>${sourceCountryCode}</CountryCode>
+                <CityCode>${pickupAddress.zip || ""}</CityCode>
               </ClientAddress>
               <ClientContact>
-                <Name>${orderDetails?.shipperName || "Shipper Name"}</Name>
-                <Email>${orderDetails?.shipperEmail || "shipper@example.com"}</Email>
-                <PhoneNumber/>
-                <MobileNo/>
+                <Name>${escapeXml(pickupAddress.name || "Shipper Name")}</Name>
+                <Email>${pickupAddress.email || "shipper@example.com"}</Email>
+                <PhoneNumber>${pickupAddress.phone || ''}</PhoneNumber>
+                <MobileNo>${pickupAddress.phone || ''}</MobileNo>
               </ClientContact>
               <ClientID>${apiUser}</ClientID>
               <Password>${apiPass}</Password>
@@ -173,6 +232,7 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
           </GetWaybillSticker>
         </soap:Body>
       </soap:Envelope>`;
+
 
     const response = await firstValueFrom(
       this.httpService.post(wsdlUrl, labelXml, {
@@ -196,17 +256,67 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
 }
 
 
-  private buildCreateWaybillXML(orderDetails: any, apiUser: string, apiPass: string): string {
+  /**
+   * Check serviceability in database - this will return locations with country codes from database
+   * CityCode is considered as zip code
+   * TODO: Replace with actual database query when repository is implemented
+   * The database query should check: WHERE city_code = ? AND is_serviceable = true
+   */
+  private async checkServiceabilityByCityCodes(
+    sourceCityCode: string,
+    destCityCode: string
+  ): Promise<{ sourceLocation: any; destLocation: any }> {
+    // Query source location from naqel_cities table (using static list for now, can be replaced with DB query)
+    // In database: WHERE city_code = ? AND is_serviceable = true
+    const sourceLocation = naqelCityList.find(
+      (c) => c.CityCode.toLowerCase() === sourceCityCode?.toLowerCase()
+    );
+    
+    if (!sourceLocation) {
+      throw new Error(
+        `Source city code ${sourceCityCode} not found or not serviceable`
+      );
+    }
+
+    // Query destination location from naqel_cities table
+    // In database: WHERE city_code = ? AND is_serviceable = true
+    const destLocation = naqelCityList.find(
+      (c) => c.CityCode.toLowerCase() === destCityCode?.toLowerCase()
+    );
+
+    if (!destLocation) {
+      throw new Error(
+        `Destination city code ${destCityCode} not found or not serviceable`
+      );
+    }
+
+    return { sourceLocation, destLocation };
+  }
+
+  private async buildCreateWaybillXML(orderDetails: any, apiUser: string, apiPass: string): Promise<string> {
   const pickupAddress = orderDetails.addresses.find(a => a.type === "PICKUP");
   const deliveryAddress = orderDetails.addresses.find(a => a.type === "DELIVERY");
-  const invoice = orderDetails.documents.find(d => d.documentType === "INVOICE");
+  const invoice = orderDetails.documents.find(d => d.type === "commercial_invoice");
   const totalCost = orderDetails.parentShipment.items.reduce((sum, i) => sum + Number(i.unitPrice || 0), 0);
+  // Check serviceability in database - this will return locations with country codes from database
+  // CityCode is considered as zip code
+  const sourceCityCode = pickupAddress.zip;
+  const destCityCode = deliveryAddress.zip;
+  
+  const { sourceLocation, destLocation } = await this.checkServiceabilityByCityCodes(
+    sourceCityCode,
+    destCityCode
+  );
+
+  // Extract country codes from database locations (from naqel_cities table)
+  const sourceCountryCode = sourceLocation.CountryCode;
+  const destCountryCode = destLocation.CountryCode;
     
-  const currencyCode = orderDetails?.payment?.currency || "USD";
+  const currencyCode = orderDetails?.payment?.currency;
   const currencyId = getCurrencyId(currencyCode);
   
   const orderType = orderDetails.serviceType; 
-  const loadTypeId = mapServiceToLoadTypeID(orderType, pickupAddress.country, deliveryAddress.country)
+  const loadTypeId = mapServiceToLoadTypeID(orderType, sourceCountryCode, destCountryCode)
 
     
   return `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
@@ -218,12 +328,12 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
                     <ClientAddress>
                         <PhoneNumber>${pickupAddress.phone || '0000000000'}</PhoneNumber>
                         <POBox>0</POBox>
-                        <ZipCode>${pickupAddress.zip || '0'}</ZipCode>
+                        <ZipCode>0</ZipCode>
                         <Fax>0</Fax>
                         <FirstAddress>${escapeXml(pickupAddress.street)}</FirstAddress>
                         <Location>${escapeXml(pickupAddress.city)}</Location>
-                        <CountryCode>${pickupAddress.country}</CountryCode>
-                        <CityCode>${pickupAddress.postal_code}</CityCode>
+                        <CountryCode>${sourceCountryCode}</CountryCode>
+                        <CityCode>${pickupAddress.zip}</CityCode>
                     </ClientAddress>
                     <ClientContact>
                         <Name>${escapeXml(pickupAddress.name)}</Name>
@@ -243,8 +353,8 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
                     <Fax></Fax>
                     <Address>${escapeXml(deliveryAddress.street)}</Address>
                     <Near>${escapeXml(deliveryAddress.landmark)}</Near>
-                    <CountryCode>${deliveryAddress.country}</CountryCode>
-                    <CityCode>${deliveryAddress.postal_code}</CityCode>
+                    <CountryCode>${destCountryCode}</CountryCode>
+                    <CityCode>${deliveryAddress.zip}</CityCode>
                 </ConsigneeInfo>
                 <_CommercialInvoice>
                     <RefNo>TestHSCodeInvoice100</RefNo>
@@ -256,13 +366,13 @@ private async generateNaqelLabel(waybillNumber: string, orderDetails: any): Prom
                     <MobileNo>${deliveryAddress.phone}</MobileNo>
                     <Phone>${deliveryAddress.phone}</Phone>
                     <TotalCost>${totalCost}</TotalCost>
-                    <CurrencyCode>${deliveryAddress.country}</CurrencyCode>
+                    <CurrencyCode>${destCountryCode}</CurrencyCode>
                     <CommercialInvoiceDetailList>
                         ${orderDetails.parentShipment.items.map(item => `
                         <CommercialInvoiceDetail>
                             <Quantity>${item.quantity}</Quantity>
                             <UnitType>KG</UnitType>
-                            <CountryofManufacture>${deliveryAddress.country}</CountryofManufacture>
+                            <CountryofManufacture>${destCountryCode}</CountryofManufacture>
                             <Description>${escapeXml(item.name)}</Description>
                             <ChineseDescription>${escapeXml(item.name)}</ChineseDescription>
                             <UnitCost>${item.unitPrice}</UnitCost>
@@ -356,7 +466,7 @@ async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
     const apiPass = this.configService.get<string>("NAQEL_PASSWORD");
 
     // Build CreateBooking XML
-    const xmlRequest = this.buildCreateBookingXML(data, apiUser, apiPass);
+    const xmlRequest = await this.buildCreateBookingXML(data, apiUser, apiPass);
     const response = await firstValueFrom(
       this.httpService.post(wsdlUrl, xmlRequest, {
         headers: {
@@ -401,12 +511,23 @@ async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
   }
 }
 
-  private buildCreateBookingXML(order: any, username: string, password: string): string {
+  private async buildCreateBookingXML(order: any, username: string, password: string): Promise<string> {
   const shipper = order.addresses?.find(a => a.type === "PICKUP");
   const receiver = order.addresses?.find(a => a.type === "DELIVERY");
 
   const shipperCityCode = shipper?.postal_code;
   const receiverCityCode = receiver?.postal_code;
+  
+  // Check serviceability in database - this will return locations with country codes from database
+  // CityCode is considered as zip code
+  const { sourceLocation, destLocation } = await this.checkServiceabilityByCityCodes(
+    shipperCityCode,
+    receiverCityCode
+  );
+
+  // Extract country codes from database locations (from naqel_cities table)
+  const sourceCountryCode = sourceLocation.CountryCode;
+  const destCountryCode = destLocation.CountryCode;
     
   const originStationId = getStationIdByCityCode(shipperCityCode);
   const destinationStationId = getStationIdByCityCode(receiverCityCode);
@@ -427,7 +548,7 @@ async createPickupV2<T extends BaseReqDto, R extends BaseResDto>(
               <ShipperName>${shipper?.name || ""}</ShipperName>
               <FirstAddress>${shipper?.street || ""}</FirstAddress>
               <Location>${shipper?.city || ""}</Location>
-              <CountryCode>${shipper?.countryCode}</CountryCode>
+              <CountryCode>${sourceCountryCode}</CountryCode>
               <CityCode>${shipper?.postal_code || ""}</CityCode>
             </ClientAddress>
             <ClientContact>
