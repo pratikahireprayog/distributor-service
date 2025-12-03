@@ -80,7 +80,7 @@ export class DelhiveryService extends BaseNetworkPartner {
           timeout: timeout,
         })
       );
-      
+
       this.logger.log(`Pincode service fetched successfully for: ${pincode}`);
       return {
         statusCode: HttpStatus.OK,
@@ -139,20 +139,20 @@ export class DelhiveryService extends BaseNetworkPartner {
         formData.append('fm_pickup', fmPickupValue);
       }
       if (manifestData.freight_mode) {
-        formData.append('freight_mode', manifestData.freight_mode);
+      formData.append('freight_mode', manifestData.freight_mode);
       }
       formData.append('billing_address', JSON.stringify(manifestData.billing_address));
 
         const timeout = this.configService.get<number>('DELHIVERY_MANIFEST_TIMEOUT_MS', 60000);
-        const response = await firstValueFrom(
-          this.httpService.post(url, formData, {
-            headers: {
-              ...headers,
-              ...formData.getHeaders(),
-            },
+      const response = await firstValueFrom(
+        this.httpService.post(url, formData, {
+          headers: {
+            ...headers,
+            ...formData.getHeaders(),
+          },
             timeout: timeout,
-          })
-        );
+        })
+      );
 
       this.logger.log(`Manifest created successfully`);
       return {
