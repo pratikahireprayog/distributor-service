@@ -353,11 +353,16 @@ export class DelhiveryService extends BaseNetworkPartner {
       const labelContents = await this.fetchLabelContents(labelUrls);
       
       // Step 7: Transform response to BaseOrderResDto format (like Xpressbees)
+      const baseUrl = this.getBaseUrl();
+      const requestUrl = `${baseUrl}/manifest`;
+      
       return this.transformManifestResponseToOrderResponse<R>(
         polledResponse,
         orderDetails,
         lrnnum,
-        labelContents
+        labelContents,
+        manifestData,
+        requestUrl
       );
     } catch (error) {
       this.logger.error(`Failed to create Delhivery order V2: ${error.message}`);
@@ -804,12 +809,16 @@ export class DelhiveryService extends BaseNetworkPartner {
    * @param originalOrder - Original order request
    * @param lrnnum - LRN number
    * @param labelContents - Array of base64-encoded label contents
+   * @param requestPayload - The transformed manifest payload that was sent to Delhivery
+   * @param requestUrl - The URL where the manifest was created
    */
   private transformManifestResponseToOrderResponse<R extends BaseOrderResDto>(
     manifestResponse: any,
     originalOrder: BaseOrderReqDtoV2,
     lrnnum: string,
-    labelContents: string[]
+    labelContents: string[],
+    requestPayload: CreateManifestDto,
+    requestUrl: string
   ): R {
     // Build tracking details
     const trackingDetails = [];
@@ -868,6 +877,8 @@ export class DelhiveryService extends BaseNetworkPartner {
       partnerCode: PARTNER_CODE_ENUM.DELHIVERY,
       data: {
         originalResponse: manifestResponse.data,
+        requestUrl: requestUrl,
+        requestBody: requestPayload,
         shipmentDetails: {
           trackingDetails: trackingDetails,
           documents: documents,
