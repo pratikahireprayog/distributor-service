@@ -34,16 +34,26 @@ export class IndiaPostInternationalService implements INetworkPartner {
     partnerCode: string,
     eligiblePartners?: any
   ): Promise<R> {
+    const startTime = Date.now();
+    const orderId = orderDetails.orderId;
+    const awbNumber = orderDetails.parentShipment?.awbNumber || orderDetails.awbNumber || orderId;
+    
     try {
-      this.logger.log(`Creating order with IndiaPost International: ${orderDetails.orderId}`);
+      this.logger.log(`[IndiaPost International] Starting order creation - OrderId: ${orderId}, AWB: ${awbNumber}`);
+      this.logger.log(`[IndiaPost International] Order details - PartnerCode: ${partnerCode}, DocumentType: ${orderDetails.documentType}`);
 
       // Validate required fields
       if (!orderDetails || !orderDetails.addresses) {
+        this.logger.error(`[IndiaPost International] Validation failed - Missing order details or addresses for OrderId: ${orderId}`);
         throw new CustomHttpException(
           HttpStatus.BAD_REQUEST,
           'Order details and addresses are required'
         );
       }
+
+      const pickup = orderDetails.addresses.find((a) => a.type === 'PICKUP');
+      const delivery = orderDetails.addresses.find((a) => a.type === 'DELIVERY');
+      this.logger.log(`[IndiaPost International] Addresses found - Pickup: ${pickup?.city || 'N/A'}, Delivery: ${delivery?.city || 'N/A'} (${delivery?.countryCode || 'N/A'})`);
 
       const baseUrl = this.configService.get<string>(
         INDIAPOST_INTERNATIONAL_ENV_KEYS.BASE_URL,
@@ -55,16 +65,27 @@ export class IndiaPostInternationalService implements INetworkPartner {
       );
       const url = `${baseUrl}${createOrderPath}`;
 
+      this.logger.log(`[IndiaPost International] API Configuration - BaseURL: ${baseUrl}, Path: ${createOrderPath}`);
+      this.logger.log(`[IndiaPost International] Full API URL: ${url}`);
+
       // Transform payload
+      this.logger.log(`[IndiaPost International] Transforming order payload for OrderId: ${orderId}`);
       const payload = this.transformToIndiaPostInternationalPayload(orderDetails);
+      const payloadSize = JSON.stringify(payload).length;
+      this.logger.log(`[IndiaPost International] Payload transformed - Size: ${payloadSize} bytes, SubPieces: ${payload.sub_pieces?.length || 0}`);
+      this.logger.log(`[IndiaPost International] Payload summary - BookingType: ${payload.booking_type_cd}, Weight: ${payload.physical_weight}g, DeclaredValue: ${payload.declared_value}`);
 
       // Get authentication headers
-      const authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+      this.logger.log(`[IndiaPost International] Retrieving authentication headers for OrderId: ${orderId}`);
+      let authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+      const hasAuth = !!authHeaders.Authorization;
+      const authTokenPreview = hasAuth ? `${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING';
+      this.logger.log(`[IndiaPost International] Auth headers retrieved - HasToken: ${hasAuth}, Preview: ${authTokenPreview}`);
 
-      this.logger.log(`Calling IndiaPost International API: ${url}`);
-      this.logger.debug(`Request payload: ${JSON.stringify(payload)}`);
+      this.logger.log(`[IndiaPost International] Making API request - OrderId: ${orderId}, URL: ${url}`);
+      this.logger.log(`[IndiaPost International] Request payload (full): ${JSON.stringify(payload, null, 2)}`);
 
-      const response = await firstValueFrom(
+      let response = await firstValueFrom(
         this.httpService.post<IndiaPostInternationalCreateOrderResponseDto>(url, payload, {
           headers: authHeaders,
           timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
@@ -74,18 +95,69 @@ export class IndiaPostInternationalService implements INetworkPartner {
         })
       );
 
+      const requestDuration = Date.now() - startTime;
+      this.logger.log(`[IndiaPost International] API response received - OrderId: ${orderId}, Status: ${response.status}, Duration: ${requestDuration}ms`);
+
+      // Handle 403 Forbidden - might be expired token, try refreshing once
+      if (response.status === 403) {
+        this.logger.warn(`[IndiaPost International] Received 403 Forbidden for OrderId: ${orderId} - Attempting token refresh`);
+        this.logger.warn(`[IndiaPost International] Response data: ${JSON.stringify(response.data, null, 2)}`);
+        
+        try {
+          // Force token refresh
+          this.logger.log(`[IndiaPost International] Forcing token refresh for OrderId: ${orderId}`);
+          await this.indiaPostInternationalAuthService.refreshToken();
+          
+          // Get fresh auth headers
+          authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+          const newAuthTokenPreview = authHeaders.Authorization ? `${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING';
+          this.logger.log(`[IndiaPost International] New token obtained - Preview: ${newAuthTokenPreview}`);
+          
+          // Retry the request
+          const retryStartTime = Date.now();
+          this.logger.log(`[IndiaPost International] Retrying API request - OrderId: ${orderId}, URL: ${url}`);
+          response = await firstValueFrom(
+            this.httpService.post<IndiaPostInternationalCreateOrderResponseDto>(url, payload, {
+              headers: authHeaders,
+              timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
+              validateStatus: () => true,
+              maxContentLength: Infinity as unknown as number,
+              maxBodyLength: Infinity as unknown as number,
+            })
+          );
+          const retryDuration = Date.now() - retryStartTime;
+          this.logger.log(`[IndiaPost International] Retry response - OrderId: ${orderId}, Status: ${response.status}, Duration: ${retryDuration}ms`);
+        } catch (refreshError) {
+          this.logger.error(`[IndiaPost International] Token refresh failed for OrderId: ${orderId} - Error: ${refreshError.message}`);
+          this.logger.error(`[IndiaPost International] Token refresh error stack: ${refreshError.stack}`);
+          // Continue to return the original 403 error
+        }
+      }
+
       // Check response status
       if (response.status !== 200 && response.status !== 201) {
-        this.logger.error(`IndiaPost International API returned status ${response.status}`, response.data);
+        this.logger.error(`[IndiaPost International] API error response - OrderId: ${orderId}, Status: ${response.status}`);
+        this.logger.error(`[IndiaPost International] Error response data: ${JSON.stringify(response.data, null, 2)}`);
+        this.logger.error(`[IndiaPost International] Request URL: ${url}`);
+        this.logger.error(`[IndiaPost International] Request payload: ${JSON.stringify(payload, null, 2)}`);
+        this.logger.error(`[IndiaPost International] Response headers: ${JSON.stringify(response.headers, null, 2)}`);
+        this.logger.error(`[IndiaPost International] Total request duration: ${Date.now() - startTime}ms`);
+        
+        // Handle error response - API might return different structure for errors
+        const errorResponse = response.data as any;
+        const errorMessage = errorResponse?.message || errorResponse?.error || JSON.stringify(response.data);
+        
+        this.logger.error(`[IndiaPost International] Error message extracted: ${errorMessage}`);
         
         return {
           statusCode: response.status,
-          message: `IndiaPost International API returned error: ${response.data?.message || JSON.stringify(response.data)}`,
+          message: `IndiaPost International API returned error: ${errorMessage}`,
           partnerCode: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
           data: {
             originalResponse: response.data,
             requestUrl: url,
             requestBody: payload,
+            responseHeaders: response.headers,
             shipmentDetails: {
               trackingDetails: [],
               documents: [],
@@ -96,6 +168,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
       }
 
       const responseData = response.data;
+      this.logger.log(`[IndiaPost International] Success response received - OrderId: ${orderId}`);
+      this.logger.log(`[IndiaPost International] Response data: ${JSON.stringify(responseData, null, 2)}`);
 
       // Extract partner AWB number (pbe_no) from Article object
       const partnerAwbNumber = responseData?.data?.Article?.pbe_no 
@@ -104,6 +178,9 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
       // Extract label URL
       const labelUrl = responseData?.data?.label_url || '';
+
+      this.logger.log(`[IndiaPost International] Order created successfully - OrderId: ${orderId}, PartnerAWB: ${partnerAwbNumber}, LabelURL: ${labelUrl || 'N/A'}`);
+      this.logger.log(`[IndiaPost International] Total processing time: ${Date.now() - startTime}ms`);
 
       return {
         statusCode: 200,
@@ -116,7 +193,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
           shipmentDetails: {
             trackingDetails: [
               {
-                awbNumber: orderDetails.parentShipment?.awbNumber || orderDetails.awbNumber || orderDetails.orderId,
+                awbNumber: awbNumber,
                 partnerAwbNumber: partnerAwbNumber,
                 partnerName: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
                 transporterId: 'INDIA_POST_INTERNATIONAL',
@@ -133,7 +210,24 @@ export class IndiaPostInternationalService implements INetworkPartner {
         },
       } as unknown as R;
     } catch (error) {
-      this.logger.error(`IndiaPost International createOrderV2 failed: ${error.message}`, error.stack);
+      const totalDuration = Date.now() - startTime;
+      this.logger.error(`[IndiaPost International] createOrderV2 failed - OrderId: ${orderId}, Duration: ${totalDuration}ms`);
+      this.logger.error(`[IndiaPost International] Error message: ${error.message}`);
+      this.logger.error(`[IndiaPost International] Error stack: ${error.stack}`);
+      
+      if (error.response) {
+        this.logger.error(`[IndiaPost International] Error response status: ${error.response.status}`);
+        this.logger.error(`[IndiaPost International] Error response data: ${JSON.stringify(error.response.data, null, 2)}`);
+        this.logger.error(`[IndiaPost International] Error response headers: ${JSON.stringify(error.response.headers, null, 2)}`);
+      }
+      
+      if (error.request) {
+        this.logger.error(`[IndiaPost International] Request config: ${JSON.stringify({
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers,
+        }, null, 2)}`);
+      }
       
       const baseUrl = this.configService.get<string>(
         INDIAPOST_INTERNATIONAL_ENV_KEYS.BASE_URL,
@@ -144,6 +238,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
         INDIAPOST_INTERNATIONAL_DEFAULTS.CREATE_ORDER_PATH
       );
       const url = `${baseUrl}${createOrderPath}`;
+      
+      this.logger.error(`[IndiaPost International] Request URL: ${url}`);
       
       throw new CustomHttpException(
         HttpStatus.INTERNAL_SERVER_ERROR,
