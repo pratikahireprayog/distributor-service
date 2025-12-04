@@ -9,7 +9,7 @@ export const INDIAPOST_INTERNATIONAL_ENV_KEYS = {
 export const INDIAPOST_INTERNATIONAL_DEFAULTS = {
   BASE_URL: 'https://test.cept.gov.in',
   AUTH_PATH: '/beextcustomer/v1/access/login',
-  CREATE_ORDER_PATH: '/beextcustomer/v1/crm/international-booking',
+  CREATE_ORDER_PATH: '/becustomer/v1/crm/international-booking',
   USERNAME: '9999999999',
   PASSWORD: 'Dop@1234',
 };

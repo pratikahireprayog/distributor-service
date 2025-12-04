@@ -56,7 +56,7 @@ export class IndiaPostInternationalSubPieceDto {
   sp_invoice_value: number;
   sp_asbl_currency_cd: string;
   sp_asbl_currency_exchrate: number;
-  user_type_cd: string;
+  usertype_cd: string;
 }
 
 // Create Order Request DTO
