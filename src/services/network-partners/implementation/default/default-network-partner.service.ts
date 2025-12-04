@@ -698,7 +698,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     ];
   }
 
-  async updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+  async updateOrderToHubOps<T extends StandardRequestDto, R extends BaseOrderResDto>(
     data: T
   ): Promise<R> {
     this.logger.log(
@@ -707,17 +707,29 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS
-      );
+      // Get base URL from environment variable
+      const baseUrl = process.env.HUBOPS_BASE_URL || process.env.INNOFULFILL_BASE_URL;
+      
+      if (!baseUrl) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "HUBOPS_BASE_URL or INNOFULFILL_BASE_URL environment variable is not configured"
+        );
+      }
 
       // Get AWB number for the URL path
       const orderData = data.order as BaseOrderReqDto;
       const awbNumber = orderData.awbNumber;
 
+      if (!awbNumber) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "AWB number is required for updating order in HubOps"
+        );
+      }
+
       // Build the URL with the awbNumber path parameter
-      const url = endpoint.url.replace("{awbNumber}", awbNumber);
+      const url = `${baseUrl}/update-booking/${awbNumber}`;
 
       this.logger.log(`Updating order in HubOps API: ${url}`);
 
@@ -731,6 +743,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         "HubOps Update"
       );
 
+      // Transform response to BaseOrderResDto format
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully updated in HubOps"
@@ -786,13 +799,32 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
   /**
    * Build payload for HubOps update operation
+   * Transforms BaseOrderReqDto to the format required by HubOps update-booking API
    */
   private buildHubOpsUpdatePayload(order: BaseOrderReqDto) {
+    // Transform ewayBillNos array to ewayBills format
+    const ewayBills = [];
+    if (order?.ewayBillNos && Array.isArray(order.ewayBillNos)) {
+      ewayBills.push(
+        ...order.ewayBillNos
+          .filter((ewayBillNo) => ewayBillNo && ewayBillNo.trim() !== "")
+          .map((ewayBillNo) => ({
+            ewaybillNo: ewayBillNo,
+          }))
+      );
+    }
+
     return {
       destinationPincode: parseInt(order?.shippingAddress?.zip) || 0,
       travelBy: order?.travelType || "",
       receiverAddressLine1: order?.shippingAddress?.address1 || "",
       receiverAddressLine2: order?.shippingAddress?.address2 || "",
+      ewayBills: ewayBills.length > 0 ? ewayBills : undefined,
+      senderAddressLine: order?.pickupAddress?.address1 || "",
+      senderCity: order?.pickupAddress?.city || "",
+      senderState: order?.pickupAddress?.state || "",
+      senderPincode: parseInt(order?.pickupAddress?.zip) || 0,
+      senderName: order?.pickupAddress?.name || "",
     };
   }
 
