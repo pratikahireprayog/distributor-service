@@ -159,3 +159,21 @@ export class IndiaPostInternationalCreateOrderResponseDto {
   };
 }
 
+// Create Label Request DTO
+export class IndiaPostInternationalCreateLabelRequestDto {
+  office_customer: string;
+  article_type: string;
+}
+
+// Create Label Response DTO
+export class IndiaPostInternationalCreateLabelResponseDto {
+  success?: boolean;
+  message?: string;
+  data?: {
+    label_url?: string;
+    label?: string;
+    label_base64?: string;
+    [key: string]: any;
+  };
+}
+
