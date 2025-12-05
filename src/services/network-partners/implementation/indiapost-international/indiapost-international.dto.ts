@@ -108,7 +108,6 @@ export class IndiaPostInternationalCreateOrderRequestDto {
   receiver_kyc_reference?: string;
   receiver_tax_reference?: string;
   pbe_type_cd: string;
-  pbe_bank_ref: string;
   upload_doc_inv_count: number;
   upload_doc_cert_count: number;
   upload_doc_lic_count: number;

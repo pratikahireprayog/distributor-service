@@ -623,37 +623,6 @@ export class IndiaPostInternationalService implements INetworkPartner {
     return Math.round(weightInKg * 1000) / 1000;
   }
 
-  /**
-   * Enforces string field length by truncating or padding
-   * @param value - The string value
-   * @param minLength - Minimum length (if 0, no padding)
-   * @param maxLength - Maximum length (truncates if exceeded, 0 means no limit)
-   * @returns Formatted string
-   */
-  private enforceStringLength(value: string, minLength: number, maxLength: number): string {
-    if (!value) {
-      // If minLength is 0 and maxLength is 0, return empty string (optional field)
-      if (minLength === 0 && maxLength === 0) {
-        return '';
-      }
-      // Return empty string or default based on minLength
-      return minLength > 0 ? ' '.repeat(minLength) : '';
-    }
-
-    let result = String(value);
-
-    // Truncate if exceeds maxLength (only if maxLength > 0)
-    if (maxLength > 0 && result.length > maxLength) {
-      result = result.substring(0, maxLength);
-    }
-
-    // Pad if below minLength (only if minLength > 0)
-    if (minLength > 0 && result.length < minLength) {
-      result = result.padEnd(minLength, ' ');
-    }
-
-    return result;
-  }
 
   /**
    * Determines booking_type_cd based on order type
@@ -687,15 +656,15 @@ export class IndiaPostInternationalService implements INetworkPartner {
       return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 500);
     };
 
-    // Get weights - physical_weight should be in kg with 3 decimals, others in grams
+    // Get weights - weights are received in grams, physical_weight should be in kg with 3 decimals, others in grams
     const physicalWeightRaw = getEffectiveWeight(order.parentShipment || order.childShipments?.[0]);
-    const volumetricWeightRaw = parseFloat(String(order.parentShipment?.volumetricWeight || order.childShipments?.[0]?.volumetricWeight || 0.6));
+    const volumetricWeightRaw = parseFloat(String(order.parentShipment?.volumetricWeight || order.childShipments?.[0]?.volumetricWeight || 600));
     
-    // physical_weight: Numeric(10,3) - in kg with 3 decimal places
-    const physicalWeight = this.convertWeightToKgDecimal(physicalWeightRaw, 'kg');
-    // volumetric_weight and charged_weight: Integer - in grams
-    const volumetricWeight = this.convertWeightToGrams(volumetricWeightRaw, 'kg');
-    const chargedWeight = Math.max(this.convertWeightToGrams(physicalWeightRaw, 'kg'), volumetricWeight);
+    // physical_weight: Numeric(10,3) - in kg with 3 decimal places (convert from grams)
+    const physicalWeight = physicalWeightRaw;
+    // volumetric_weight and charged_weight: Integer - in grams (already in grams, no conversion needed)
+    const volumetricWeight = volumetricWeightRaw;
+    const chargedWeight = Math.max(physicalWeightRaw, volumetricWeight);
 
     const dimensions = order.parentShipment?.dimensions || order.childShipments?.[0]?.dimensions || { length: 20, width: 30, height: 10 };
     const length = parseFloat(String((dimensions as any).length || 20));
@@ -708,205 +677,142 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
     // Transform sub_pieces from items
     const subPieces: IndiaPostInternationalSubPieceDto[] = items.map((item, index) => {
-      const itemWeight = this.convertWeightToGrams(parseFloat(String(item.weight || 500)), 'kg');
+      const itemWeight = item.weight;
       // Format date as DD-MM-YYYY
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
       const invoiceDate = `${day}-${month}-${year}`;
-      const invoiceValue = parseFloat(String(item.unitPrice || 700));
-      const hsnCode = String(item.hsnCode || '44219090');
+      const invoiceValue = parseFloat(String(item.unitPrice));
+      const hsnCode = String(item.hsnCode);
       
       return {
-        hs_cd: this.enforceStringLength(hsnCode, 7, 7),
-        cth_cd: this.enforceStringLength(hsnCode, 8, 8),
-        hs_description: this.enforceStringLength(this.sanitizeAddressField(String(item.description || item.name || 'Product')), 14, 14),
-        sp_unit_cd: this.enforceStringLength('PIECES', 7, 7),
-        article_number: this.enforceStringLength(articleNumber, 13, 13),
-        sp_origin_country_cd: this.enforceStringLength('IN', 3, 3),
+        hs_cd: hsnCode,
+        cth_cd: hsnCode,
+        hs_description: this.sanitizeAddressField(String(item.description || item.name)),
+        sp_unit_cd: 'PIECES',
+        article_number: articleNumber,
+        sp_origin_country_cd: 'IN',
         sp_weight_total: itemWeight,
         sp_weight_nett: itemWeight,
         sp_invoice_lsn: 123,
         sp_invoice_value: Math.round(invoiceValue),
         sp_asbl_fob_value: Math.round(invoiceValue),
-        sp_asbl_currency_cd: this.enforceStringLength('US', 2, 2),
+        sp_asbl_currency_cd: 'US',
         sp_asbl_currency_exchrate: 2,
         sp_asbl_value_inr: Math.round(invoiceValue * 75),
-        sp_origin_currency_cd: this.enforceStringLength('INR', 3, 3),
-        sp_comm_invoice_no: this.enforceStringLength(String(index + 1), 2, 2),
+        sp_origin_currency_cd: 'INR',
+        sp_comm_invoice_no: String(index + 1),
         sp_inv_currency_exchrate: 75,
-        sp_count: parseInt(String(item.quantity || 1)),
-        sp_comm_invoice_date: this.enforceStringLength(invoiceDate, 10, 10),
-        sp_tax_invoice_no: this.enforceStringLength(`INV-${index + 1}`, 5, 5),
-        sp_tax_invoice_date: this.enforceStringLength(invoiceDate, 10, 10),
-        sp_inv_currency_cd: this.enforceStringLength('USD', 3, 3),
+        sp_count: parseInt(String(item.quantity)),
+        sp_comm_invoice_date: invoiceDate,
+        sp_tax_invoice_no: `INV-${index + 1}`,
+        sp_tax_invoice_date: invoiceDate,
+        sp_inv_currency_cd: 'USD',
         sp_invoice_value_total: Math.round(invoiceValue),
-        channel_type_cd: this.enforceStringLength('I', 1, 1),
-        tax_payment_channel_source: this.enforceStringLength('other', 5, 5),
-        tax_payment_mode_cd: this.enforceStringLength('TC', 2, 2),
+        channel_type_cd: 'I',
+        tax_payment_channel_source: 'other',
+        tax_payment_mode_cd: 'TC',
         compensation_cess_rate: 0,
         compensation_cess_amount: 0,
-        ecommerce_url: this.enforceStringLength('https://ecommerce.example.com', 29, 29),
-        ecommerce_paytranid: this.enforceStringLength('PayTrans123', 11, 11),
-        ecommerce_sku: this.enforceStringLength(String(item.sku || 'SKU123'), 6, 6),
+        ecommerce_url: 'https://ecommerce.example.com',
+        ecommerce_paytranid: 'PayTrans123',
+        ecommerce_sku: String(item.sku),
         export_duty_rate: 0,
         export_duty_amount: 0,
         cess_rate: 0,
         cess_amount: 0,
         igst_rate: 0,
         igst_amount: 0,
-        created_by: this.enforceStringLength('10256468', 8, 8),
+        created_by: '10256468',
         office_id_bkg: 90001,
-        ip_address_bkg: this.enforceStringLength('192.168.1.1', 11, 11),
-        usertype_cd: this.enforceStringLength('I', 1, 1),
+        ip_address_bkg: '192.168.1.1',
+        usertype_cd: 'I',
       };
     });
 
-    // If no items, create a default sub_piece
-    if (subPieces.length === 0) {
-      const defaultWeight = this.convertWeightToGrams(500, 'kg');
-      // Format date as DD-MM-YYYY
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = now.getFullYear();
-      const invoiceDate = `${day}-${month}-${year}`;
-      
-      subPieces.push({
-        hs_cd: this.enforceStringLength('44219090', 7, 7),
-        cth_cd: this.enforceStringLength('44219090', 8, 8),
-        hs_description: this.enforceStringLength('Product', 14, 14),
-        sp_unit_cd: this.enforceStringLength('PIECES', 7, 7),
-        article_number: this.enforceStringLength(articleNumber, 13, 13),
-        sp_origin_country_cd: this.enforceStringLength('IN', 3, 3),
-        sp_weight_total: defaultWeight,
-        sp_weight_nett: defaultWeight,
-        sp_invoice_lsn: 123,
-        sp_invoice_value: 400,
-        sp_asbl_fob_value: 400,
-        sp_asbl_currency_cd: this.enforceStringLength('US', 2, 2),
-        sp_asbl_currency_exchrate: 2,
-        sp_asbl_value_inr: 1800,
-        sp_origin_currency_cd: this.enforceStringLength('INR', 3, 3),
-        sp_comm_invoice_no: this.enforceStringLength('23', 2, 2),
-        sp_inv_currency_exchrate: 75,
-        sp_count: 1,
-        sp_comm_invoice_date: this.enforceStringLength(invoiceDate, 10, 10),
-        sp_tax_invoice_no: this.enforceStringLength('12356', 5, 5),
-        sp_tax_invoice_date: this.enforceStringLength(invoiceDate, 10, 10),
-        sp_inv_currency_cd: this.enforceStringLength('USD', 3, 3),
-        sp_invoice_value_total: 5343,
-        channel_type_cd: this.enforceStringLength('I', 1, 1),
-        tax_payment_channel_source: this.enforceStringLength('other', 5, 5),
-        tax_payment_mode_cd: this.enforceStringLength('TC', 2, 2),
-        compensation_cess_rate: 3232,
-        compensation_cess_amount: 323,
-        ecommerce_url: this.enforceStringLength('https://ecommerce.example.com', 29, 29),
-        ecommerce_paytranid: this.enforceStringLength('PayTrans123', 11, 11),
-        ecommerce_sku: this.enforceStringLength('SKU123', 6, 6),
-        export_duty_rate: 10,
-        export_duty_amount: 50,
-        cess_rate: 5,
-        cess_amount: 25,
-        igst_rate: 15,
-        igst_amount: 75,
-        created_by: this.enforceStringLength('10256468', 8, 8),
-        office_id_bkg: 90001,
-        ip_address_bkg: this.enforceStringLength('192.168.1.1', 11, 11),
-        usertype_cd: this.enforceStringLength('I', 1, 1),
-      });
-    }
 
     // Format phone numbers - alt_contact_no should be 10 digits string, mobile_no should be 10-digit integer
-    const senderAltContactNo = this.formatPhoneTo10Digits(pickup.phone || '7607858569', pickup.countryCode || 'IN');
-    const receiverAltContactNo = this.formatPhoneTo10Digits(delivery.phone || '9876543210', delivery.countryCode || 'US');
-    const senderMobileNo = this.formatPhoneToInteger(pickup.phone || '7607858569', pickup.countryCode || 'IN');
-    const receiverMobileNo = this.formatPhoneToInteger(delivery.phone || '9876543210', delivery.countryCode || 'US');
+    const senderAltContactNo = this.formatPhoneTo10Digits(pickup.phone, pickup.countryCode);
+    const receiverAltContactNo = this.formatPhoneTo10Digits(delivery.phone, delivery.countryCode);
+    const senderMobileNo = this.formatPhoneToInteger(pickup.phone, pickup.countryCode);
+    const receiverMobileNo = this.formatPhoneToInteger(delivery.phone, delivery.countryCode);
 
-    // Format pincode - must be exactly 6 digits
-    const senderPincodeStr = String(pickup.zip || '226010').replace(/\D/g, '');
-    const senderPincode = senderPincodeStr.length === 6 ? parseInt(senderPincodeStr, 10) : 226010;
-
-    // Format receiver zipcode - must be exactly 5 digits (US format)
-    const receiverZipcode = this.enforceStringLength(String(delivery.zip || '54321').replace(/\D/g, ''), 5, 5);
+    // Format receiver zipcode
+    const receiverZipcode = String(delivery.zip).replace(/\D/g, '');
 
     return {
-      iec_code: this.enforceStringLength('23232', 1, 50),
-      sender_pincode: senderPincode,
-      destination_ccode: this.enforceStringLength(String(delivery.countryCode || 'US'), 2, 2),
-      destination_cname: this.enforceStringLength(String(delivery.country || 'United States'), 1, 50),
-      mail_type_cd: this.enforceStringLength('FGN_SP_MERCHANDISE', 1, 30),
-      mail_class_cd: this.enforceStringLength('C', 1, 15),
-      mail_nature_type_cd: this.enforceStringLength('11', 3, 3),
+      iec_code: '23232',
+      sender_pincode: parseInt(pickup.zip),
+      destination_ccode: String(delivery.countryCode),
+      destination_cname: String(delivery.country),
+      mail_type_cd: 'FGN_SP_MERCHANDISE',
+      mail_class_cd: 'C',
+      mail_nature_type_cd: '11',
       booking_type_cd: bookingTypeCd,
       bulk_customer_id: 1000000001,
       child_customer_id: 1000000002,
       physical_weight: physicalWeight,
-      mail_shape_cd: this.enforceStringLength('NROL', 4, 4),
+      mail_shape_cd: 'NROL',
       dimension_length: Math.round(length),
       dimension_breadth: Math.round(width),
       dimension_height: Math.round(height),
       volumetric_weight: volumetricWeight,
       charged_weight: chargedWeight,
-      declared_value: Math.round(parseFloat(String(order.payment?.finalAmount || 400))),
+      declared_value: Math.round(parseFloat(String(order.payment?.finalAmount))),
       priority_flag: true,
-      non_dely_instns_cd: this.enforceStringLength('A', 1, 1),
+      non_dely_instns_cd: 'A',
       upload_doc_inv_count: 0,
       upload_doc_cert_count: 0,
       upload_doc_lic_count: 0,
-      sender_name: this.enforceStringLength(this.sanitizeAddressField(String(pickup.name || 'Sender Name')), 12, 12),
-      sender_company_name: this.enforceStringLength(this.sanitizeAddressField(String(pickup.name || 'My Company')), 1, 255),
-      sender_addrline1: this.enforceStringLength(this.sanitizeAddressField(String(pickup.street || 'Sender Addr 01')), 12, 12),
-      sender_addrline2: this.enforceStringLength(this.sanitizeAddressField(String(pickup.landmark || 'Sender Addr 02')), 12, 12),
-      sender_addrline3: this.enforceStringLength(this.sanitizeAddressField(String(pickup.state || 'Sender Addr 03')), 12, 12),
-      sender_city: this.enforceStringLength(this.sanitizeAddressField(String(pickup.city || 'Lucknow')), 7, 7),
-      sender_state: this.enforceStringLength(this.sanitizeAddressField(String(pickup.state || 'UP')), 2, 2),
-      sender_country_name: this.enforceStringLength('India', 1, 255),
-      sender_country_code: this.enforceStringLength('IN', 2, 2),
-      sender_email_id: this.enforceStringLength(String(pickup.email || 'sender@example.com'), 19, 19),
-      sender_alt_contact_no: this.enforceStringLength(senderAltContactNo, 10, 10),
-      sender_kyc_reference: this.enforceStringLength('CFUPR34343E', 11, 11),
-      sender_tax_reference: this.enforceStringLength('034349347343242', 15, 15),
-      receiver_name: this.enforceStringLength(this.sanitizeAddressField(String(delivery.name || 'Receiver Name')), 9, 9),
-      receiver_company_name: this.enforceStringLength(this.sanitizeAddressField(String(delivery.name || '')), 0, 0),
-      receiver_addrline1: this.enforceStringLength(this.sanitizeAddressField(String(delivery.street || 'Receiver Line 1')), 16, 16),
-      receiver_addrline2: this.enforceStringLength(this.sanitizeAddressField(String(delivery.landmark || 'Receiver Line 2')), 15, 15),
-      receiver_addrline3: this.enforceStringLength(this.sanitizeAddressField(String(delivery.state || 'Receiver Line 3')), 15, 15),
-      receiver_city: this.enforceStringLength(this.sanitizeAddressField(String(delivery.city || 'Ohio')), 4, 4),
-      receiver_state: this.enforceStringLength(this.sanitizeAddressField(String(delivery.state || 'Oregon')), 6, 6),
-      receiver_country: this.enforceStringLength(String(delivery.country || 'United States'), 1, 50),
-      receiver_country_code: this.enforceStringLength(String(delivery.countryCode || 'US'), 2, 2),
+      sender_name: this.sanitizeAddressField(String(pickup.name || '')),
+      sender_company_name: this.sanitizeAddressField(String(pickup.name || '')),
+      sender_addrline1: this.sanitizeAddressField(String(pickup.street || '')),
+      sender_addrline2: this.sanitizeAddressField(String(pickup.landmark || '')),
+      sender_addrline3: this.sanitizeAddressField(String(pickup.state || '')),
+      sender_city: this.sanitizeAddressField(String(pickup.city || '')),
+      sender_state: this.sanitizeAddressField(String(pickup.state || '')),
+      sender_country_name: 'India',
+      sender_country_code: 'IN',
+      sender_email_id: String(pickup.email),
+      sender_alt_contact_no: senderAltContactNo,
+      sender_kyc_reference: 'CFUPR34343E',
+      sender_tax_reference: '034349347343242',
+      receiver_name: this.sanitizeAddressField(String(delivery.name || '')),
+      receiver_company_name: this.sanitizeAddressField(String(delivery.name || '')),
+      receiver_addrline1: this.sanitizeAddressField(String(delivery.street || '')),
+      receiver_addrline2: this.sanitizeAddressField(String(delivery.landmark || '')),
+      receiver_addrline3: this.sanitizeAddressField(String(delivery.state || '')),
+      receiver_city: this.sanitizeAddressField(String(delivery.city || '')),
+      receiver_state: this.sanitizeAddressField(String(delivery.state || '')),
+      receiver_country: String(delivery.country),
+      receiver_country_code: String(delivery.countryCode),
       receiver_zipcode: receiverZipcode,
-      receiver_email_id: this.enforceStringLength(String(delivery.email || 'receiver@example.com'), 20, 20),
-      receiver_alt_contact_no: this.enforceStringLength(receiverAltContactNo, 10, 10),
-      receiver_kyc_reference: this.enforceStringLength('KYC321', 6, 6),
-      receiver_tax_reference: this.enforceStringLength('TaxRef321', 9, 9),
-      pbe_type_cd: this.enforceStringLength('PBE-III', 1, 10),
-      pbe_bank_ref: this.enforceStringLength('Ref34343', 1, 50),
+      receiver_email_id: String(delivery.email),
+      receiver_alt_contact_no: receiverAltContactNo,
+      receiver_tax_reference: 'TaxRef321',
+      pbe_type_cd: 'PBE-III',
       declaration1: true,
       declaration2: true,
       declaration3: true,
       declaration4: true,
       selffiling_cusbroker: false,
-      cus_broker_lic_no: this.enforceStringLength('Lic123', 6, 6),
-      cus_broker_name: this.enforceStringLength('Customs Broker Name', 19, 19),
-      cus_broker_address: this.enforceStringLength('Customs Address', 15, 15),
-      article_number: this.enforceStringLength(articleNumber, 13, 13),
-      bkg_ref_id: this.enforceStringLength(String(order.orderId), 13, 13),
-      created_by: this.enforceStringLength('10256468', 8, 8),
+      article_number: articleNumber,
+      bkg_ref_id: String(order.orderId),
+      created_by: '10256468',
       office_id_bkg: 21260721,
-      origin_office_name: this.enforceStringLength('Vrindavan SO', 12, 12),
-      ip_address_bkg: this.enforceStringLength('192.168.0.1', 11, 11),
+      origin_office_name: 'Vrindavan SO',
+      ip_address_bkg: '192.168.0.1',
       subpiece_count: subPieces.length,
-      status_cd: this.enforceStringLength('IC', 2, 2),
-      user_type_cd: this.enforceStringLength('R', 1, 1),
-      channel_type_cd: this.enforceStringLength('K', 1, 1),
+      status_cd: 'IC',
+      user_type_cd: 'R',
+      channel_type_cd: 'K',
       contract_id: 10000001,
       sender_mobile_no: senderMobileNo,
       receiver_mobile_no: receiverMobileNo,
-      bkg_office_gst_no: this.enforceStringLength('feafea', 6, 6),
-      sender_gst_no: this.enforceStringLength('fefe', 4, 4),
+      sender_gst_no: '',
+      bkg_office_gst_no: '',
       sub_pieces: subPieces,
     };
   }
