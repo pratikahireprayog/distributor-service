@@ -357,17 +357,66 @@ export class DelhiveryService extends BaseNetworkPartner {
         this.logger.log(`Found single label URL in polled response`);
       }
       
-      // Step 6: If labels not in polled response, fetch them via API
+      // Step 6: If labels not in polled response, fetch them via API with retry/polling
       if (labelUrls.length === 0) {
-        // Wait a short delay before fetching labels (labels might not be immediately available)
-        const labelFetchDelay = this.configService.get<number>('DELHIVERY_LABEL_FETCH_DELAY_MS', 2000);
-        if (labelFetchDelay > 0) {
-          this.logger.debug(`Waiting ${labelFetchDelay}ms before fetching labels for LRN ${lrnnum}...`);
-          await new Promise(resolve => setTimeout(resolve, labelFetchDelay));
+        // Wait initial delay before fetching labels (labels might not be immediately available)
+        const initialLabelDelay = this.configService.get<number>('DELHIVERY_LABEL_FETCH_DELAY_MS', 5000);
+        if (initialLabelDelay > 0) {
+          this.logger.log(`Waiting ${initialLabelDelay}ms before fetching labels for LRN ${lrnnum}...`);
+          await new Promise(resolve => setTimeout(resolve, initialLabelDelay));
         }
         
-        // Fetch label URLs using lrnnum
-        labelUrls = await this.getLabelUrls(lrnnum);
+        // Poll for label URLs with retry logic (labels may take time to be generated)
+        const maxLabelRetries = this.configService.get<number>('DELHIVERY_LABEL_MAX_RETRIES', 10);
+        const labelRetryDelay = this.configService.get<number>('DELHIVERY_LABEL_RETRY_DELAY_MS', 3000);
+        
+        this.logger.log(`Polling for labels for LRN: ${lrnnum} (max ${maxLabelRetries} attempts, ${labelRetryDelay}ms delay)`);
+        
+        for (let attempt = 1; attempt <= maxLabelRetries; attempt++) {
+          labelUrls = await this.getLabelUrls(lrnnum);
+          
+          if (labelUrls.length > 0) {
+            this.logger.log(`Successfully fetched ${labelUrls.length} label URL(s) for LRN ${lrnnum} on attempt ${attempt}`);
+            break;
+          }
+          
+          if (attempt < maxLabelRetries) {
+            this.logger.warn(`No labels found for LRN ${lrnnum} on attempt ${attempt}/${maxLabelRetries}, retrying in ${labelRetryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
+          } else {
+            this.logger.warn(`No labels found for LRN ${lrnnum} after ${maxLabelRetries} attempts`);
+          }
+        }
+        
+        // If still no labels, try using waybill numbers as fallback
+        if (labelUrls.length === 0 && polledData.waybills && Array.isArray(polledData.waybills) && polledData.waybills.length > 0) {
+          this.logger.log(`No labels found for LRN, trying waybill numbers: ${JSON.stringify(polledData.waybills)}`);
+          for (const waybill of polledData.waybills) {
+            if (waybill) {
+              this.logger.log(`Trying to fetch label for waybill: ${waybill}`);
+              // Also retry for waybills
+              for (let attempt = 1; attempt <= 3; attempt++) {
+                const waybillLabels = await this.getLabelUrls(waybill);
+                if (waybillLabels.length > 0) {
+                  labelUrls.push(...waybillLabels);
+                  this.logger.log(`Found ${waybillLabels.length} label(s) for waybill: ${waybill} on attempt ${attempt}`);
+                  break;
+                }
+                if (attempt < 3) {
+                  this.logger.debug(`No labels for waybill ${waybill} on attempt ${attempt}, retrying...`);
+                  await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
+                }
+              }
+            }
+          }
+        }
+        
+        if (labelUrls.length > 0) {
+          this.logger.log(`Total label URLs found: ${labelUrls.length}, URLs: ${JSON.stringify(labelUrls)}`);
+        } else {
+          this.logger.error(`No label URLs received for LRN: ${lrnnum} after all retries. Documents array will be empty.`);
+          this.logger.error(`Polled response data: ${JSON.stringify(polledData, null, 2)}`);
+        }
       }
       
       // Step 7: Transform response to BaseOrderResDto format (like Xpressbees)
@@ -696,10 +745,54 @@ export class DelhiveryService extends BaseNetworkPartner {
   }
 
   /**
+   * Convert extracted data to a clickable link (S3 URL or data URL)
+   * @param data - The extracted data (could be URL, base64, or other format)
+   * @returns A clickable link that returns the data when accessed
+   */
+  private convertDataToClickableLink(data: any): string {
+    if (!data) {
+      return '';
+    }
+
+    // If it's already a URL (http/https), use it as-is
+    if (typeof data === 'string' && (data.startsWith('http://') || data.startsWith('https://'))) {
+      this.logger.debug(`Data is already a URL: ${data}`);
+      return data;
+    }
+
+    // If it's a base64 string, convert to data URL
+    if (typeof data === 'string') {
+      // Check if it looks like base64 (alphanumeric, +, /, =)
+      const base64Pattern = /^[A-Za-z0-9+/=]+$/;
+      if (base64Pattern.test(data) && data.length > 100) {
+        // Assume it's a PDF label (common format)
+        const dataUrl = `data:application/pdf;base64,${data}`;
+        this.logger.debug(`Converted base64 string to data URL (length: ${data.length})`);
+        return dataUrl;
+      }
+      // If it's not base64 but a string, return as-is (might be a URL without protocol)
+      return data;
+    }
+
+    // If it's an object, try to extract URL or stringify
+    if (typeof data === 'object') {
+      const url = data.url || data.label_url || data.labelUrl || data.link || data.data;
+      if (url && typeof url === 'string') {
+        return this.convertDataToClickableLink(url); // Recursively process
+      }
+      // If no URL found, stringify the object
+      return JSON.stringify(data);
+    }
+
+    // Fallback: convert to string
+    return String(data);
+  }
+
+  /**
    * Get label URLs using LRN number
-   * Response structure: { success: true, data: [ "url1", "url2", ... ] }
+   * Extracts response.data and converts it to clickable links (S3 URLs or data URLs)
    * @param lrnnum - LRN number
-   * @returns Array of label URLs (as-is, no conversion)
+   * @returns Array of clickable links extracted from response.data
    */
   private async getLabelUrls(lrnnum: string): Promise<string[]> {
     try {
@@ -737,34 +830,84 @@ export class DelhiveryService extends BaseNetworkPartner {
       }
       
       const responseData = response.data || {};
-      this.logger.debug(`Label URLs API response for LRN ${lrnnum}: ${JSON.stringify(responseData)}`);
+      this.logger.log(`Label URLs API response for LRN ${lrnnum}: ${JSON.stringify(responseData, null, 2)}`);
       
-      // Extract label URLs array from response
-      // Response structure: { success: true, data: [ "url1", "url2", ... ] }
-      const labelUrls: string[] = [];
+      // Extract response.data and convert to clickable links
+      const labelLinks: string[] = [];
       
-      if (Array.isArray(responseData.data)) {
-        // If data is an array of URLs
-        labelUrls.push(...responseData.data);
-        this.logger.debug(`Extracted ${labelUrls.length} URLs from data array`);
-      } else if (responseData.data?.label_url || responseData.data?.labelUrl) {
-        // Fallback: single URL in data object
-        labelUrls.push(responseData.data.label_url || responseData.data.labelUrl);
-        this.logger.debug(`Extracted single URL from data object`);
-      } else if (responseData.label_url || responseData.labelUrl || responseData.url) {
-        // Fallback: single URL at root level
-        labelUrls.push(responseData.label_url || responseData.labelUrl || responseData.url);
-        this.logger.debug(`Extracted single URL from root level`);
+      // Check multiple possible response structures
+      // Structure 1: { success: true, data: [...] } or { data: [...] }
+      if (responseData.data !== undefined && responseData.data !== null) {
+        this.logger.debug(`Found responseData.data, type: ${typeof responseData.data}, isArray: ${Array.isArray(responseData.data)}`);
+        if (Array.isArray(responseData.data)) {
+          // If data is an array, convert each element to a clickable link
+          responseData.data.forEach((item: any, index: number) => {
+            this.logger.debug(`Processing item ${index}: ${typeof item}, value: ${typeof item === 'string' ? item.substring(0, 100) : JSON.stringify(item)}`);
+            const link = this.convertDataToClickableLink(item);
+            if (link) {
+              labelLinks.push(link);
+              this.logger.debug(`Added link ${index}: ${link.substring(0, 100)}...`);
+            }
+          });
+          this.logger.log(`Extracted ${labelLinks.length} clickable link(s) from data array`);
+        } else if (typeof responseData.data === 'string') {
+          // Single string item - convert to clickable link
+          this.logger.debug(`responseData.data is a string, length: ${responseData.data.length}`);
+          const link = this.convertDataToClickableLink(responseData.data);
+          if (link) {
+            labelLinks.push(link);
+            this.logger.log(`Extracted clickable link from data string`);
+          }
+        } else if (responseData.data && typeof responseData.data === 'object') {
+          // Object - try to extract URL or convert
+          this.logger.debug(`responseData.data is an object: ${JSON.stringify(responseData.data)}`);
+          const link = this.convertDataToClickableLink(responseData.data);
+          if (link) {
+            labelLinks.push(link);
+            this.logger.log(`Extracted clickable link from data object`);
+          }
+        }
+      } 
+      // Structure 2: Direct array or string in response.data
+      else if (Array.isArray(responseData)) {
+        this.logger.debug(`responseData is directly an array`);
+        responseData.forEach((item: any, index: number) => {
+          const link = this.convertDataToClickableLink(item);
+          if (link) {
+            labelLinks.push(link);
+          }
+        });
+        this.logger.log(`Extracted ${labelLinks.length} clickable link(s) from direct array`);
+      }
+      // Structure 3: Direct string in response.data
+      else if (typeof responseData === 'string') {
+        this.logger.debug(`responseData is directly a string, length: ${responseData.length}`);
+        const link = this.convertDataToClickableLink(responseData);
+        if (link && (link.startsWith('http') || link.startsWith('data:'))) {
+          labelLinks.push(link);
+          this.logger.log(`Using response.data directly as clickable link`);
+        }
+      }
+      // Structure 4: Check for common URL fields at root level
+      else if (responseData.url || responseData.label_url || responseData.labelUrl || responseData.link) {
+        const url = responseData.url || responseData.label_url || responseData.labelUrl || responseData.link;
+        this.logger.debug(`Found URL at root level: ${url}`);
+        const link = this.convertDataToClickableLink(url);
+        if (link) {
+          labelLinks.push(link);
+          this.logger.log(`Extracted clickable link from root level`);
+        }
       }
       
-      if (labelUrls.length === 0) {
-        this.logger.warn(`No label URLs found in response for LRN ${lrnnum}. Full response: ${JSON.stringify(responseData, null, 2)}`);
+      if (labelLinks.length === 0) {
+        this.logger.warn(`No label links found in response for LRN ${lrnnum}. Full response structure: ${JSON.stringify(responseData, null, 2)}`);
         // Try alternative endpoint as fallback
+        this.logger.log(`Trying alternative endpoint for LRN ${lrnnum}...`);
         return await this.getLabelUrlsAlternative(lrnnum);
       }
       
-      this.logger.log(`Found ${labelUrls.length} label URL(s) for LRN ${lrnnum}: ${JSON.stringify(labelUrls)}`);
-      return labelUrls;
+      this.logger.log(`Found ${labelLinks.length} clickable link(s) for LRN ${lrnnum}`);
+      return labelLinks;
     } catch (error) {
       this.logger.error(`Failed to get label URLs for LRN ${lrnnum}: ${error.message}`, error.stack);
       if (error.response) {
@@ -788,8 +931,9 @@ export class DelhiveryService extends BaseNetworkPartner {
 
   /**
    * Alternative method to get label URLs - tries different endpoint formats
-   * @param lrnnum - LRN number
-   * @returns Array of label URLs
+   * Extracts response.data and converts it to clickable links
+   * @param lrnnum - LRN number or waybill number
+   * @returns Array of clickable links extracted from response.data
    */
   private async getLabelUrlsAlternative(lrnnum: string): Promise<string[]> {
     try {
@@ -797,7 +941,7 @@ export class DelhiveryService extends BaseNetworkPartner {
       // Try without /std/ prefix
       const url = `${baseUrl}/label/get_urls/${lrnnum}`;
       
-      this.logger.debug(`Trying alternative label URL endpoint: ${url}`);
+      this.logger.log(`Trying alternative label URL endpoint: ${url}`);
       
       const headers = await this.delhiveryAuthService.getAuthHeaders();
       const timeout = this.configService.get<number>('DELHIVERY_API_TIMEOUT_MS', 30000);
@@ -810,28 +954,67 @@ export class DelhiveryService extends BaseNetworkPartner {
         })
       );
       
+      this.logger.log(`Alternative endpoint response status: ${response.status}`);
+      
       if (response.status === 200 || response.status === 201) {
         const responseData = response.data || {};
-        const labelUrls: string[] = [];
+        this.logger.log(`Alternative endpoint response data: ${JSON.stringify(responseData, null, 2)}`);
+        const labelLinks: string[] = [];
         
-        if (Array.isArray(responseData.data)) {
-          labelUrls.push(...responseData.data);
-        } else if (responseData.data?.label_url || responseData.data?.labelUrl) {
-          labelUrls.push(responseData.data.label_url || responseData.data.labelUrl);
-        } else if (responseData.label_url || responseData.labelUrl || responseData.url) {
-          labelUrls.push(responseData.label_url || responseData.labelUrl || responseData.url);
+        // Extract response.data and convert to clickable links (same logic as primary method)
+        if (responseData.data !== undefined && responseData.data !== null) {
+          if (Array.isArray(responseData.data)) {
+            responseData.data.forEach((item: any, index: number) => {
+              const link = this.convertDataToClickableLink(item);
+              if (link) {
+                labelLinks.push(link);
+                this.logger.debug(`Alternative: Added link ${index}: ${link.substring(0, 100)}...`);
+              }
+            });
+          } else {
+            const link = this.convertDataToClickableLink(responseData.data);
+            if (link) {
+              labelLinks.push(link);
+              this.logger.debug(`Alternative: Extracted link from data`);
+            }
+          }
+        } else if (Array.isArray(responseData)) {
+          responseData.forEach((item: any) => {
+            const link = this.convertDataToClickableLink(item);
+            if (link) {
+              labelLinks.push(link);
+            }
+          });
+        } else if (typeof responseData === 'string') {
+          const link = this.convertDataToClickableLink(responseData);
+          if (link && (link.startsWith('http') || link.startsWith('data:'))) {
+            labelLinks.push(link);
+          }
+        } else if (responseData.url || responseData.label_url || responseData.labelUrl || responseData.link) {
+          const url = responseData.url || responseData.label_url || responseData.labelUrl || responseData.link;
+          const link = this.convertDataToClickableLink(url);
+          if (link) {
+            labelLinks.push(link);
+          }
         }
         
-        if (labelUrls.length > 0) {
-          this.logger.log(`Found ${labelUrls.length} label URL(s) via alternative endpoint for LRN ${lrnnum}`);
-          return labelUrls;
+        if (labelLinks.length > 0) {
+          this.logger.log(`Found ${labelLinks.length} clickable link(s) via alternative endpoint for ${lrnnum}`);
+          return labelLinks;
+        } else {
+          this.logger.warn(`Alternative endpoint returned success but no links extracted. Response: ${JSON.stringify(responseData, null, 2)}`);
         }
+      } else {
+        this.logger.error(`Alternative endpoint returned status ${response.status}. Error: ${JSON.stringify(response.data, null, 2)}`);
       }
       
-      this.logger.warn(`Alternative label URL endpoint also failed for LRN ${lrnnum}`);
+      this.logger.warn(`Alternative label URL endpoint also failed for ${lrnnum}`);
       return [];
     } catch (error) {
-      this.logger.error(`Alternative label URL fetch failed for LRN ${lrnnum}: ${error.message}`);
+      this.logger.error(`Alternative label URL fetch failed for ${lrnnum}: ${error.message}`, error.stack);
+      if (error.response) {
+        this.logger.error(`Error response: ${JSON.stringify(error.response.data, null, 2)}`);
+      }
       return [];
     }
   }
@@ -888,10 +1071,12 @@ export class DelhiveryService extends BaseNetworkPartner {
 
     // Build documents array (like Xpressbees format) - one document per label URL
     const documents = [];
-    this.logger.debug(`Building documents array. labelUrls length: ${labelUrls?.length || 0}`);
+    this.logger.log(`Building documents array. labelUrls length: ${labelUrls?.length || 0}`);
+    this.logger.log(`labelUrls content: ${JSON.stringify(labelUrls)}`);
     
     if (labelUrls && labelUrls.length > 0) {
-      labelUrls.forEach((labelUrl) => {
+      labelUrls.forEach((labelUrl, index) => {
+        this.logger.log(`Adding document ${index}: ${labelUrl.substring(0, 100)}...`);
         documents.push({
           content: labelUrl,
           type: 'label',
@@ -900,7 +1085,8 @@ export class DelhiveryService extends BaseNetworkPartner {
       });
       this.logger.log(`Added ${documents.length} label document(s) to response`);
     } else {
-      this.logger.warn(`No label URLs provided to transformManifestResponseToOrderResponse. labelUrls length: ${labelUrls?.length || 0}`);
+      this.logger.error(`No label URLs provided to transformManifestResponseToOrderResponse. labelUrls: ${JSON.stringify(labelUrls)}`);
+      this.logger.error(`This will result in an empty documents array in the response.`);
     }
 
     // Format response like Xpressbees
