@@ -581,12 +581,17 @@ export class ShipmentDetailsDto {
 
   @IsString()
   transporterId: string;
+
+  @IsString()
+  @IsOptional()
+  partnerOrderId?: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {
   trackingId?: string;
   referenceNumber?: string;
   shipmentDetails?: ShipmentDetailsDto[];
+  partnerOrderId?: string;
 }
 
 export class UpdatePartnerToHubOpsRequestDto {

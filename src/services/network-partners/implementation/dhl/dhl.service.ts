@@ -916,11 +916,15 @@ export class DHLService extends BaseNetworkPartner {
     const requestPackages = requestBody?.content?.packages || [];
     const responsePackages = responseData.packages || [];
     
+    // Extract partner order ID from response (first tracking number)
+    const partnerOrderId = responsePackages[0]?.trackingNumber || responseData?.shipmentTrackingNumber || undefined;
+
     const shipmentDetails = requestPackages.map((pkg: any, index: number) => ({
       awbNumber: pkg.customerReferences?.[0]?.value || null,
       partnerAwbNumber: responsePackages[index]?.trackingNumber || null,
       partnerName: "DHL",
       transporterId: "", // Blank for now as requested
+      partnerOrderId: responsePackages[index]?.trackingNumber || undefined,
     }));
 
     const documents = responseData.documents.map((doc: any, index: number) => ({
@@ -934,6 +938,7 @@ export class DHLService extends BaseNetworkPartner {
       statusCode: 200,
       message: "Order created successfully with DHL",
       partnerCode: this.partnerCode,
+      partnerOrderId: partnerOrderId, // Partner's internal order ID
       metadata: {
         transporterId: "", // Blank for now as requested
       },
@@ -941,6 +946,7 @@ export class DHLService extends BaseNetworkPartner {
         originalResponse: responseData,
         requestUrl: requestUrl,
         requestBody: requestBody,
+        partnerOrderId: partnerOrderId, // Also include in data for consistency
         shipmentDetails: {
           trackingDetails: shipmentDetails,
            documents: documents
