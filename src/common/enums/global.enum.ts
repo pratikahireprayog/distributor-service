@@ -52,6 +52,7 @@ export enum PARTNER_CODE_ENUM {
   DPWORLD = "DPWORLD",
   NAQEL = "NAQEL",
   EKART = "pratik",
+  MOVER = "mover",
 }
 
 export enum ENDPOINT_ID_ENUM {
