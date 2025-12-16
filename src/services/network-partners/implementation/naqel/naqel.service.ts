@@ -133,8 +133,17 @@ export class NAQELService extends BaseNetworkPartner {
       const apiUser = this.configService.get<string>("NAQEL_CLIENT_ID");
       const apiPass = this.configService.get<string>("NAQEL_PASSWORD");
 
-      const awbNumber = data.cAwbNumbers?.[0];
-      if (!awbNumber) throw new Error("AWB number required to cancel order");
+      const awbNumber =
+        data.partnerOrderId ||
+        data.cAwbNumbers?.[0] ||
+        data.orderId ||
+        '';
+      if (!awbNumber) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "AWB/partnerOrderId is required to cancel order"
+        );
+      }
 
       const xmlRequest = this.buildCancelWaybillXML(awbNumber, apiUser, apiPass);
 
