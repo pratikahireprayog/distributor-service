@@ -118,10 +118,12 @@ export class XpressbeesB2cService implements INetworkPartner {
         statusCode: 200,
         message: 'Order created successfully with XpressBees B2C',
         partnerCode: PARTNER_CODE_ENUM.XPRESSBEES_B2C,
+        partnerOrderId: partnerAwbNumber || undefined, // Partner's internal order ID
         data: {
           originalResponse: response.data,
           requestUrl: url,
           requestBody: payload,
+          partnerOrderId: partnerAwbNumber || undefined, // Also include in data for consistency
           shipmentDetails: {
             trackingDetails: [
               {
@@ -129,6 +131,7 @@ export class XpressbeesB2cService implements INetworkPartner {
                 partnerAwbNumber: partnerAwbNumber,
                 partnerName: PARTNER_CODE_ENUM.XPRESSBEES_B2C,
                 transporterId: 'XPRESSBEES_B2C',
+                partnerOrderId: partnerAwbNumber || undefined,
               },
             ],
             documents: [

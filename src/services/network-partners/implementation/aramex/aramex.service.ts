@@ -495,6 +495,7 @@ export class ARAMEXService extends BaseNetworkPartner {
       statusCode: 200,
       message: "Order created successfully with Aramex",
       partnerCode: this.partnerCode,
+      partnerOrderId: trackingId || undefined, // Partner's internal order ID
       data: {
         originalResponse: responseData,
         requestUrl,
@@ -502,6 +503,7 @@ export class ARAMEXService extends BaseNetworkPartner {
         trackingId,
         referenceNumber: trackingId,
         labelUrl,
+        partnerOrderId: trackingId || undefined, // Also include in data for consistency
         shipmentDetails: {
           trackingDetails: [
             {
@@ -509,6 +511,7 @@ export class ARAMEXService extends BaseNetworkPartner {
               partnerAwbNumber: trackingId || '',
               partnerName: PARTNER_CODE_ENUM.ARAMEX,
               transporterId: 'ARAMEX',
+              partnerOrderId: trackingId || undefined,
             },
           ],
           documents: labelUrl ? [
@@ -530,7 +533,14 @@ export class ARAMEXService extends BaseNetworkPartner {
 
   private async getAramexAccountByCity(city: string) {
     const normalized = city.trim().toUpperCase();
-
+    return {
+           "Version": "v1.0",
+        "AccountNumber": "60531487",
+        "AccountPin": "654654",
+        "AccountEntity": "BOM",
+        "AccountCountryCode": "IN",
+        "Source": 24
+    }
     if (["DELHI", "NEW DELHI", "DEL"].includes(normalized)) return ARAMEX_ACCOUNTS.DELHI;
     if (["BENGALURU", "BANGALORE", "BLR"].includes(normalized)) return ARAMEX_ACCOUNTS.BLR;
     if (["HYDERABAD", "HYD"].includes(normalized)) return ARAMEX_ACCOUNTS.HYD;
@@ -669,6 +679,20 @@ export class ARAMEXService extends BaseNetworkPartner {
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     try {
+      const shipmentNumbers =
+        data.partnerOrderId
+          ? [data.partnerOrderId]
+          : data.cAwbNumbers && data.cAwbNumbers.length
+            ? data.cAwbNumbers
+            : [];
+
+      if (!shipmentNumbers.length) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "At least one AWB/partnerOrderId is required for ARAMEX cancellation"
+        );
+      }
+
       const endpoint = {
         url: `${this.configService.get<string>('ARAMEX_BASE_URL')}/${ARAMEX_API_URLS.ARAMEX_CANCEL_ORDER_URL}`
       };
@@ -683,7 +707,7 @@ export class ARAMEXService extends BaseNetworkPartner {
       const authHeaders = await this.authProvider.getAuthHeaders();
       const holdShipmentPayload = {
         ClientInfo: clientInfo,
-        ShipmentHolds: data.cAwbNumbers.map(awb => ({
+        ShipmentHolds: shipmentNumbers.map(awb => ({
           ShipmentNumber: awb,
           Comment: data?.cancelReason || ''
         }))

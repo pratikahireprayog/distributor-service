@@ -526,6 +526,10 @@ export class BaseCancelOrderDtoV2 {
 
   @IsOptional()
   @IsString()
+  partnerOrderId?: string;
+
+  @IsOptional()
+  @IsString()
   referenceId?: string;
 
   @IsOptional()

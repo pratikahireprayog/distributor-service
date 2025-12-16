@@ -17,6 +17,7 @@ import {
   BaseResDto,
   ManifestReqDto,
 } from "src/common/dtos/base.dto";
+import { BaseCancelOrderDtoV2 } from "src/common/dtos/base2.dto";
 import { BaseNetworkPartnerHelper } from "../../base/base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
@@ -104,6 +105,45 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // Set the partner code from the request data
     (this as any).partnerCode = data.partnerCode;
     return await super.cancelOrder<T, R>(data);
+  }
+
+  /**
+   * Cancel order V2 with handling for special partner codes like BULK_OPERATION
+   */
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
+  ): Promise<R> {
+    this.logger.log(
+      `Cancelling Order V2 with partner ${partnerCode}`
+    );
+
+    // Handle BULK_OPERATION as a special case - no external API call needed
+    if (partnerCode === 'BULK_OPERATION') {
+      this.logger.log(
+        `BULK_OPERATION detected - returning success without external API call`
+      );
+      return {
+        statusCode: 200,
+        message: 'Order cancellation processed successfully (BULK_OPERATION)',
+        partnerCode: partnerCode,
+        data: {
+          cAwbNumbers: data.cAwbNumbers,
+          cancelReason: data.cancelReason,
+          status: 'CANCELLED',
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: partnerCode,
+          operation: 'CANCEL_ORDER_V2',
+        },
+      } as R;
+    }
+
+    // Set the partner code from the request data
+    (this as any).partnerCode = partnerCode;
+    return await super.cancelOrderV2<T, R>(data, partnerCode, eligiblePartners);
   }
 
   // async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(

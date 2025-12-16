@@ -330,6 +330,7 @@ export class FEDEXService extends BaseNetworkPartner {
                     partnerAwbNumber: masterTrackingNumber,
                     partnerName: PARTNER_CODE_ENUM.FEDEX,
                     transporterId: 'FEDEX',
+                    partnerOrderId: masterTrackingNumber || undefined,
                 });
             }
 
@@ -367,18 +368,27 @@ export class FEDEXService extends BaseNetworkPartner {
                     partnerAwbNumber: partnerAwbNumber,
                     partnerName: PARTNER_CODE_ENUM.FEDEX,
                     transporterId: 'FEDEX',
+                    partnerOrderId: partnerAwbNumber || undefined,
                 });
             }
         }
+
+        // Extract partner order ID (first master tracking number)
+        const partnerOrderId = output.masterTrackingNumber || 
+                              transactionShipments[0]?.masterTrackingNumber || 
+                              transactionShipments[0]?.trackingNumber || 
+                              undefined;
 
         return {
             statusCode: 200,
             message: 'Order created successfully with FEDEX',
             partnerCode: PARTNER_CODE_ENUM.FEDEX,
+            partnerOrderId: partnerOrderId, // Partner's internal order ID
             data: {
                 originalResponse: responseData,
                 requestUrl: requestUrl || (response as any).config?.url || FEDEX_URLS.CREATE_SHIPMENT,
                 requestBody: requestBody || (response as any).config?.data || null,
+                partnerOrderId: partnerOrderId, // Also include in data for consistency
                 shipmentDetails: {
                     trackingDetails: trackingDetails,
                     documents: documents,
@@ -398,7 +408,17 @@ export class FEDEXService extends BaseNetworkPartner {
     ): Promise<R> {
         try {
             const endpoint = FEDEX_URLS.CANCEL_SHIPMENT;
-            const awbNumber = data.cAwbNumbers?.[0] || '';
+          const trackingNumber =
+            data.partnerOrderId ||
+            data.cAwbNumbers?.[0] ||
+            data.orderId ||
+            '';
+          if (!trackingNumber) {
+            throw new CustomHttpException(
+              HttpStatus.BAD_REQUEST,
+              'trackingNumber (partnerOrderId/cAwbNumber/orderId) is required for cancellation'
+            );
+          }
             //   const endpoint = {
             //     url: `${this.configService.get<string>('FEDEX_BASE_URL')}/cancel/${awbNumber}`
             //   };
@@ -410,7 +430,7 @@ export class FEDEXService extends BaseNetworkPartner {
                 //  emailShipment: 'false',
                 //  senderCountryCode: this.configService.get<string>('FEDEX_SENDER_COUNTRY') || 'US',
                 //  deletionControl: 'DELETE_ALL_PACKAGES',
-                trackingNumber: awbNumber,
+              trackingNumber: trackingNumber,
                 //  version: {
                 //      major: '1',
                 //      minor: '1',

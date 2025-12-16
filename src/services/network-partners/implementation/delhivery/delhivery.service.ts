@@ -1049,6 +1049,7 @@ export class DelhiveryService extends BaseNetworkPartner {
         partnerAwbNumber: lrnnum,
         partnerName: PARTNER_CODE_ENUM.DELHIVERY,
         transporterId: 'DELHIVERY',
+        partnerOrderId: lrnnum || undefined,
       });
     }
   
@@ -1059,6 +1060,7 @@ export class DelhiveryService extends BaseNetworkPartner {
           partnerAwbNumber: lrnnum, // All shipments share the same LRN
           partnerName: PARTNER_CODE_ENUM.DELHIVERY,
           transporterId: 'DELHIVERY',
+          partnerOrderId: lrnnum || undefined,
         });
       });
     }
@@ -1070,6 +1072,7 @@ export class DelhiveryService extends BaseNetworkPartner {
         partnerAwbNumber: lrnnum,
         partnerName: PARTNER_CODE_ENUM.DELHIVERY,
         transporterId: 'DELHIVERY',
+        partnerOrderId: lrnnum || undefined,
       });
     }
   
@@ -1105,10 +1108,12 @@ export class DelhiveryService extends BaseNetworkPartner {
       statusCode: HttpStatus.OK,
       message: 'Order created successfully with Delhivery',
       partnerCode: PARTNER_CODE_ENUM.DELHIVERY,
+      partnerOrderId: lrnnum || undefined, // Partner's internal order ID (LRN number)
       data: {
         originalResponse: manifestResponse.data,
         requestUrl: requestUrl,
         requestBody: requestPayload,
+        partnerOrderId: lrnnum || undefined, // Also include in data for consistency
         shipmentDetails: {
           trackingDetails: trackingDetails,
           documents: documents,

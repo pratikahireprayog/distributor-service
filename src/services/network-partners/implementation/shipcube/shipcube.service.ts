@@ -212,7 +212,18 @@ export class SHIPCUBEService extends BaseNetworkPartner {
   ): Promise<R> {
 
     const graphqlUrl = this.configService.get<string>("SHIPCUBE_URL");
-    const awbNumber = data.cAwbNumbers?.[0] || '';
+    const orderIdForCancel =
+      data.partnerOrderId ||
+      data.cAwbNumbers?.[0] ||
+      data.orderId ||
+      '';
+
+    if (!orderIdForCancel) {
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'order_id (partnerOrderId/cAwbNumber/orderId) is required for cancellation'
+      );
+    }
     const token = await this.authProvider.getToken();
 
     const cancelMutation = `
@@ -234,7 +245,7 @@ export class SHIPCUBEService extends BaseNetworkPartner {
         graphqlUrl,
         {
           query: cancelMutation,
-          variables: { data: { order_id: awbNumber } },
+          variables: { data: { order_id: orderIdForCancel } },
         },
         {
           headers: {

@@ -125,10 +125,12 @@ export class EkartService implements INetworkPartner {
         statusCode: 200,
         message: 'Order created successfully with Ekart',
         partnerCode: PARTNER_CODE_ENUM.EKART,
+        partnerOrderId: partnerAwbNumber || undefined, // Partner's internal order ID (docket number)
         data: {
           originalResponse: response.data,
           requestUrl: url,
           requestBody: payload,
+          partnerOrderId: partnerAwbNumber || undefined, // Also include in data for consistency
           shipmentDetails: {
             trackingDetails: [
               {
@@ -136,6 +138,7 @@ export class EkartService implements INetworkPartner {
                 partnerAwbNumber: partnerAwbNumber,
                 partnerName: PARTNER_CODE_ENUM.EKART,
                 transporterId: 'EKART',
+                partnerOrderId: partnerAwbNumber || undefined,
               },
             ],
             documents: documents,
