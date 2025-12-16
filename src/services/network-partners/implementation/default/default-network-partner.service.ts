@@ -233,6 +233,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         pincode: shippingAddress.zip,
         landmark: shippingAddress.address2 || "",
       },
+      senderDetails: {
+        sender_mobile: pickupAddress.mobile,
+        sender_name:pickupAddress.name
+      },
+      receiverDetails: {
+        receiver_mobile: shippingAddress.mobile,
+        receiver_name:shippingAddress.name
+      },
       orderMetaData: [],
     };
 
