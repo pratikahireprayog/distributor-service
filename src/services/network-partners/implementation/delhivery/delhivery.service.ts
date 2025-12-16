@@ -1041,13 +1041,17 @@ export class DelhiveryService extends BaseNetworkPartner {
     
     if (originalOrder.parentShipment) {
       trackingDetails.push({
-        awbNumber: originalOrder.parentShipment.awbNumber || originalOrder.awbNumber || originalOrder.orderId || '',
+        awbNumber:
+          originalOrder.parentShipment.awbNumber ||
+          originalOrder.awbNumber ||
+          originalOrder.orderId ||
+          '',
         partnerAwbNumber: lrnnum,
         partnerName: PARTNER_CODE_ENUM.DELHIVERY,
         transporterId: 'DELHIVERY',
       });
     }
-
+  
     if (originalOrder.childShipments && Array.isArray(originalOrder.childShipments)) {
       originalOrder.childShipments.forEach((childShipment: any) => {
         trackingDetails.push({
@@ -1058,7 +1062,7 @@ export class DelhiveryService extends BaseNetworkPartner {
         });
       });
     }
-
+  
     // If no shipments, create default
     if (trackingDetails.length === 0) {
       trackingDetails.push({
@@ -1068,27 +1072,34 @@ export class DelhiveryService extends BaseNetworkPartner {
         transporterId: 'DELHIVERY',
       });
     }
-
-    // Build documents array (like Xpressbees format) - one document per label URL
+  
+    // Build documents array
     const documents = [];
     this.logger.log(`Building documents array. labelUrls length: ${labelUrls?.length || 0}`);
     this.logger.log(`labelUrls content: ${JSON.stringify(labelUrls)}`);
     
     if (labelUrls && labelUrls.length > 0) {
       labelUrls.forEach((labelUrl, index) => {
-        this.logger.log(`Adding document ${index}: ${labelUrl.substring(0, 100)}...`);
+        const documentType = index === 1 ? 'docket' : 'label';
+  
+        this.logger.log(
+          `Adding document ${index}: type=${documentType}, url=${labelUrl.substring(0, 100)}...`
+        );
+  
         documents.push({
           content: labelUrl,
-          type: 'label',
+          type: documentType,
           format: 's3link',
         });
       });
-      this.logger.log(`Added ${documents.length} label document(s) to response`);
+  
+      this.logger.log(`Added ${documents.length} document(s) to response`);
     } else {
-      this.logger.error(`No label URLs provided to transformManifestResponseToOrderResponse. labelUrls: ${JSON.stringify(labelUrls)}`);
-      this.logger.error(`This will result in an empty documents array in the response.`);
+      this.logger.error(
+        `No label URLs provided to transformManifestResponseToOrderResponse. labelUrls: ${JSON.stringify(labelUrls)}`
+      );
     }
-
+  
     // Format response like Xpressbees
     const result = {
       statusCode: HttpStatus.OK,
@@ -1104,7 +1115,8 @@ export class DelhiveryService extends BaseNetworkPartner {
         },
       },
     } as unknown as R;
-
+  
     return result;
   }
+  
 }
