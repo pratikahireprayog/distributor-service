@@ -740,7 +740,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         description: order?.remarks || "",
         sourcePremiseId: order?.cpId || "",
         volumetricWeight: 0,
-        weight: order?.dimensions?.weight || 0,
+        weight: this.determineWeight(order),
         width: order?.dimensions?.breadth || 0,
       },
     ];
@@ -1148,6 +1148,20 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // 3. For international orders: May have different MCN requirements regardless of partner
 
     return isInternational || isShipyaari || isDelhivery;
+  }
+
+
+  
+  private determineWeight(order: BaseOrderReqDto): number {
+    if (order && order.dimensions && order.dimensions.weight) {
+      if (order && order.units && order.units.weightUnit === "gm")
+        return order.dimensions.weight / 1000;
+      else 
+        return order.dimensions.weight;
+    }
+    
+
+    return 0;
   }
 
   /**

@@ -210,6 +210,20 @@ export class DimensionsDto {
   height?: number;
 }
 
+
+
+export class UnitsDto {
+  @IsString()
+  @IsOptional()
+  weightUnit?: string
+  
+
+
+  @IsString()
+  @IsOptional()
+  lbhUnit?:string
+}
+
 /**
  * Core Order data structure
  * This represents the fundamental Order entity used across the application
@@ -368,6 +382,15 @@ export class OrderDto {
   @IsOptional()
   dimensions?: DimensionsDto;
 
+
+  @Type(() => UnitsDto)
+  @ValidateNested()
+  @IsOptional()
+  units?:UnitsDto  
+
+
+  
+
   /**
    * Whether the order is returnable
    */
@@ -493,6 +516,13 @@ export class BaseOrderReqDto extends BaseReqDto {
   @ValidateNested()
   @Type(() => PaymentDetailsDto)
   paymentDetails: PaymentDetailsDto;
+
+
+  @IsOptional()
+  @Type(() => UnitsDto)
+  @ValidateNested()
+  units?:UnitsDto  
+
 
   @IsNotEmpty({ message: "Dimensions are required" })
   @ValidateNested()
