@@ -386,7 +386,7 @@ export class OrderDto {
   @Type(() => UnitsDto)
   @ValidateNested()
   @IsOptional()
-  units?:UnitsDto  
+  unit?:UnitsDto  
 
 
   
@@ -521,7 +521,7 @@ export class BaseOrderReqDto extends BaseReqDto {
   @IsOptional()
   @Type(() => UnitsDto)
   @ValidateNested()
-  units?:UnitsDto  
+  unit?:UnitsDto  
 
 
   @IsNotEmpty({ message: "Dimensions are required" })

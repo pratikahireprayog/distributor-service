@@ -1154,7 +1154,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   
   private determineWeight(order: BaseOrderReqDto): number {
     if (order && order.dimensions && order.dimensions.weight) {
-      if (order && order.units && order.units.weightUnit === "gm")
+      if (order && order.unit && order.unit.weightUnit === "gm")
         return order.dimensions.weight / 1000;
       else 
         return order.dimensions.weight;
