@@ -24,6 +24,14 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import * as FormData from "form-data";
 
 /**
+ * Typed structure for partner documents with classification
+ */
+type PartnerDocument = {
+  url: string;
+  type: 'label' | 'docket';
+};
+
+/**
  * Delhivery service for LTL (Less Than Truckload) operations
  */
 @Injectable()
@@ -347,80 +355,89 @@ export class DelhiveryService extends BaseNetworkPartner {
       this.logger.debug(`LRN number extracted: ${lrnnum}`);
       this.logger.debug(`Polled response data: ${JSON.stringify(polledData, null, 2)}`);
       
-      // Step 5: Check if label URLs are already in the polled response
-      let labelUrls: string[] = [];
-      if (polledData.label_urls && Array.isArray(polledData.label_urls)) {
-        labelUrls = polledData.label_urls;
-        this.logger.log(`Found ${labelUrls.length} label URL(s) in polled response`);
-      } else if (polledData.label_url || polledData.labelUrl) {
-        labelUrls = [polledData.label_url || polledData.labelUrl];
-        this.logger.log(`Found single label URL in polled response`);
+      // Step 5 & 6: Fetch documents and classify at fetch time
+      // Rule: WAYBILL → label, DOC_WAYBILL → docket
+      const waybills: string[] = polledData.waybills || [];
+      const docWaybill: string | undefined = polledData.doc_waybill || polledData.docWaybill;
+      
+      this.logger.log(`Extracted waybills: ${JSON.stringify(waybills)}, doc_waybill: ${docWaybill}`);
+      
+      // Wait initial delay before fetching labels (labels might not be immediately available)
+      const initialLabelDelay = this.configService.get<number>('DELHIVERY_LABEL_FETCH_DELAY_MS', 5000);
+      if (initialLabelDelay > 0) {
+        this.logger.log(`Waiting ${initialLabelDelay}ms before fetching documents...`);
+        await new Promise(resolve => setTimeout(resolve, initialLabelDelay));
       }
       
-      // Step 6: If labels not in polled response, fetch them via API with retry/polling
-      if (labelUrls.length === 0) {
-        // Wait initial delay before fetching labels (labels might not be immediately available)
-        const initialLabelDelay = this.configService.get<number>('DELHIVERY_LABEL_FETCH_DELAY_MS', 5000);
-        if (initialLabelDelay > 0) {
-          this.logger.log(`Waiting ${initialLabelDelay}ms before fetching labels for LRN ${lrnnum}...`);
-          await new Promise(resolve => setTimeout(resolve, initialLabelDelay));
-        }
+      const maxLabelRetries = this.configService.get<number>('DELHIVERY_LABEL_MAX_RETRIES', 10);
+      const labelRetryDelay = this.configService.get<number>('DELHIVERY_LABEL_RETRY_DELAY_MS', 3000);
+      
+      const partnerDocuments: PartnerDocument[] = [];
+      
+      // Fetch shipment labels (WAYBILL → LABEL)
+      for (const waybill of waybills) {
+        if (!waybill) continue;
         
-        // Poll for label URLs with retry logic (labels may take time to be generated)
-        const maxLabelRetries = this.configService.get<number>('DELHIVERY_LABEL_MAX_RETRIES', 10);
-        const labelRetryDelay = this.configService.get<number>('DELHIVERY_LABEL_RETRY_DELAY_MS', 3000);
-        
-        this.logger.log(`Polling for labels for LRN: ${lrnnum} (max ${maxLabelRetries} attempts, ${labelRetryDelay}ms delay)`);
+        this.logger.log(`Fetching label for waybill: ${waybill}`);
         
         for (let attempt = 1; attempt <= maxLabelRetries; attempt++) {
-          labelUrls = await this.getLabelUrls(lrnnum);
+          const urls = await this.getLabelUrls(waybill);
           
-          if (labelUrls.length > 0) {
-            this.logger.log(`Successfully fetched ${labelUrls.length} label URL(s) for LRN ${lrnnum} on attempt ${attempt}`);
+          if (urls.length > 0) {
+            for (const url of urls) {
+              partnerDocuments.push({
+                url,
+                type: 'label',
+              });
+              this.logger.log(`Added label document from waybill ${waybill}: ${url.substring(0, 100)}...`);
+            }
             break;
           }
           
           if (attempt < maxLabelRetries) {
-            this.logger.warn(`No labels found for LRN ${lrnnum} on attempt ${attempt}/${maxLabelRetries}, retrying in ${labelRetryDelay}ms...`);
+            this.logger.warn(`No labels found for waybill ${waybill} on attempt ${attempt}/${maxLabelRetries}, retrying in ${labelRetryDelay}ms...`);
             await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
           } else {
-            this.logger.warn(`No labels found for LRN ${lrnnum} after ${maxLabelRetries} attempts`);
+            this.logger.warn(`No labels found for waybill ${waybill} after ${maxLabelRetries} attempts`);
           }
-        }
-        
-        // If still no labels, try using waybill numbers as fallback
-        if (labelUrls.length === 0 && polledData.waybills && Array.isArray(polledData.waybills) && polledData.waybills.length > 0) {
-          this.logger.log(`No labels found for LRN, trying waybill numbers: ${JSON.stringify(polledData.waybills)}`);
-          for (const waybill of polledData.waybills) {
-            if (waybill) {
-              this.logger.log(`Trying to fetch label for waybill: ${waybill}`);
-              // Also retry for waybills
-              for (let attempt = 1; attempt <= 3; attempt++) {
-                const waybillLabels = await this.getLabelUrls(waybill);
-                if (waybillLabels.length > 0) {
-                  labelUrls.push(...waybillLabels);
-                  this.logger.log(`Found ${waybillLabels.length} label(s) for waybill: ${waybill} on attempt ${attempt}`);
-                  break;
-                }
-                if (attempt < 3) {
-                  this.logger.debug(`No labels for waybill ${waybill} on attempt ${attempt}, retrying...`);
-                  await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
-                }
-              }
-            }
-          }
-        }
-        
-        if (labelUrls.length > 0) {
-          this.logger.log(`Total label URLs found: ${labelUrls.length}, URLs: ${JSON.stringify(labelUrls)}`);
-        } else {
-          this.logger.error(`No label URLs received for LRN: ${lrnnum} after all retries. Documents array will be empty.`);
-          this.logger.error(`Polled response data: ${JSON.stringify(polledData, null, 2)}`);
         }
       }
       
-      // Step 7: Transform response to BaseOrderResDto format (like Xpressbees)
-      // Use label URLs directly without converting to base64
+      // Fetch docket (DOC_WAYBILL → DOCKET)
+      if (docWaybill) {
+        this.logger.log(`Fetching docket for doc_waybill: ${docWaybill}`);
+        
+        for (let attempt = 1; attempt <= maxLabelRetries; attempt++) {
+          const urls = await this.getLabelUrls(docWaybill);
+          
+          if (urls.length > 0) {
+            for (const url of urls) {
+              partnerDocuments.push({
+                url,
+                type: 'docket',
+              });
+              this.logger.log(`Added docket document from doc_waybill ${docWaybill}: ${url.substring(0, 100)}...`);
+            }
+            break;
+          }
+          
+          if (attempt < maxLabelRetries) {
+            this.logger.warn(`No docket found for doc_waybill ${docWaybill} on attempt ${attempt}/${maxLabelRetries}, retrying in ${labelRetryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
+          } else {
+            this.logger.warn(`No docket found for doc_waybill ${docWaybill} after ${maxLabelRetries} attempts`);
+          }
+        }
+      }
+      
+      if (partnerDocuments.length > 0) {
+        this.logger.log(`Total documents fetched: ${partnerDocuments.length} (${partnerDocuments.filter(d => d.type === 'label').length} labels, ${partnerDocuments.filter(d => d.type === 'docket').length} dockets)`);
+      } else {
+        this.logger.error(`No documents fetched. waybills: ${JSON.stringify(waybills)}, doc_waybill: ${docWaybill}`);
+        this.logger.error(`Polled response data: ${JSON.stringify(polledData, null, 2)}`);
+      }
+      
+      // Step 7: Transform response to BaseOrderResDto format
       const baseUrl = this.getBaseUrl();
       const requestUrl = `${baseUrl}/manifest`;
       
@@ -428,7 +445,7 @@ export class DelhiveryService extends BaseNetworkPartner {
         polledResponse,
         orderDetails,
         lrnnum,
-        labelUrls,
+        partnerDocuments,
         manifestData,
         requestUrl
       );
@@ -1024,7 +1041,7 @@ export class DelhiveryService extends BaseNetworkPartner {
    * @param manifestResponse - Response from polled manifest status
    * @param originalOrder - Original order request
    * @param lrnnum - LRN number
-   * @param labelUrls - Array of label URLs (S3 links)
+   * @param partnerDocuments - Array of partner documents with classification already done at fetch time
    * @param requestPayload - The transformed manifest payload that was sent to Delhivery
    * @param requestUrl - The URL where the manifest was created
    */
@@ -1032,7 +1049,7 @@ export class DelhiveryService extends BaseNetworkPartner {
     manifestResponse: any,
     originalOrder: BaseOrderReqDtoV2,
     lrnnum: string,
-    labelUrls: string[],
+    partnerDocuments: PartnerDocument[],
     requestPayload: CreateManifestDto,
     requestUrl: string
   ): R {
@@ -1073,32 +1090,14 @@ export class DelhiveryService extends BaseNetworkPartner {
       });
     }
   
-    // Build documents array
-    const documents = [];
-    this.logger.log(`Building documents array. labelUrls length: ${labelUrls?.length || 0}`);
-    this.logger.log(`labelUrls content: ${JSON.stringify(labelUrls)}`);
+    // Build documents array from partnerDocuments (classification already done at fetch time)
+    const documents = partnerDocuments.map(doc => ({
+      content: doc.url,
+      type: doc.type,
+      format: 's3link',
+    }));
     
-    if (labelUrls && labelUrls.length > 0) {
-      labelUrls.forEach((labelUrl, index) => {
-        const documentType = index === 1 ? 'docket' : 'label';
-  
-        this.logger.log(
-          `Adding document ${index}: type=${documentType}, url=${labelUrl.substring(0, 100)}...`
-        );
-  
-        documents.push({
-          content: labelUrl,
-          type: documentType,
-          format: 's3link',
-        });
-      });
-  
-      this.logger.log(`Added ${documents.length} document(s) to response`);
-    } else {
-      this.logger.error(
-        `No label URLs provided to transformManifestResponseToOrderResponse. labelUrls: ${JSON.stringify(labelUrls)}`
-      );
-    }
+    this.logger.log(`Added ${documents.length} document(s) to response (${documents.filter(d => d.type === 'label').length} labels, ${documents.filter(d => d.type === 'docket').length} dockets)`);
   
     // Format response like Xpressbees
     const result = {
