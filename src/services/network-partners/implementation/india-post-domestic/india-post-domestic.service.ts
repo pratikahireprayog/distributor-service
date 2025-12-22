@@ -48,6 +48,7 @@ import {
   IndiaPostDomesticBulkBookingErrorResDto,
   IndiaPostDomesticArticleDto,
 } from "./india-post-domestic.dto";
+import { generateIndiaPostDomesticAWB } from "./india-post-domestic-awb-generator";
 
 /**
  * India Post Domestic Service Implementation
@@ -127,6 +128,20 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
       const contractId =
         this.configService.get<string>("INDIA_POST_DOMESTIC_CONTRACT_ID") ||
         "41441234";
+
+      // Generate AWB number for India Post Domestic
+      // The orderDetails.awbNumber is the user's AWB (internal tracking)
+      // We generate a new AWB that will be sent to India Post
+      const generatedAWB = generateIndiaPostDomesticAWB();
+      this.logger.log(
+        `Generated India Post Domestic AWB: ${generatedAWB} for user AWB: ${orderDetails.awbNumber}`
+      );
+
+      // Ensure parentShipment exists and update with generated AWB
+      if (!orderDetails.parentShipment) {
+        orderDetails.parentShipment = {} as any;
+      }
+      orderDetails.parentShipment.awbNumber = generatedAWB;
 
       // Transform order to India Post format
       const bulkBookingRequest = this.transformOrderToIndiaPostArticle(
@@ -700,11 +715,19 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
       // Transform to India Post article format - ALL REQUIRED FIELDS INCLUDED
       // Note: India Post API requires many fields to be explicitly present (even as empty strings)
       // for their tariff calculation system. Using undefined causes fields to be omitted from JSON.
+      // Use the generated AWB from parentShipment.awbNumber (which was set in createOrderV2)
+      const generatedAWB = orderData.parentShipment?.awbNumber || "";
+      if (!generatedAWB) {
+        throw new Error(
+          "Generated AWB number is required in parentShipment.awbNumber"
+        );
+      }
+
       const article: IndiaPostDomesticArticleDto = {
         // Basic Information (MANDATORY)
         bulk_customer_id: customerId,
         contract_id: contractId,
-        barcode_no: orderData.awbNumber || "",
+        barcode_no: generatedAWB, // Use generated AWB for India Post
         pickup_or_dropoff: "dropoff", // MANDATORY: "pickup" or "dropoff" (lowercase as per API docs sample)
         article_type: "SP", // MANDATORY: "SP" or "BP"
 
@@ -859,18 +882,15 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
       bulkBookingResult.valid_articles.forEach((article, index) => {
         const partnerAwbNumber = article.barcode_no || "";
 
-        // Try to match with shipment AWB, or use order AWB as fallback
-        const shipment =
-          allShipments[index] || originalOrderDetails.parentShipment;
+        // Use the user's original AWB (orderDetails.awbNumber) for internal tracking
+        // The partnerAwbNumber is the generated AWB that was sent to India Post
         const awbNumber =
-          shipment?.awbNumber ||
-          originalOrderDetails.awbNumber ||
-          originalOrderDetails.orderId;
+          originalOrderDetails.awbNumber || originalOrderDetails.orderId || "";
 
         if (partnerAwbNumber) {
           trackingDetails.push({
-            awbNumber: awbNumber,
-            partnerAwbNumber: partnerAwbNumber,
+            awbNumber: awbNumber, // User's original AWB for internal tracking
+            partnerAwbNumber: partnerAwbNumber, // Generated AWB from India Post
             partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
             transporterId: "",
           });
@@ -878,15 +898,14 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
       });
     } else {
       // Fallback: create a single tracking detail from order AWB
+      // Use the user's original AWB for internal tracking
       const awbNumber =
-        originalOrderDetails.parentShipment?.awbNumber ||
-        originalOrderDetails.awbNumber ||
-        originalOrderDetails.orderId;
+        originalOrderDetails.awbNumber || originalOrderDetails.orderId || "";
 
       trackingDetails.push({
-        awbNumber: awbNumber,
+        awbNumber: awbNumber, // User's original AWB for internal tracking
         partnerAwbNumber:
-          bulkBookingResult.valid_articles?.[0]?.barcode_no || "",
+          bulkBookingResult.valid_articles?.[0]?.barcode_no || "", // Generated AWB from India Post
         partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         transporterId: "",
       });
