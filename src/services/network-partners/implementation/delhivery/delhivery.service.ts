@@ -24,14 +24,6 @@ import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import * as FormData from "form-data";
 
 /**
- * Typed structure for partner documents with classification
- */
-type PartnerDocument = {
-  url: string;
-  type: 'label' | 'docket';
-};
-
-/**
  * Delhivery service for LTL (Less Than Truckload) operations
  */
 @Injectable()
@@ -312,178 +304,136 @@ export class DelhiveryService extends BaseNetworkPartner {
     eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     let manifestData: CreateManifestDto | null = null;
+  
     try {
-      this.logger.debug(`Creating Delhivery order V2 for orderId: ${orderDetails?.orderId}`);
-      
-      // Transform BaseOrderReqDtoV2 to CreateManifestDto
+      this.logger.debug(
+        `Creating Delhivery order V2 for orderId: ${orderDetails?.orderId}`
+      );
+  
+      // 1️⃣ Transform payload
       manifestData = this.transformToDelhiveryManifestPayload(orderDetails);
-      
-      // Step 1: Create manifest using existing method
+  
+      // 2️⃣ Create manifest
       const manifestResponse = await this.createDelhiveryManifest(manifestData);
-      
-      // Step 2: Extract job_id from response
-      const responseData = manifestResponse.data?.data || manifestResponse.data || {};
+  
+      const responseData =
+        manifestResponse.data?.data || manifestResponse.data || {};
       const jobId = responseData.job_id || responseData.jobId;
-      
+  
       if (!jobId) {
         throw new CustomHttpException(
           HttpStatus.BAD_REQUEST,
-          'No job_id received from manifest creation response',
+          "No job_id received from Delhivery manifest response",
           manifestResponse
         );
       }
-      
-      this.logger.debug(`Manifest created with job_id: ${jobId}, polling for completion...`);
-      
-      // Step 3: Poll for manifest completion - adaptive polling (fast then slow)
-      const maxPollAttempts = this.configService.get<number>('DELHIVERY_MAX_POLL_ATTEMPTS', 30);
-      const polledResponse = await this.pollManifestStatusAdaptive(jobId, maxPollAttempts);
-      
-      // Step 4: Extract lrnnum from polled response
-      // Response structure: { success: true, data: { lrnum: "...", ... } }
-      const polledData = polledResponse.data?.data || polledResponse.data || {};
-      const lrnnum = polledData.lrnum || polledData.lrnnum || polledData.lrn || polledData.LRN || '';
-      
+  
+      // 3️⃣ Poll manifest until LRN is available
+      const maxPollAttempts = this.configService.get<number>(
+        "DELHIVERY_MAX_POLL_ATTEMPTS",
+        30
+      );
+  
+      const polledResponse = await this.pollManifestStatusAdaptive(
+        jobId,
+        maxPollAttempts
+      );
+  
+      const polledData =
+        polledResponse.data?.data || polledResponse.data || {};
+  
+      const lrnnum =
+        polledData.lrnum ||
+        polledData.lrnnum ||
+        polledData.lrn ||
+        polledData.LRN ||
+        "";
+  
       if (!lrnnum) {
         throw new CustomHttpException(
           HttpStatus.BAD_REQUEST,
-          'No lrnnum received from manifest status response',
+          "No LRN number received from Delhivery",
           polledResponse
         );
       }
-      
-      this.logger.debug(`LRN number extracted: ${lrnnum}`);
-      this.logger.debug(`Polled response data: ${JSON.stringify(polledData, null, 2)}`);
-      
-      // Step 5 & 6: Fetch documents and classify at fetch time
-      // Rule: WAYBILL → label, DOC_WAYBILL → docket
-      const waybills: string[] = polledData.waybills || [];
-      const docWaybill: string | undefined = polledData.doc_waybill || polledData.docWaybill;
-      
-      this.logger.log(`Extracted waybills: ${JSON.stringify(waybills)}, doc_waybill: ${docWaybill}`);
-      
-      // Wait initial delay before fetching labels (labels might not be immediately available)
-      const initialLabelDelay = this.configService.get<number>('DELHIVERY_LABEL_FETCH_DELAY_MS', 5000);
-      if (initialLabelDelay > 0) {
-        this.logger.log(`Waiting ${initialLabelDelay}ms before fetching documents...`);
-        await new Promise(resolve => setTimeout(resolve, initialLabelDelay));
+  
+      this.logger.log(`LRN received: ${lrnnum}`);
+  
+      // 4️⃣ Fetch ALL documents using ONLY LRN
+      const initialDelay = this.configService.get<number>(
+        "DELHIVERY_LABEL_FETCH_DELAY_MS",
+        5000
+      );
+  
+      if (initialDelay > 0) {
+        await new Promise((r) => setTimeout(r, initialDelay));
       }
-      
-      const maxLabelRetries = this.configService.get<number>('DELHIVERY_LABEL_MAX_RETRIES', 10);
-      const labelRetryDelay = this.configService.get<number>('DELHIVERY_LABEL_RETRY_DELAY_MS', 3000);
-      
-      const partnerDocuments: PartnerDocument[] = [];
-      
-      // Fetch shipment labels (WAYBILL → LABEL)
-      for (const waybill of waybills) {
-        if (!waybill) continue;
-        
-        this.logger.log(`Fetching label for waybill: ${waybill}`);
-        
-        for (let attempt = 1; attempt <= maxLabelRetries; attempt++) {
-          const urls = await this.getLabelUrls(waybill);
-          
-          if (urls.length > 0) {
-            for (const url of urls) {
-              partnerDocuments.push({
-                url,
-                type: 'label',
-              });
-              this.logger.log(`Added label document from waybill ${waybill}: ${url.substring(0, 100)}...`);
-            }
-            break;
-          }
-          
-          if (attempt < maxLabelRetries) {
-            this.logger.warn(`No labels found for waybill ${waybill} on attempt ${attempt}/${maxLabelRetries}, retrying in ${labelRetryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
-          } else {
-            this.logger.warn(`No labels found for waybill ${waybill} after ${maxLabelRetries} attempts`);
-          }
+  
+      const maxRetries = this.configService.get<number>(
+        "DELHIVERY_LABEL_MAX_RETRIES",
+        10
+      );
+      const retryDelay = this.configService.get<number>(
+        "DELHIVERY_LABEL_RETRY_DELAY_MS",
+        3000
+      );
+  
+      let labelUrls: string[] = [];
+  
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        labelUrls = await this.getLabelUrls(lrnnum);
+  
+        if (labelUrls.length > 0) {
+          this.logger.log(
+            `Fetched ${labelUrls.length} document URLs for LRN ${lrnnum}`
+          );
+          break;
+        }
+  
+        if (attempt < maxRetries) {
+          this.logger.warn(
+            `No labels yet for LRN ${lrnnum} (attempt ${attempt}/${maxRetries}), retrying...`
+          );
+          await new Promise((r) => setTimeout(r, retryDelay));
         }
       }
-      
-      // Fetch docket (DOC_WAYBILL → DOCKET)
-      if (docWaybill) {
-        this.logger.log(`Fetching docket for doc_waybill: ${docWaybill}`);
-        
-        for (let attempt = 1; attempt <= maxLabelRetries; attempt++) {
-          const urls = await this.getLabelUrls(docWaybill);
-          
-          if (urls.length > 0) {
-            for (const url of urls) {
-              partnerDocuments.push({
-                url,
-                type: 'docket',
-              });
-              this.logger.log(`Added docket document from doc_waybill ${docWaybill}: ${url.substring(0, 100)}...`);
-            }
-            break;
-          }
-          
-          if (attempt < maxLabelRetries) {
-            this.logger.warn(`No docket found for doc_waybill ${docWaybill} on attempt ${attempt}/${maxLabelRetries}, retrying in ${labelRetryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, labelRetryDelay));
-          } else {
-            this.logger.warn(`No docket found for doc_waybill ${docWaybill} after ${maxLabelRetries} attempts`);
-          }
-        }
+  
+      if (labelUrls.length === 0) {
+        this.logger.error(
+          `No label URLs found for LRN ${lrnnum} after retries`
+        );
       }
-      
-      if (partnerDocuments.length > 0) {
-        this.logger.log(`Total documents fetched: ${partnerDocuments.length} (${partnerDocuments.filter(d => d.type === 'label').length} labels, ${partnerDocuments.filter(d => d.type === 'docket').length} dockets)`);
-      } else {
-        this.logger.error(`No documents fetched. waybills: ${JSON.stringify(waybills)}, doc_waybill: ${docWaybill}`);
-        this.logger.error(`Polled response data: ${JSON.stringify(polledData, null, 2)}`);
-      }
-      
-      // Step 7: Transform response to BaseOrderResDto format
+  
+      // 5️⃣ Transform response
       const baseUrl = this.getBaseUrl();
       const requestUrl = `${baseUrl}/manifest`;
-      
+  
       return this.transformManifestResponseToOrderResponse<R>(
         polledResponse,
         orderDetails,
         lrnnum,
-        partnerDocuments,
+        labelUrls,
         manifestData,
         requestUrl
       );
     } catch (error) {
-      this.logger.error(`Failed to create Delhivery order V2: ${error.message}`);
-      
-      // Include transformed payload in error response for debugging
-      const errorData: any = {
-        ...(error.response?.data || {}),
-        transformedPayload: manifestData || null,
-      };
-      
-      if (error instanceof CustomHttpException) {
-        // Enhance existing CustomHttpException with transformed payload
-        const existingData = error.getData || {};
-        const existingTrace = error.getTrace || {};
-        throw new CustomHttpException(
-          error.getStatus(),
-          error.message,
-          {
-            ...existingData,
-            transformedPayload: manifestData,
-          },
-          {
-            ...existingTrace,
-            transformedPayload: manifestData,
-          },
-          error.getPartnerCode
-        );
-      }
-      throw new CustomHttpException(
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to create Delhivery order: ${error.message}`,
-        errorData
+      this.logger.error(
+        `Failed to create Delhivery order V2: ${error.message}`
       );
+  
+      throw error instanceof CustomHttpException
+        ? error
+        : new CustomHttpException(
+            error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+            `Failed to create Delhivery order`,
+            {
+              error: error.message,
+              transformedPayload: manifestData,
+            }
+          );
     }
   }
-
+  
   /**
    * Transform BaseOrderReqDtoV2 to CreateManifestDto
    * @param order - Order in V2 format
@@ -1041,7 +991,7 @@ export class DelhiveryService extends BaseNetworkPartner {
    * @param manifestResponse - Response from polled manifest status
    * @param originalOrder - Original order request
    * @param lrnnum - LRN number
-   * @param partnerDocuments - Array of partner documents with classification already done at fetch time
+   * @param labelUrls - Array of label URLs (S3 links)
    * @param requestPayload - The transformed manifest payload that was sent to Delhivery
    * @param requestUrl - The URL where the manifest was created
    */
@@ -1049,13 +999,13 @@ export class DelhiveryService extends BaseNetworkPartner {
     manifestResponse: any,
     originalOrder: BaseOrderReqDtoV2,
     lrnnum: string,
-    partnerDocuments: PartnerDocument[],
+    labelUrls: string[],
     requestPayload: CreateManifestDto,
     requestUrl: string
   ): R {
-    // Build tracking details
+    // 1️⃣ Build tracking details
     const trackingDetails = [];
-    
+  
     if (originalOrder.parentShipment) {
       trackingDetails.push({
         awbNumber:
@@ -1066,61 +1016,72 @@ export class DelhiveryService extends BaseNetworkPartner {
         partnerAwbNumber: lrnnum,
         partnerName: PARTNER_CODE_ENUM.DELHIVERY,
         transporterId: 'DELHIVERY',
-        partnerOrderId: lrnnum || undefined,
       });
     }
   
-    if (originalOrder.childShipments && Array.isArray(originalOrder.childShipments)) {
+    if (originalOrder.childShipments?.length) {
       originalOrder.childShipments.forEach((childShipment: any) => {
         trackingDetails.push({
           awbNumber: childShipment.awbNumber || '',
-          partnerAwbNumber: lrnnum, // All shipments share the same LRN
+          partnerAwbNumber: lrnnum,
           partnerName: PARTNER_CODE_ENUM.DELHIVERY,
           transporterId: 'DELHIVERY',
-          partnerOrderId: lrnnum || undefined,
         });
       });
     }
   
-    // If no shipments, create default
     if (trackingDetails.length === 0) {
       trackingDetails.push({
         awbNumber: originalOrder.awbNumber || originalOrder.orderId || '',
         partnerAwbNumber: lrnnum,
         partnerName: PARTNER_CODE_ENUM.DELHIVERY,
         transporterId: 'DELHIVERY',
-        partnerOrderId: lrnnum || undefined,
       });
     }
   
-    // Build documents array from partnerDocuments (classification already done at fetch time)
-    const documents = partnerDocuments.map(doc => ({
-      content: doc.url,
-      type: doc.type,
-      format: 's3link',
-    }));
-    
-    this.logger.log(`Added ${documents.length} document(s) to response (${documents.filter(d => d.type === 'label').length} labels, ${documents.filter(d => d.type === 'docket').length} dockets)`);
+    // 2️⃣ Build documents array
+    const documents = [];
   
-    // Format response like Xpressbees
-    const result = {
+    this.logger.log(
+      `Transforming documents. Total URLs received: ${labelUrls?.length || 0}`
+    );
+  
+    if (labelUrls?.length) {
+      labelUrls.forEach((url, index) => {
+        const type = index === 1 ? 'docket' : 'label';
+  
+        this.logger.log(
+          `Document ${index}: type=${type}, url=${url.substring(0, 100)}...`
+        );
+  
+        documents.push({
+          content: url,
+          type,
+          format: 's3link',
+        });
+      });
+    } else {
+      this.logger.warn(
+        `No document URLs received for LRN ${lrnnum}. Documents array will be empty`
+      );
+    }
+  
+    // 3️⃣ Final response
+    return {
       statusCode: HttpStatus.OK,
       message: 'Order created successfully with Delhivery',
       partnerCode: PARTNER_CODE_ENUM.DELHIVERY,
-      partnerOrderId: lrnnum || undefined, // Partner's internal order ID (LRN number)
       data: {
         originalResponse: manifestResponse.data,
-        requestUrl: requestUrl,
+        requestUrl,
         requestBody: requestPayload,
-        partnerOrderId: lrnnum || undefined, // Also include in data for consistency
         shipmentDetails: {
-          trackingDetails: trackingDetails,
-          documents: documents,
+          trackingDetails,
+          documents,
         },
       },
     } as unknown as R;
-  
-    return result;
   }
+  
   
 }
