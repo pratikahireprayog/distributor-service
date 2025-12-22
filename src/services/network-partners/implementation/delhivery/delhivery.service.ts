@@ -1040,31 +1040,43 @@ export class DelhiveryService extends BaseNetworkPartner {
     }
   
     // 2️⃣ Build documents array
-    const documents = [];
-  
+    // 2️⃣ Build documents array
+const documents = [];
+
+this.logger.log(
+  `Transforming documents. Total URLs received: ${labelUrls?.length || 0}`
+);
+
+// 🔹 Extract doc_waybill from manifest response
+const docWaybill =
+  manifestResponse?.data?.data?.doc_waybill;
+
+this.logger.log(`Doc waybill detected: ${docWaybill || 'NONE'}`);
+
+if (labelUrls?.length) {
+  labelUrls.forEach((url) => {
+    const type =
+      docWaybill && url.includes(docWaybill)
+        ? 'docket'
+        : 'label';
+
     this.logger.log(
-      `Transforming documents. Total URLs received: ${labelUrls?.length || 0}`
+      `Document classified as ${type}: ${url.substring(0, 80)}...`
     );
-  
-    if (labelUrls?.length) {
-      labelUrls.forEach((url, index) => {
-        const type = index === 1 ? 'docket' : 'label';
-  
-        this.logger.log(
-          `Document ${index}: type=${type}, url=${url.substring(0, 100)}...`
-        );
-  
-        documents.push({
-          content: url,
-          type,
-          format: 's3link',
-        });
-      });
-    } else {
-      this.logger.warn(
-        `No document URLs received for LRN ${lrnnum}. Documents array will be empty`
-      );
-    }
+
+    documents.push({
+      content: url,
+      type,
+      format: 's3link',
+    });
+  });
+} else {
+  this.logger.warn(
+    `No document URLs received for LRN ${lrnnum}. Documents array will be empty`
+  );
+}
+
+      
   
     // 3️⃣ Final response
     return {
