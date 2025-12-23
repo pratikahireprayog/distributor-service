@@ -180,10 +180,15 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
             requestUrl: `${this.getBaseUrl()}${INDIA_POST_DOMESTIC_ENDPOINTS.BULK_BOOKING_JSON}/${customerId}`,
             requestBody: bulkBookingRequest,
             // Add shipmentDetails structure for consistency (matching India Post International pattern)
-            shipmentDetails: {
-              trackingDetails: [],
-              documents: [],
-            },
+            shipmentDetails: [
+              {
+                awbNumber: orderDetails.awbNumber || orderDetails.orderId || "",
+                partnerAwbNumber: "",
+                partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
+                transporterId: "",
+                label: "",
+              },
+            ],
           },
           trace: {
             timestamp: new Date().toISOString(),
@@ -200,12 +205,13 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
 
       // Generate label for valid articles
       const documents: any[] = [];
+      let labelBase64: string | null = null;
       if (result.valid_articles && result.valid_articles.length > 0) {
         try {
           const validArticle = result.valid_articles[0];
           // Get the original article from request (has all fields like article_type, dimensions)
           const originalArticle = bulkBookingRequest.articles[0];
-          const labelBase64 = await this.generateLabel(
+          labelBase64 = await this.generateLabel(
             validArticle,
             originalArticle,
             result,
@@ -228,6 +234,12 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
           // Continue without label - don't fail the order creation
         }
       }
+
+      // Add label to each shipment detail
+      const shipmentDetails = trackingDetails.map((detail) => ({
+        ...detail,
+        label: labelBase64 || "",
+      }));
 
       // Transform response to match expected BaseOrderResDto format (following India Post International structure)
       const response = {
@@ -253,10 +265,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
           errorArticles: result.error_articles,
           summary: result.summary,
           // Add shipmentDetails structure (matching India Post International pattern)
-          shipmentDetails: {
-            trackingDetails: trackingDetails,
-            documents: documents,
-          },
+          shipmentDetails: shipmentDetails,
         },
         trace: {
           timestamp: new Date().toISOString(),
@@ -303,10 +312,15 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
             code: error.code,
           },
           // Add shipmentDetails structure for consistency (matching India Post International pattern)
-          shipmentDetails: {
-            trackingDetails: [],
-            documents: [],
-          },
+          shipmentDetails: [
+            {
+              awbNumber: orderDetails.awbNumber || orderDetails.orderId || "",
+              partnerAwbNumber: "",
+              partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
+              transporterId: "",
+              label: "",
+            },
+          ],
         },
         trace: {
           timestamp: new Date().toISOString(),
