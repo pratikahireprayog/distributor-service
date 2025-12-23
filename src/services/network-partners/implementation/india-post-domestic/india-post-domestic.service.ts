@@ -173,7 +173,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
           message: `India Post Domestic API Error: ${errorMessage}`,
           partnerCode: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
           metadata: {
-            transporterId: "", // Empty as per requirement - keep structure same
+            transporterId: "06AAPCS9575EIZR",
           },
           data: {
             originalResponse: result,
@@ -185,7 +185,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
                 awbNumber: orderDetails.awbNumber || orderDetails.orderId || "",
                 partnerAwbNumber: "",
                 partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
-                transporterId: "",
+                transporterId: "06AAPCS9575EIZR",
                 label: "",
               },
             ],
@@ -247,7 +247,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
         message: "Order created successfully with India Post Domestic",
         partnerCode: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         metadata: {
-          transporterId: "", // Empty as per requirement - keep structure same
+          transporterId: "06AAPCS9575EIZR", // Empty as per requirement - keep structure same
         },
         data: {
           originalResponse: result,
@@ -300,7 +300,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
         message: `India Post Domestic API Error: ${error.response?.data?.message || error.message || "Unknown error"}`,
         partnerCode: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         metadata: {
-          transporterId: "", // Empty as per requirement - keep structure same
+          transporterId: "06AAPCS9575EIZR", // Empty as per requirement - keep structure same
         },
         data: {
           originalResponse: error.response?.data || null,
@@ -317,7 +317,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
               awbNumber: orderDetails.awbNumber || orderDetails.orderId || "",
               partnerAwbNumber: "",
               partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
-              transporterId: "",
+              transporterId: "06AAPCS9575EIZR",
               label: "",
             },
           ],
@@ -747,6 +747,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
 
         // Physical Properties (MANDATORY)
         // Use physicalWeight if available, otherwise fall back to volumetricWeight
+        // If effective weight is below 100 grams, default to 100 grams
         physical_weight: (() => {
           const physicalWeight = parseFloat(
             String(orderData.parentShipment?.physicalWeight || 0)
@@ -757,7 +758,9 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
           // Use physical weight if > 0, otherwise use volumetric weight, or 0 if both are missing
           const effectiveWeight =
             physicalWeight > 0 ? physicalWeight : volumetricWeight;
-          return Math.round(effectiveWeight);
+          // If effective weight is below 100, use default 100 grams
+          const finalWeight = effectiveWeight < 100 ? 100 : effectiveWeight;
+          return Math.round(finalWeight);
         })(), // Must be whole number between 1-35000 grams
         shape_of_article: "" as any, // Optional: "ROLL", "NROL", "DOC" - empty string if not specified
         length: parseFloat(
@@ -914,7 +917,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
             awbNumber: awbNumber, // User's original AWB for internal tracking
             partnerAwbNumber: partnerAwbNumber, // Generated AWB from India Post
             partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
-            transporterId: "",
+            transporterId: "06AAPCS9575EIZR",
           });
         }
       });
@@ -929,7 +932,7 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
         partnerAwbNumber:
           bulkBookingResult.valid_articles?.[0]?.barcode_no || "", // Generated AWB from India Post
         partnerName: PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
-        transporterId: "",
+        transporterId: "06AAPCS9575EIZR",
       });
     }
 
