@@ -732,11 +732,19 @@ export class IndiaPostDomesticService extends BaseNetworkPartner {
         article_type: "SP", // MANDATORY: "SP" or "BP"
 
         // Physical Properties (MANDATORY)
-        physical_weight: Math.round(
-          parseFloat(
-            orderData.parentShipment?.physicalWeight?.toString() || "100"
-          )
-        ), // Must be whole number between 1-35000 grams
+        // Use physicalWeight if available, otherwise fall back to volumetricWeight
+        physical_weight: (() => {
+          const physicalWeight = parseFloat(
+            String(orderData.parentShipment?.physicalWeight || 0)
+          );
+          const volumetricWeight = parseFloat(
+            String(orderData.parentShipment?.volumetricWeight || 0)
+          );
+          // Use physical weight if > 0, otherwise use volumetric weight, or 0 if both are missing
+          const effectiveWeight =
+            physicalWeight > 0 ? physicalWeight : volumetricWeight;
+          return Math.round(effectiveWeight);
+        })(), // Must be whole number between 1-35000 grams
         shape_of_article: "" as any, // Optional: "ROLL", "NROL", "DOC" - empty string if not specified
         length: parseFloat(
           orderData.parentShipment?.dimensions?.length?.toString() || "10"
