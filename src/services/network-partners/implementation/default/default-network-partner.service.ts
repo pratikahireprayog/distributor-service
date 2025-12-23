@@ -1257,6 +1257,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       partnerCode: shipment.partnerName,
       mcnAwbNumber: shipment.partnerAwbNumber,
       tplTransporterId: shipment.transporterId,
+      label:shipment.label
     };
 
     this.logger.log(
