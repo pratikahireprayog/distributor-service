@@ -98,13 +98,40 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
   async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
-  ): Promise<R> {
-    this.logger.log(
-      `Using base implementation for partner code: ${data.partnerCode}`
-    );
-    // Set the partner code from the request data
-    (this as any).partnerCode = data.partnerCode;
-    return await super.cancelOrder<T, R>(data);
+  ): Promise<any> {
+
+    try {
+      this.logger.log(
+        `Using base implementation for partner code: ${data.partnerCode}`
+      );
+      // Set the partner code from the request data
+   
+
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
+      );
+
+      const body = this.buildCancelTrackingBody(data);
+
+      const response = await this.makeApiCall(
+        endpoint.url,
+        body,
+        "Cancel Tracking"
+      );
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully cancelled to tracking"
+      );
+    }
+    catch (err) {
+      throw err
+    }
+
+
+    
+
   }
 
   /**
@@ -321,6 +348,19 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       smileAwbNumber: data?.smileAwbNumber,
       statusTimestamp: Math.floor(Date.now() / 1000).toString(),
     };
+  }
+
+
+  private buildCancelTrackingBody<T extends BaseCancelOrderDto>(data: T) {
+    return {
+      trackingId:data.cAwbNumbers[0],
+      status: "cancelled",
+      deliveryPartnerName: "innofulfill",
+      event:data.cancelReason,
+      statusTimestamp: Math.floor(Date.now() / 1000).toString(),
+
+      
+    }
   }
 
   async pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
