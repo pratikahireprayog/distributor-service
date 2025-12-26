@@ -354,7 +354,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   private buildCancelTrackingBody<T extends BaseCancelOrderDto>(data: T) {
     return {
       trackingId:data.cAwbNumbers[0],
-      status: "CANCELLED",
+      status: "cancelled",
       deliveryPartnerName: "innofulfill",
       event:data.cancelReason,
       statusTimestamp: Math.floor(Date.now() / 1000).toString(),
