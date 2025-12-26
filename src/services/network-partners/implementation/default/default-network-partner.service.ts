@@ -356,7 +356,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       trackingId:data.cAwbNumbers[0],
       status: "cancelled",
       deliveryPartnerName: "innofulfill",
-      event:data.cancelReason,
+      event:data.reason,
       statusTimestamp: Math.floor(Date.now() / 1000).toString(),
 
       

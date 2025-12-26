@@ -644,6 +644,10 @@ export class BaseCancelOrderDto {
   @IsOptional()
   @IsString()
   partnerCode?: string;
+
+  @IsOptional()
+  @IsString()
+  reason?:string
 }
 
 export class DeliveryDetailsDto {
