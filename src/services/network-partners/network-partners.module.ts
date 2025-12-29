@@ -27,6 +27,7 @@ import { DpworldModule } from "./implementation/dpworld/dpworld.module";
 import { NAQELModule } from "./implementation/naqel/naqel.module";
 import { EkartModule } from "./implementation/ekart/ekart.module";
 import { DelhiveryModule } from "./implementation/delhivery/delhivery.module";
+import { MoverModule } from "./implementation/mover/mover.module";
 import { DatabaseModule } from "src/infrastructure/database/database.module";
 
 /**
@@ -60,6 +61,7 @@ import { DatabaseModule } from "src/infrastructure/database/database.module";
     NAQELModule,
     EkartModule,
     DelhiveryModule,
+    MoverModule,
   ],
   providers: [
     NetworkPartnerFactoryService,

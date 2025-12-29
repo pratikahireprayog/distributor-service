@@ -17,6 +17,9 @@ export enum INDIA_POST_DOMESTIC_ENDPOINTS {
   BULK_BOOKING_JSON = "/beextcustomer/process-articles", // JSON payload (up to 1000 articles)
   BULK_BOOKING_FILE = "/beextcustomer/process-articles-file", // File upload (up to 5000 articles)
 
+  // Label Generation API - From API Documentation Section 14.5
+  GENERATE_LABEL = "/beextcustomer/v1/label/create/domestic", // Address label generation API
+
   // Future endpoints will be added here as we integrate more APIs
   // PINCODE_SEARCH = "/pincode/search",
   // TARIFF_CALCULATION = "/tariff/calculate",

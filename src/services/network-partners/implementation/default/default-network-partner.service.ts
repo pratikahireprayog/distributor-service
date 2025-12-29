@@ -98,13 +98,40 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
   async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
-  ): Promise<R> {
-    this.logger.log(
-      `Using base implementation for partner code: ${data.partnerCode}`
-    );
-    // Set the partner code from the request data
-    (this as any).partnerCode = data.partnerCode;
-    return await super.cancelOrder<T, R>(data);
+  ): Promise<any> {
+
+    try {
+      this.logger.log(
+        `Using base implementation for partner code: ${data.partnerCode}`
+      );
+      // Set the partner code from the request data
+   
+
+      const endpoint = await this.getEndpoint(
+        data.partnerCode,
+        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
+      );
+
+      const body = this.buildCancelTrackingBody(data);
+
+      const response = await this.makeApiCall(
+        endpoint.url,
+        body,
+        "Cancel Tracking"
+      );
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully cancelled to tracking"
+      );
+    }
+    catch (err) {
+      throw err
+    }
+
+
+    
+
   }
 
   /**
@@ -273,6 +300,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         pincode: shippingAddress.zip,
         landmark: shippingAddress.address2 || "",
       },
+      senderDetails: {
+        sender_mobile: pickupAddress.mobile,
+        sender_name:pickupAddress.name
+      },
+      receiverDetails: {
+        receiver_mobile: shippingAddress.mobile,
+        receiver_name:shippingAddress.name
+      },
       orderMetaData: [],
     };
 
@@ -313,6 +348,19 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       smileAwbNumber: data?.smileAwbNumber,
       statusTimestamp: Math.floor(Date.now() / 1000).toString(),
     };
+  }
+
+
+  private buildCancelTrackingBody<T extends BaseCancelOrderDto>(data: T) {
+    return {
+      trackingId:data.cAwbNumbers[0],
+      status: "cancelled",
+      deliveryPartnerName: "innofulfill",
+      event:data.reason,
+      statusTimestamp: Math.floor(Date.now() / 1000).toString(),
+
+      
+    }
   }
 
   async pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
@@ -732,7 +780,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         description: order?.remarks || "",
         sourcePremiseId: order?.cpId || "",
         volumetricWeight: 0,
-        weight: order?.dimensions?.weight || 0,
+        weight: this.determineWeight(order),
         width: order?.dimensions?.breadth || 0,
       },
     ];
@@ -1142,6 +1190,20 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return isInternational || isShipyaari || isDelhivery;
   }
 
+
+  
+  private determineWeight(order: BaseOrderReqDto): number {
+    if (order && order.dimensions && order.dimensions.weight) {
+      if (order && order.unit && order.unit.weightUnit === "gm")
+        return order.dimensions.weight / 1000;
+      else 
+        return order.dimensions.weight;
+    }
+    
+
+    return 0;
+  }
+
   /**
    * Update partner information to HubOps for multiple shipments
    * Makes PUT requests for each shipment in the shipmentDetails array
@@ -1235,6 +1297,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       partnerCode: shipment.partnerName,
       mcnAwbNumber: shipment.partnerAwbNumber,
       tplTransporterId: shipment.transporterId,
+      label:shipment.label
     };
 
     this.logger.log(
