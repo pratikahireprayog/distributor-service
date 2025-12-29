@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { catchError, firstValueFrom, from, map } from 'rxjs';
 import { JwtService } from '@nestjs/jwt';
-import { AuthProvider } from 'src/services/network-partners/interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from 'src/services/network-partners/interfaces/auth-provider.interface';
 
 interface LoginPayload {
     user_name: string;
@@ -47,7 +47,7 @@ export class BigshipAuthService implements AuthProvider {
      * Gets authentication headers for API requests
      * @returns A record of header key-value pairs
      */
-    async getAuthHeaders(): Promise<Record<string, string>> {
+    async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
         const token = await this.getToken();
         return {
             'Authorization': `Bearer ${token}`

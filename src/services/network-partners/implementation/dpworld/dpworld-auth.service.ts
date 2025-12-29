@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 import { DPWORLD_ENV_KEYS } from './dpworld-constants';
 
 /**
@@ -17,7 +17,7 @@ export class DpworldAuthService implements AuthProvider {
    * Get authentication headers for DPWORLD API
    * @returns Headers object with API key and org token
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     const apiKey = this.configService.get<string>(DPWORLD_ENV_KEYS.API_KEY);
     const orgToken = this.configService.get<string>(DPWORLD_ENV_KEYS.ORG_TOKEN);
 

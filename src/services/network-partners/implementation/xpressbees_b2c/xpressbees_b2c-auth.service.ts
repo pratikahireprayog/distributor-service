@@ -2,7 +2,7 @@ import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import {
   XpressbeesB2cAuthRequestDto,
@@ -26,7 +26,7 @@ export class XpressbeesB2cAuthService implements AuthProvider {
     private readonly configService: ConfigService
   ) {}
 
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     const token = await this.getToken();
     return {
       Authorization: `Bearer ${token}`,

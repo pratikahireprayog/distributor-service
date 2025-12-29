@@ -14,6 +14,7 @@ import {
   IndiaPostInternationalSubPieceDto,
   IndiaPostInternationalCreateLabelRequestDto,
   IndiaPostInternationalCreateLabelResponseDto,
+  IndiaPostInternationalBookingReferenceResponseDto,
 } from './indiapost-international.dto';
 import {
   INDIAPOST_INTERNATIONAL_ENV_KEYS,
@@ -70,9 +71,21 @@ export class IndiaPostInternationalService implements INetworkPartner {
       this.logger.log(`[IndiaPost International] API Configuration - BaseURL: ${baseUrl}, Path: ${createOrderPath}`);
       this.logger.log(`[IndiaPost International] Full API URL: ${url}`);
 
-      // Transform payload
+      // Transform payload first to get mail type
       this.logger.log(`[IndiaPost International] Transforming order payload for OrderId: ${orderId}`);
-      const payload = this.transformToIndiaPostInternationalPayload(orderDetails);
+      const mailTypeCd = this.getMailTypeCd(orderDetails, delivery.countryCode);
+      
+      this.logger.log(`[IndiaPost International] Using mail type: ${mailTypeCd} for destination: ${delivery.countryCode}`);
+      
+      // Get booking reference ID first (required by API)
+      this.logger.log(`[IndiaPost International] Fetching booking reference for destination: ${delivery.countryCode}, mailType: ${mailTypeCd}`);
+      const bookingRefResult = await this.getBookingReferenceId(mailTypeCd, delivery.countryCode, baseUrl);
+      const bookingRefId = bookingRefResult.bookingRefId;
+      const productCodeUsed = bookingRefResult.productCode;
+      this.logger.log(`[IndiaPost International] Booking reference ID obtained: ${bookingRefId}, Product Code: ${productCodeUsed}`);
+
+      // Transform payload with booking reference ID and mail type
+      const payload = this.transformToIndiaPostInternationalPayload(orderDetails, bookingRefId, mailTypeCd);
       const payloadJson = JSON.stringify(payload);
       this.logger.log(`[IndiaPost International] Payload transformed : ${payloadJson}`);
       this.logger.log(`[IndiaPost International] Payload summary - BookingType: ${payload.booking_type_cd}, Weight: ${payload.physical_weight}g, DeclaredValue: ${payload.declared_value}`);
@@ -136,119 +149,122 @@ export class IndiaPostInternationalService implements INetworkPartner {
         }
       }
 
-      // Check response status
-      if (response.status !== 200 && response.status !== 201) {
-        this.logger.error(`[IndiaPost International] API error response - OrderId: ${orderId}, Status: ${response.status}`);
-        this.logger.error(`[IndiaPost International] Error response data: ${JSON.stringify(response.data, null, 2)}`);
-        this.logger.error(`[IndiaPost International] Request URL: ${url}`);
-        this.logger.error(`[IndiaPost International] Request payload: ${JSON.stringify(payload, null, 2)}`);
-        this.logger.error(`[IndiaPost International] Response headers: ${JSON.stringify(response.headers, null, 2)}`);
-        this.logger.error(`[IndiaPost International] Total request duration: ${Date.now() - startTime}ms`);
-        
-        // Handle error response - API might return different structure for errors
-        const errorResponse = response.data as any;
-        const errorMessage = errorResponse?.message || errorResponse?.error || JSON.stringify(response.data);
-        
-        this.logger.error(`[IndiaPost International] Error message extracted: ${errorMessage}`);
-        
-        return {
-          statusCode: response.status,
-          message: `IndiaPost International API returned error: ${errorMessage}`,
-          partnerCode: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
-          data: {
-            originalResponse: response.data,
-            requestUrl: url,
-            requestBody: payload,
-            responseHeaders: response.headers,
-            shipmentDetails: {
-              trackingDetails: [],
-              documents: [],
-            },
-            error: true,
-          },
-        } as unknown as R;
-      }
-
-      const responseData = response.data;
-      this.logger.log(`[IndiaPost International] Success response received - OrderId: ${orderId}`);
-      this.logger.log(`[IndiaPost International] Response data: ${JSON.stringify(responseData, null, 2)}`);
-
-      // Extract partner AWB number (pbe_no) from Article object
-      const partnerAwbNumber = responseData?.data?.Article?.pbe_no 
-        ? String(responseData.data.Article.pbe_no) 
-        : '';
-
-      // Create label after successful order creation
-      let labelUrl = responseData?.data?.label_url || '';
-      let labelContent = '';
-      let labelFormat = 'url';
-
-      try {
-        this.logger.log(`[IndiaPost International] Creating label for OrderId: ${orderId}`);
-        const labelResponse = await this.createLabel();
-        
-        if (labelResponse?.data?.label_url) {
-          labelUrl = labelResponse.data.label_url;
-          labelContent = labelUrl;
-          labelFormat = 'url';
-          this.logger.log(`[IndiaPost International] Label created successfully - OrderId: ${orderId}, LabelURL: ${labelUrl}`);
-        } else if (labelResponse?.data?.label) {
-          labelContent = labelResponse.data.label;
-          labelFormat = 'base64';
-          this.logger.log(`[IndiaPost International] Label created successfully - OrderId: ${orderId}, Label format: base64`);
-        } else if (labelResponse?.data?.label_base64) {
-          labelContent = labelResponse.data.label_base64;
-          labelFormat = 'base64';
-          this.logger.log(`[IndiaPost International] Label created successfully - OrderId: ${orderId}, Label format: base64`);
-        } else {
-          this.logger.warn(`[IndiaPost International] Label creation response did not contain expected label data - OrderId: ${orderId}`);
-          this.logger.warn(`[IndiaPost International] Label response: ${JSON.stringify(labelResponse, null, 2)}`);
-        }
-      } catch (labelError) {
-        this.logger.error(`[IndiaPost International] Label creation failed - OrderId: ${orderId}, Error: ${labelError.message}`);
-        this.logger.error(`[IndiaPost International] Label creation error stack: ${labelError.stack}`);
-        // Continue with order creation response even if label creation fails
-        // Use label URL from order creation response if available
-        if (!labelUrl && responseData?.data?.label_url) {
-          labelUrl = responseData.data.label_url;
-          labelContent = labelUrl;
-        }
-      }
-
-      this.logger.log(`[IndiaPost International] Order created successfully - OrderId: ${orderId}, PartnerAWB: ${partnerAwbNumber}, LabelURL: ${labelUrl || 'N/A'}`);
-      this.logger.log(`[IndiaPost International] Total processing time: ${Date.now() - startTime}ms`);
-
-      // Build documents array - include label if available
-      const documents = [];
-      if (labelContent) {
-        documents.push({
-          content: labelContent,
-          type: 'label',
-          format: labelFormat,
-        });
-      }
-
-      return {
-        statusCode: 200,
-        message: 'Order created successfully with IndiaPost International',
-        partnerCode: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
-        data: {
-          originalResponse: responseData,
-          requestUrl: url,
-          requestBody: payload,
-          shipmentDetails: {
-            trackingDetails: [
-              {
-                awbNumber: awbNumber,
-                partnerAwbNumber: partnerAwbNumber,
-                partnerName: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
-                transporterId: 'INDIA_POST_INTERNATIONAL',
+          // Check response status
+          if (response.status !== 200 && response.status !== 201) {
+            const errorResponse = response.data as any;
+            // Extract error message from various possible structures
+            const errorMessage = errorResponse?.error?.message 
+              || errorResponse?.message 
+              || errorResponse?.error 
+              || (typeof errorResponse === 'string' ? errorResponse : JSON.stringify(errorResponse));
+            
+            // Log full error response for debugging
+            this.logger.debug(`[IndiaPost International] Error response structure: ${JSON.stringify(errorResponse, null, 2)}`);
+            
+            // Log and throw error
+            this.logger.error(`[IndiaPost International] API error response - OrderId: ${orderId}, Status: ${response.status}, MailType: ${mailTypeCd}`);
+            this.logger.error(`[IndiaPost International] Error response data: ${JSON.stringify(response.data, null, 2)}`);
+            
+            return {
+              statusCode: response.status,
+              message: `IndiaPost International API returned error: ${errorMessage}`,
+              partnerCode: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
+              data: {
+                originalResponse: response.data,
+                requestUrl: url,
+                requestBody: payload,
+                responseHeaders: response.headers,
+                shipmentDetails: {
+                  trackingDetails: [],
+                  documents: [],
+                },
+                error: true,
               },
-            ],
-            documents: documents,
-          },
-        },
-      } as unknown as R;
+            } as unknown as R;
+          }
+
+          // Success!
+          this.logger.log(`[IndiaPost International] Successfully created booking with mail type: ${mailTypeCd}`);
+          const responseData = response.data;
+          this.logger.log(`[IndiaPost International] Success response received - OrderId: ${orderId}`);
+          this.logger.log(`[IndiaPost International] Response data: ${JSON.stringify(responseData, null, 2)}`);
+
+          // Extract partner AWB number (pbe_no) from Article object
+          const partnerAwbNumber = responseData?.data?.Article?.pbe_no 
+            ? String(responseData.data.Article.pbe_no) 
+            : '';
+
+          // Create label after successful order creation
+          let labelUrl = responseData?.data?.label_url || '';
+          let labelContent = '';
+          let labelFormat = 'url';
+
+          try {
+            this.logger.log(`[IndiaPost International] Creating label for OrderId: ${orderId}`);
+            const labelResponse = await this.createLabel();
+            
+            if (labelResponse?.data?.label_url) {
+              labelUrl = labelResponse.data.label_url;
+              labelContent = labelUrl;
+              labelFormat = 'url';
+              this.logger.log(`[IndiaPost International] Label created successfully - OrderId: ${orderId}, LabelURL: ${labelUrl}`);
+            } else if (labelResponse?.data?.label) {
+              labelContent = labelResponse.data.label;
+              labelFormat = 'base64';
+              this.logger.log(`[IndiaPost International] Label created successfully - OrderId: ${orderId}, Label format: base64`);
+            } else if (labelResponse?.data?.label_base64) {
+              labelContent = labelResponse.data.label_base64;
+              labelFormat = 'base64';
+              this.logger.log(`[IndiaPost International] Label created successfully - OrderId: ${orderId}, Label format: base64`);
+            } else {
+              this.logger.warn(`[IndiaPost International] Label creation response did not contain expected label data - OrderId: ${orderId}`);
+              this.logger.warn(`[IndiaPost International] Label response: ${JSON.stringify(labelResponse, null, 2)}`);
+            }
+          } catch (labelError) {
+            this.logger.error(`[IndiaPost International] Label creation failed - OrderId: ${orderId}, Error: ${labelError.message}`);
+            this.logger.error(`[IndiaPost International] Label creation error stack: ${labelError.stack}`);
+            // Continue with order creation response even if label creation fails
+            // Use label URL from order creation response if available
+            if (!labelUrl && responseData?.data?.label_url) {
+              labelUrl = responseData.data.label_url;
+              labelContent = labelUrl;
+            }
+          }
+
+          this.logger.log(`[IndiaPost International] Order created successfully - OrderId: ${orderId}, PartnerAWB: ${partnerAwbNumber}, LabelURL: ${labelUrl || 'N/A'}`);
+          this.logger.log(`[IndiaPost International] Total processing time: ${Date.now() - startTime}ms`);
+
+          // Build documents array - include label if available
+          const documents = [];
+          if (labelContent) {
+            documents.push({
+              content: labelContent,
+              type: 'label',
+              format: labelFormat,
+            });
+          }
+
+          return {
+            statusCode: 200,
+            message: 'Order created successfully with IndiaPost International',
+            partnerCode: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
+            data: {
+              originalResponse: responseData,
+              requestUrl: url,
+              requestBody: payload,
+              shipmentDetails: {
+                trackingDetails: [
+                  {
+                    awbNumber: awbNumber,
+                    partnerAwbNumber: partnerAwbNumber,
+                    partnerName: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
+                    transporterId: 'INDIA_POST_INTERNATIONAL',
+                  },
+                ],
+                documents: documents,
+              },
+            },
+          } as unknown as R;
     } catch (error) {
       const totalDuration = Date.now() - startTime;
       this.logger.error(`[IndiaPost International] createOrderV2 failed - OrderId: ${orderId}, Duration: ${totalDuration}ms`);
@@ -625,6 +641,220 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
 
   /**
+   * Determines product code based on mail type and destination country
+   * Product codes vary based on the mail type (FGN_SP_MERCHANDISE, INTL_APP_EPACKET, etc.)
+   * Note: The product code used for booking reference must match what's available for the destination country
+   */
+  private getProductCode(mailTypeCd: string, destinationCountryCode: string): string {
+    // Try multiple product codes - the API will tell us which one is available
+    // We'll try them in order of preference
+    
+    // First, try mail-type specific product codes
+    const mailTypeProductCodeMap: Record<string, string[]> = {
+      'FGN_SP_MERCHANDISE': ['SP_FGN_MERCHANDISE', 'FGN_SP_MERCHANDISE', 'SP_FGN', 'SP_INTERNATIONAL'], 
+      'FGN_SP_DOCUMENT': ['SP_FGN_DOCUMENT', 'FGN_SP_DOCUMENT', 'SP_FGN'],
+      'INTL_APP_EPACKET': ['SP_EPACKET', 'INTL_APP_EPACKET', 'SP_ITPS', 'SP_FGN'],
+      'FGN_AIR_PARCEL': ['SP_FGN_PARCEL', 'FGN_AIR_PARCEL', 'SP_FGN'],
+      'FGN_SMALLPACKETS': ['SP_FGN_SMALLPACKET', 'FGN_SMALLPACKETS', 'SP_FGN'],
+      'FGN_LETTER': ['SP_FGN_LETTER', 'FGN_LETTER', 'SP_FGN'],
+      'FGN_PRINTEDPAPERS': ['SP_FGN_PRINTED', 'FGN_PRINTEDPAPERS', 'SP_FGN'],
+      'FGN_BL': ['SP_FGN_BL', 'FGN_BL', 'SP_FGN'],
+      'FGN_BULKBAG': ['SP_FGN_BULKBAG', 'FGN_BULKBAG', 'SP_FGN'],
+    };
+
+    // Get product codes to try for this mail type
+    const productCodesToTry = mailTypeProductCodeMap[mailTypeCd?.toUpperCase()] || ['SP_FGN', 'SP_INTERNATIONAL', 'SP_EXPORT'];
+    
+    // Return the first one (we'll try others if this fails)
+    return productCodesToTry[0];
+  }
+
+  /**
+   * Tries multiple product codes to find one that works for the destination country
+   */
+  private async tryProductCodesForBookingReference(
+    mailTypeCd: string,
+    destinationCountryCode: string,
+    baseUrl: string,
+    officeId: string
+  ): Promise<{ bookingRefId: string; productCode: string }> {
+    const productCodesToTry = this.getProductCodesToTry(mailTypeCd, destinationCountryCode);
+    
+    for (const productCode of productCodesToTry) {
+      try {
+        const bookingReferencePath = this.configService.get<string>(
+          INDIAPOST_INTERNATIONAL_ENV_KEYS.BOOKING_REFERENCE_PATH,
+          INDIAPOST_INTERNATIONAL_DEFAULTS.BOOKING_REFERENCE_PATH
+        );
+        const url = `${baseUrl}${bookingReferencePath}?office-id=${officeId}&product-code=${productCode}`;
+
+        this.logger.log(`[IndiaPost International] Trying product code: ${productCode} for mailType: ${mailTypeCd}, country: ${destinationCountryCode}`);
+
+        const authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+
+        const response = await firstValueFrom(
+          this.httpService.get<IndiaPostInternationalBookingReferenceResponseDto>(url, {
+            headers: authHeaders,
+            timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
+            validateStatus: () => true,
+          })
+        );
+
+        if (response.data?.success && response.data?.data?.booking_ref_id) {
+          const bookingRefId = response.data.data.booking_ref_id;
+          this.logger.log(`[IndiaPost International] Successfully retrieved booking reference ID: ${bookingRefId} using product code: ${productCode}`);
+          return { bookingRefId, productCode };
+        }
+      } catch (error) {
+        this.logger.debug(`[IndiaPost International] Product code ${productCode} failed: ${error.message}`);
+        // Continue to next product code
+      }
+    }
+
+    // If all product codes failed, throw error
+    throw new CustomHttpException(
+      HttpStatus.BAD_REQUEST,
+      `IndiaPost International: No valid product code found for mail type '${mailTypeCd}' and country '${destinationCountryCode}'. Tried: ${productCodesToTry.join(', ')}`
+    );
+  }
+
+  /**
+   * Gets list of product codes to try based on mail type and country
+   * Based on IndiaPost International API documentation
+   * Product codes follow pattern: SP_* for international shipments
+   */
+  private getProductCodesToTry(mailTypeCd: string, destinationCountryCode: string): string[] {
+    const mailTypeProductCodeMap: Record<string, string[]> = {
+      'FGN_SP_MERCHANDISE': ['SP_FGN_MERCHANDISE', 'FGN_SP_MERCHANDISE', 'SP_FGN', 'SP_INTERNATIONAL', 'SP_EXPORT'],
+      'FGN_SP_DOCUMENT': ['SP_FGN_DOCUMENT', 'FGN_SP_DOCUMENT', 'SP_FGN'],
+      'INTL_APP_EPACKET': ['SP_EPACKET', 'INTL_APP_EPACKET', 'SP_ITPS', 'SP_FGN'],
+      'FGN_AIR_PARCEL': ['SP_FGN_PARCEL', 'FGN_AIR_PARCEL', 'SP_FGN'],
+      'FGN_SMALLPACKETS': ['SP_FGN_SMALLPACKET', 'FGN_SMALLPACKETS', 'SP_FGN'],
+      'FGN_LETTER': ['SP_FGN_LETTER', 'FGN_LETTER', 'SP_FGN'],
+      'FGN_PRINTEDPAPERS': ['SP_FGN_PRINTED', 'FGN_PRINTEDPAPERS', 'SP_FGN'],
+      'FGN_BL': ['SP_FGN_BL', 'FGN_BL', 'SP_FGN'],
+      'FGN_BULKBAG': ['SP_FGN_BULKBAG', 'FGN_BULKBAG', 'SP_FGN'],
+    };
+
+    // Get mail-type specific codes, or use generic international codes
+    const specificCodes = mailTypeProductCodeMap[mailTypeCd?.toUpperCase()];
+    if (specificCodes) {
+      return specificCodes;
+    }
+
+    // Fallback to generic international product codes
+    return ['SP_FGN', 'SP_INTERNATIONAL', 'SP_EXPORT', 'SP_INLAND'];
+  }
+
+  /**
+   * Gets mail type code based on order details
+   * Defaults to FGN_SP_MERCHANDISE for international shipments
+   * Can be overridden based on destination country or order characteristics
+   */
+  private getMailTypeCd(order: BaseOrderReqDtoV2, destinationCountryCode?: string): string {
+    // Check if mail type is specified in order metadata or other fields
+    // For now, default to FGN_SP_MERCHANDISE (International Speed Post Merchandise)
+    // This can be made configurable or determined based on order type, weight, etc.
+    
+    // For certain countries, we might need different mail types
+    // This can be expanded based on actual API availability
+    const countryMailTypeMap: Record<string, string> = {
+      // Add country-specific mail type mappings here if needed
+      // 'US': 'INTL_APP_EPACKET', // Example: US might prefer ePacket
+    };
+    
+    if (destinationCountryCode && countryMailTypeMap[destinationCountryCode.toUpperCase()]) {
+      return countryMailTypeMap[destinationCountryCode.toUpperCase()];
+    }
+    
+    return 'FGN_SP_MERCHANDISE';
+  }
+
+  /**
+   * Gets mail class code based on mail type code
+   * Based on IndiaPost International API documentation
+   */
+  private getMailClassCd(mailTypeCd: string): string {
+    const mailTypeToMailClassMap: Record<string, string> = {
+      'FGN_AIR_PARCEL': 'C',        // International Air Parcel
+      'FGN_LETTER': 'U',            // International Registered Letter
+      'FGN_SP_DOCUMENT': 'E',       // International Speed Post Document
+      'FGN_SP_MERCHANDISE': 'E',    // International Speed Post Document Merchandise
+      'FGN_SMALLPACKETS': 'U',      // Registered International Small Packet
+      'INTL_APP_EPACKET': 'U',      // International Tracked Packet Service
+      'FGN_BL': 'U',                // International Blind Literature
+      'FGN_PRINTEDPAPERS': 'U',     // Registered International Printed Papers
+      'FGN_BULKBAG': 'U',           // Registered International M Bag
+    };
+    return mailTypeToMailClassMap[mailTypeCd?.toUpperCase()] || 'C'; // Default to 'C'
+  }
+
+  /**
+   * Gets alternative mail types to try if the primary one fails
+   * Includes all available mail types from IndiaPost International API
+   */
+  private getAlternativeMailTypes(primaryMailType: string, destinationCountryCode?: string): string[] {
+    // Return alternative mail types to try if primary fails
+    // Order matters - try most appropriate first
+    // Include all mail types from the API documentation
+    const allMailTypes = [
+      'INTL_APP_EPACKET',      // International Tracked Packet Service (often works for e-commerce)
+      'FGN_AIR_PARCEL',        // International Air Parcel
+      'FGN_SMALLPACKETS',      // Registered International Small Packet
+      'FGN_SP_MERCHANDISE',    // International Speed Post Document Merchandise
+      'FGN_SP_DOCUMENT',       // International Speed Post Document
+      'FGN_LETTER',            // International Registered Letter
+      'FGN_PRINTEDPAPERS',    // Registered International Printed Papers
+      'FGN_BL',               // International Blind Literature
+      'FGN_BULKBAG',          // Registered International M Bag
+    ];
+    
+    // Remove the primary mail type from alternatives
+    const alternatives = allMailTypes.filter(mt => mt !== primaryMailType);
+    
+    return alternatives;
+  }
+
+  /**
+   * Gets booking reference ID from IndiaPost API
+   * This is required before creating a booking
+   * Tries multiple product codes to find one that works for the destination country
+   * Returns both booking reference ID and the product code that was used
+   */
+  private async getBookingReferenceId(
+    mailTypeCd: string,
+    destinationCountryCode: string,
+    baseUrl: string
+  ): Promise<{ bookingRefId: string; productCode: string }> {
+    try {
+      const officeId = this.configService.get<string>(
+        INDIAPOST_INTERNATIONAL_ENV_KEYS.OFFICE_ID,
+        INDIAPOST_INTERNATIONAL_DEFAULTS.OFFICE_ID
+      );
+
+      // Try multiple product codes to find one that works
+      const result = await this.tryProductCodesForBookingReference(
+        mailTypeCd,
+        destinationCountryCode,
+        baseUrl,
+        officeId
+      );
+
+      this.logger.log(`[IndiaPost International] Booking reference ID retrieved: ${result.bookingRefId} using product code: ${result.productCode}`);
+      return result;
+    } catch (error) {
+      if (error instanceof CustomHttpException) {
+        throw error;
+      }
+      this.logger.error(`[IndiaPost International] Failed to get booking reference: ${error.message}`);
+      throw new CustomHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        `IndiaPost International: Failed to get booking reference for mail type '${mailTypeCd}' and country '${destinationCountryCode}': ${error.message}`
+      );
+    }
+  }
+
+  /**
    * Determines booking_type_cd based on order type
    * RCB for commercial articles, NRCB for non-commercial
    */
@@ -638,7 +868,11 @@ export class IndiaPostInternationalService implements INetworkPartner {
     return isCommercial ? 'RCB' : 'NRCB';
   }
 
-  private transformToIndiaPostInternationalPayload(order: BaseOrderReqDtoV2): IndiaPostInternationalCreateOrderRequestDto {
+  private transformToIndiaPostInternationalPayload(
+    order: BaseOrderReqDtoV2,
+    bookingRefId: string,
+    mailTypeCd?: string
+  ): IndiaPostInternationalCreateOrderRequestDto {
     const pickup = order.addresses.find((a) => a.type === 'PICKUP');
     const delivery = order.addresses.find((a) => a.type === 'DELIVERY');
 
@@ -656,15 +890,17 @@ export class IndiaPostInternationalService implements INetworkPartner {
       return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 500);
     };
 
-    // Get weights - weights are received in grams, physical_weight should be in kg with 3 decimals, others in grams
+    // Get weights - weights are received in grams
+    // According to API documentation: "The unit of weight is GRAMS and it should be used without decimals"
     const physicalWeightRaw = getEffectiveWeight(order.parentShipment || order.childShipments?.[0]);
     const volumetricWeightRaw = parseFloat(String(order.parentShipment?.volumetricWeight || order.childShipments?.[0]?.volumetricWeight || 600));
     
-    // physical_weight: Numeric(10,3) - in kg with 3 decimal places (convert from grams)
-    const physicalWeight = physicalWeightRaw;
-    // volumetric_weight and charged_weight: Integer - in grams (already in grams, no conversion needed)
-    const volumetricWeight = volumetricWeightRaw;
-    const chargedWeight = Math.max(physicalWeightRaw, volumetricWeight);
+    // physical_weight: Numeric(10,3) - in kg with 3 decimal places (convert from grams to kg)
+    // Note: API docs say grams without decimals, but physical_weight field accepts kg with decimals
+    const physicalWeight = Math.round(physicalWeightRaw * 1000) / 1000; // Convert to kg and round to 3 decimals
+    // volumetric_weight and charged_weight: Integer - in grams (must be integers, no decimals)
+    const volumetricWeight = Math.round(volumetricWeightRaw); // Ensure integer (no decimals)
+    const chargedWeight = Math.round(Math.max(physicalWeightRaw, volumetricWeight)); // Ensure integer (no decimals)
 
     const dimensions = order.parentShipment?.dimensions || order.childShipments?.[0]?.dimensions || { length: 20, width: 30, height: 10 };
     const length = parseFloat(String((dimensions as any).length || 20));
@@ -674,18 +910,32 @@ export class IndiaPostInternationalService implements INetworkPartner {
     const items = order.parentShipment?.items || order.childShipments?.[0]?.items || [];
     const articleNumber = String(order.parentShipment?.awbNumber || order.awbNumber || order.orderId);
     const bookingTypeCd = this.getBookingTypeCd(order);
+    
+    // Get office ID from config (should match the one used for booking reference)
+    const officeIdBkg = parseInt(this.configService.get<string>(
+      INDIAPOST_INTERNATIONAL_ENV_KEYS.OFFICE_ID,
+      INDIAPOST_INTERNATIONAL_DEFAULTS.OFFICE_ID
+    ));
 
     // Transform sub_pieces from items
     const subPieces: IndiaPostInternationalSubPieceDto[] = items.map((item, index) => {
-      const itemWeight = item.weight;
+      // Weight must be integer (no decimals) as per API documentation
+      const itemWeight = Math.round(parseFloat(String(item.weight || 0)));
       // Format date as DD-MM-YYYY
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
       const invoiceDate = `${day}-${month}-${year}`;
-      const invoiceValue = parseFloat(String(item.unitPrice));
+      const invoiceValueUSD = parseFloat(String(item.unitPrice));
+      const exchangeRate = 75; // Default exchange rate USD to INR
+      const invoiceValueINR = Math.round(invoiceValueUSD * exchangeRate);
+      const fobValueINR = invoiceValueINR; // FOB value in INR (same as invoice value)
       const hsnCode = String(item.hsnCode);
+      
+      // Ensure invoice value >= FOB value (API requirement)
+      // Invoice value should be in INR to match FOB value comparison
+      const finalInvoiceValue = Math.max(invoiceValueINR, fobValueINR);
       
       return {
         hs_cd: hsnCode,
@@ -694,23 +944,23 @@ export class IndiaPostInternationalService implements INetworkPartner {
         sp_unit_cd: 'PIECES',
         article_number: articleNumber,
         sp_origin_country_cd: 'IN',
-        sp_weight_total: itemWeight,
-        sp_weight_nett: itemWeight,
+        sp_weight_total: itemWeight, // Integer in grams (no decimals)
+        sp_weight_nett: itemWeight, // Integer in grams (no decimals)
         sp_invoice_lsn: 123,
-        sp_invoice_value: Math.round(invoiceValue),
-        sp_asbl_fob_value: Math.round(invoiceValue),
+        sp_invoice_value: finalInvoiceValue, // Invoice value in INR to match FOB value
+        sp_asbl_fob_value: Math.round(invoiceValueUSD), // FOB value in USD
         sp_asbl_currency_cd: 'US',
-        sp_asbl_currency_exchrate: 2,
-        sp_asbl_value_inr: Math.round(invoiceValue * 75),
+        sp_asbl_currency_exchrate: exchangeRate,
+        sp_asbl_value_inr: fobValueINR, // FOB value in INR
         sp_origin_currency_cd: 'INR',
         sp_comm_invoice_no: String(index + 1),
-        sp_inv_currency_exchrate: 75,
+        sp_inv_currency_exchrate: exchangeRate,
         sp_count: parseInt(String(item.quantity)),
         sp_comm_invoice_date: invoiceDate,
         sp_tax_invoice_no: `INV-${index + 1}`,
         sp_tax_invoice_date: invoiceDate,
         sp_inv_currency_cd: 'USD',
-        sp_invoice_value_total: Math.round(invoiceValue),
+        sp_invoice_value_total: finalInvoiceValue, // Total invoice value in INR
         channel_type_cd: 'I',
         tax_payment_channel_source: 'other',
         tax_payment_mode_cd: 'TC',
@@ -726,7 +976,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
         igst_rate: 0,
         igst_amount: 0,
         created_by: '10256468',
-        office_id_bkg: 90001,
+        office_id_bkg: officeIdBkg, // Use same office ID as booking reference
         ip_address_bkg: '192.168.1.1',
         usertype_cd: 'I',
       };
@@ -747,8 +997,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
       sender_pincode: parseInt(pickup.zip),
       destination_ccode: String(delivery.countryCode),
       destination_cname: String(delivery.country),
-      mail_type_cd: 'FGN_SP_MERCHANDISE',
-      mail_class_cd: 'C',
+      mail_type_cd: mailTypeCd || this.getMailTypeCd(order),
+      mail_class_cd: this.getMailClassCd(mailTypeCd || this.getMailTypeCd(order)),
       mail_nature_type_cd: '11',
       booking_type_cd: bookingTypeCd,
       bulk_customer_id: 1000000001,
@@ -799,9 +1049,9 @@ export class IndiaPostInternationalService implements INetworkPartner {
       declaration4: true,
       selffiling_cusbroker: false,
       article_number: articleNumber,
-      bkg_ref_id: String(order.orderId),
+      bkg_ref_id: bookingRefId, // Use booking reference ID from API
       created_by: '10256468',
-      office_id_bkg: 21260721,
+      office_id_bkg: officeIdBkg, // Use same office ID as booking reference
       origin_office_name: 'Vrindavan SO',
       ip_address_bkg: '192.168.0.1',
       subpiece_count: subPieces.length,

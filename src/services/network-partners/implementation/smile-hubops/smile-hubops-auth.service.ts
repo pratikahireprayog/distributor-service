@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { AuthProvider } from "src/common/interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "src/common/interfaces/auth-provider.interface";
 
 /**
  * Authentication service for SmileHubops partner
@@ -15,7 +15,7 @@ export class SmileHubopsAuthService implements AuthProvider {
    * Get authentication headers for SmileHubops API requests
    * Returns empty headers as no authentication is required
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     this.logger.debug("No authentication required for SmileHubops");
 
     // Return empty headers - no auth operation needed

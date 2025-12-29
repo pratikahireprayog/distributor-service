@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 import { FEDEX_URLS } from './fedex-constants';
 
 /**
@@ -20,10 +20,11 @@ export class FEDEXAuthService implements AuthProvider {
 
   /**
    * Gets authentication headers for FedEx API
+   * Uses tenant-specific credentials if available, otherwise falls back to default
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     this.logger.debug('Getting FEDEX authentication headers');
-    const token = await this.getToken();
+    const token = await this.getToken(tenantContext);
     return {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -33,17 +34,44 @@ export class FEDEXAuthService implements AuthProvider {
 
   /**
    * Gets an OAuth2 token for FedEx API (with caching)
+   * Uses tenant-specific credentials if available in tenantContext
    */
-  async getToken(): Promise<string> {
+  async getToken(tenantContext?: TenantContext): Promise<string> {
     this.logger.debug('Getting FEDEX OAuth token');
 
-    if (this.tokenCache && Date.now() < this.tokenCache.expiresAt) {
+    // Only use cache for default credentials, not tenant-specific
+    if (!tenantContext?.partnerCredentials && this.tokenCache && Date.now() < this.tokenCache.expiresAt) {
       return this.tokenCache.accessToken;
     }
 
     const authUrl = FEDEX_URLS.AUTH_URL;
-    const clientId = this.configService.get<string>('FEDEX_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('FEDEX_CLIENT_SECRET');
+    
+    // Use tenant-specific credentials if available, otherwise use default
+    let clientId: string | undefined;
+    let clientSecret: string | undefined;
+
+    if (tenantContext?.partnerCredentials && tenantContext.partnerCredentials.length > 0) {
+      // Extract credentials from tenant context
+      const clientIdCred = tenantContext.partnerCredentials.find(c => 
+        c.key.toLowerCase() === 'client_id' || c.key.toLowerCase() === 'fedex_client_id'
+      );
+      const clientSecretCred = tenantContext.partnerCredentials.find(c => 
+        c.key.toLowerCase() === 'client_secret' || c.key.toLowerCase() === 'fedex_client_secret'
+      );
+      
+      clientId = clientIdCred?.value;
+      clientSecret = clientSecretCred?.value;
+      
+      if (clientId && clientSecret) {
+        this.logger.debug(`Using tenant-specific credentials for tenant: ${tenantContext.tenantId}`);
+      }
+    }
+
+    // Fallback to default credentials if tenant credentials not found
+    if (!clientId || !clientSecret) {
+      clientId = this.configService.get<string>('FEDEX_CLIENT_ID');
+      clientSecret = this.configService.get<string>('FEDEX_CLIENT_SECRET');
+    }
 
     const body = new URLSearchParams({
       grant_type: 'client_credentials',

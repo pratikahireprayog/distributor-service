@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import * as https from 'https';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 import { URBANBOLT_ENV_KEYS, URBANBOLT_DEFAULTS } from './urbanbolt-constants';
 import { UrbanBoltAuthRequestDto, UrbanBoltAuthResponseDto } from './urbanbolt.dto';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
@@ -31,7 +31,7 @@ export class UrbanBoltAuthService implements AuthProvider {
     return this.accessToken!;
   }
 
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     const token = await this.getAuthToken();
     return {
       'Authorization': `Bearer ${token}`,

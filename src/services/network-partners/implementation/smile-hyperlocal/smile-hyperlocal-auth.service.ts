@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
-import { AuthProvider } from "../../interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "../../interfaces/auth-provider.interface";
 import { lastValueFrom } from "rxjs";
 
 interface TokenData {
@@ -21,7 +21,7 @@ export class SmileHyperlocalAuthService implements AuthProvider {
     private readonly httpService: HttpService
   ) {}
 
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     const tokenData = await this.getValidToken();
     return {
       Authorization: `Bearer ${tokenData.token}`,

@@ -176,3 +176,22 @@ export class IndiaPostInternationalCreateLabelResponseDto {
   };
 }
 
+// Booking Reference Request DTO
+export class IndiaPostInternationalBookingReferenceRequestDto {
+  'office-id': string;
+  'product-code': string;
+}
+
+// Booking Reference Response DTO
+export class IndiaPostInternationalBookingReferenceResponseDto {
+  status_code?: number;
+  success?: boolean;
+  message?: string;
+  data?: {
+    id?: string;
+    office_id?: number;
+    product_code?: string;
+    booking_ref_id?: string;
+  };
+}
+
