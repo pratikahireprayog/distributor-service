@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
 import { firstValueFrom } from "rxjs";
-import { AuthProvider } from "../../interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "../../interfaces/auth-provider.interface";
 import {
   INDIA_POST_DOMESTIC_BASE_URLS,
   INDIA_POST_DOMESTIC_ENDPOINTS,
@@ -44,7 +44,7 @@ export class IndiaPostDomesticAuthService implements AuthProvider {
    * Gets authentication headers for India Post Domestic API calls
    * Automatically handles token refresh if needed
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     this.logger.log("🔑 India Post Domestic: Getting authentication headers");
 
     const token = await this.getToken();

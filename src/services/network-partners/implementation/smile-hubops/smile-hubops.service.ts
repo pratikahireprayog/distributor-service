@@ -201,6 +201,27 @@ export class SmileHubopsService extends BaseNetworkPartner {
   }
 
   /**
+   * Map parcel category to valid HubOps booking type
+   * HubOps doesn't accept "INTERNATIONAL" as a booking type, so we map it to "COURIER"
+   */
+  private mapBookingType(parcelCategory: string | undefined): string {
+    if (!parcelCategory) {
+      return "COURIER"; // Default fallback
+    }
+
+    const upperCategory = parcelCategory.toUpperCase();
+    
+    // HubOps valid booking types: COURIER, CARGO, ECOMM, etc.
+    // Map "INTERNATIONAL" to "COURIER" as international orders are typically courier shipments
+    if (upperCategory === "INTERNATIONAL") {
+      return "COURIER";
+    }
+
+    // Return the category as-is if it's already a valid type
+    return upperCategory;
+  }
+
+  /**
    * Transform V2 payload to HubOps format
    * Converts the new V2 order structure to the format expected by HubOps API
    */
@@ -226,12 +247,15 @@ export class SmileHubopsService extends BaseNetworkPartner {
     // Get parent shipment AWB
     const awbNumber = orderV2.parentShipment?.awbNumber;
 
+    // Map booking type to valid HubOps format
+    const bookingType = this.mapBookingType(orderV2.parcelCategory);
+
     // Create the booking payload and wrap it in an array (HubOps expects array format)
     return [
       {
         awbNumber: awbNumber,
         bookingStatus: orderV2.orderStatus,
-        bookingType: orderV2.parcelCategory?.toUpperCase(),
+        bookingType: bookingType,
         ewayBillNumber: ewayBillNumbers,
         docType: docType,
         extendEwayBillCount: 0,

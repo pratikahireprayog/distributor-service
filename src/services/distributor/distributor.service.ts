@@ -16,6 +16,8 @@ import {
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2, BaseUpdateOrderDtoV2, OrderDtov2 } from "src/common/dtos/base2.dto";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import { DiscordAlertService } from "../../infrastructure/alert/discord-alert.service";
+import { PartnerServiceClient } from "src/common/services/partner-service.client";
+import { TenantContext } from "src/common/interfaces/auth-provider.interface";
 
 /**
  * DTO for pushing orders to PRS
@@ -71,7 +73,8 @@ export class DistributorService {
 
   constructor(
     private readonly networkPartnerFactory: NetworkPartnerFactoryService,
-    private readonly discordAlertService: DiscordAlertService
+    private readonly discordAlertService: DiscordAlertService,
+    private readonly partnerServiceClient: PartnerServiceClient
   ) {}
 
   /**
@@ -149,7 +152,9 @@ export class DistributorService {
   }
 
   async createOrderV2<R extends BaseOrderResDto>(
-    requestDto: StandardRequestDtoV2
+    requestDto: StandardRequestDtoV2,
+    tenantId?: string,
+    userId?: string
   ): Promise<R> {
     // Normalize input: support both 'order' and 'orders' formats
     // 'orders' can be either an array or a single object
@@ -177,6 +182,55 @@ export class DistributorService {
       throw new Error('Either "order" or "orders" field must be provided');
     }
 
+    // Build tenant context if tenant ID is provided (optional)
+    let tenantContext: TenantContext | undefined;
+    if (tenantId) {
+      this.logger.debug(`Creating order V2 with tenant context: tenantId=${tenantId}, userId=${userId}`);
+      
+      // Fetch tenant-specific partner credentials if tenant ID is provided
+      const partnerCode = requestDto.partnerCode as string;
+      if (partnerCode && this.partnerServiceClient) {
+        try {
+          const credentials = await this.partnerServiceClient.getTenantPartnerCredentials(
+            tenantId,
+            partnerCode
+          );
+          
+          if (credentials.length > 0) {
+            this.logger.log(
+              `Using tenant-specific credentials for tenant: ${tenantId}, partner: ${partnerCode}`
+            );
+            tenantContext = {
+              tenantId,
+              userId,
+              partnerCredentials: credentials.map(c => ({ key: c.key, value: c.value })),
+            };
+          } else {
+            this.logger.debug(
+              `No tenant-specific credentials found for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials.`
+            );
+            tenantContext = {
+              tenantId,
+              userId,
+            };
+          }
+        } catch (error) {
+          this.logger.debug(
+            `Failed to fetch tenant credentials for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials. Error: ${error.message}`
+          );
+          tenantContext = {
+            tenantId,
+            userId,
+          };
+        }
+      } else {
+        tenantContext = {
+          tenantId,
+          userId,
+        };
+      }
+    }
+
     //this.logger.log(`Creating Order for ${orderToProcess.awbNumber || "unknown"}`);
 
     try {
@@ -187,7 +241,8 @@ export class DistributorService {
       const result = await partnerActivity.createOrderV2<BaseOrderReqDtoV2, R>(
         orderToProcess as BaseOrderReqDtoV2,
         requestDto.partnerCode as string,
-        requestDto.eligiblePartners
+        requestDto.eligiblePartners,
+        tenantContext // Pass tenant context for tenant-specific credentials (optional)
       );
 
       if (
@@ -235,6 +290,144 @@ export class DistributorService {
         requestDto.partnerCode as string,
         undefined,
         { eligiblePartners: requestDto.eligiblePartners }
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Create an order V3 with tenant-specific credentials support
+   * Accepts x-tenant-id and x-user-id from headers for tenant-specific credential lookup
+   */
+  async createOrderV3<R extends BaseOrderResDto>(
+    requestDto: StandardRequestDtoV2,
+    tenantId?: string,
+    userId?: string
+  ): Promise<R> {
+    // Normalize input: support both 'order' and 'orders' formats
+    let orderToProcess: OrderDtov2;
+    
+    if (requestDto.order) {
+      orderToProcess = requestDto.order;
+    } else if (requestDto.orders) {
+      if (Array.isArray(requestDto.orders)) {
+        if (requestDto.orders.length > 0) {
+          orderToProcess = requestDto.orders[0];
+          this.logger.log(`Multiple orders format detected. Processing first order from array (${requestDto.orders.length} total orders)`);
+        } else {
+          throw new Error('"orders" array cannot be empty');
+        }
+      } else {
+        orderToProcess = requestDto.orders as OrderDtov2;
+        this.logger.log(`Single order format detected in "orders" field`);
+      }
+    } else {
+      throw new Error('Either "order" or "orders" field must be provided');
+    }
+
+    // Build tenant context if tenant ID is provided
+    let tenantContext: TenantContext | undefined;
+    if (tenantId) {
+      this.logger.debug(`Creating order V3 with tenant context: tenantId=${tenantId}, userId=${userId}`);
+      
+      // Fetch tenant-specific partner credentials if tenant ID is provided
+      const partnerCode = requestDto.partnerCode as string;
+      if (partnerCode && this.partnerServiceClient) {
+        try {
+          const credentials = await this.partnerServiceClient.getTenantPartnerCredentials(
+            tenantId,
+            partnerCode
+          );
+          
+          if (credentials.length > 0) {
+            this.logger.log(
+              `Using tenant-specific credentials for tenant: ${tenantId}, partner: ${partnerCode}`
+            );
+            tenantContext = {
+              tenantId,
+              userId,
+              partnerCredentials: credentials.map(c => ({ key: c.key, value: c.value })),
+            };
+          } else {
+            this.logger.debug(
+              `No tenant-specific credentials found for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials.`
+            );
+            tenantContext = {
+              tenantId,
+              userId,
+            };
+          }
+        } catch (error) {
+          this.logger.debug(
+            `Failed to fetch tenant credentials for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials. Error: ${error.message}`
+          );
+          tenantContext = {
+            tenantId,
+            userId,
+          };
+        }
+      } else {
+        tenantContext = {
+          tenantId,
+          userId,
+        };
+      }
+    }
+
+    try {
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      // Pass tenant context to createOrderV2
+      const result = await partnerActivity.createOrderV2<BaseOrderReqDtoV2, R>(
+        orderToProcess as BaseOrderReqDtoV2,
+        requestDto.partnerCode as string,
+        requestDto.eligiblePartners,
+        tenantContext // Pass tenant context for tenant-specific credentials
+      );
+
+      if (
+        result &&
+        (result as any).statusCode &&
+        (result as any).statusCode >= 400
+      ) {
+        this.logger.error(
+          `🚨 ORDER CREATION RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
+        );
+
+        const errorForAlert = {
+          message: (result as any).message || "Order creation failed",
+          status: (result as any).statusCode,
+          statusText: "API Error Response",
+          stack: "No stack trace - API response error",
+          response: result,
+        };
+
+        await this.discordAlertService.sendOrderCreationErrorAlert(
+          errorForAlert,
+          orderToProcess.awbNumber,
+          requestDto.partnerCode as string,
+          undefined,
+          { eligiblePartners: requestDto.eligiblePartners, responseError: true, tenantId }
+        );
+      }
+
+      this.logger.log(
+        `✅ Order creation V3 completed successfully for ${orderToProcess.awbNumber}${tenantId ? ` (tenant: ${tenantId})` : ''}`
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`🚨 ORDER CREATION V3 ERROR CAUGHT: ${error.message}`);
+      this.logger.error(`Error type: ${error.constructor.name}`);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
+
+      await this.discordAlertService.sendOrderCreationErrorAlert(
+        error,
+        orderToProcess.orderId,
+        requestDto.partnerCode as string,
+        undefined,
+        { eligiblePartners: requestDto.eligiblePartners, tenantId }
       );
       throw error;
     }

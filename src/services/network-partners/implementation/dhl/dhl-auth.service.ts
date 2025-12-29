@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 
 /**
  * DHL authentication provider
@@ -13,8 +13,9 @@ export class DHLAuthService implements AuthProvider {
 
   /**
    * Gets authentication headers for DHL API
+   * @param tenantContext Optional tenant context for tenant-specific credentials
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     this.logger.debug('Getting DHL authentication headers');
     
     const authToken = this.configService.get<string>('DHL_AUTH_TOKEN') || "";

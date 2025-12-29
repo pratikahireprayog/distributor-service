@@ -2,7 +2,7 @@ import { Injectable, Logger, HttpStatus } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
-import { AuthProvider } from "src/common/interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "src/common/interfaces/auth-provider.interface";
 import { CustomHttpException } from "src/infrastructure/exception-handlers";
 
 /**
@@ -22,9 +22,10 @@ export class DelhiveryAuthService implements AuthProvider {
 
   /**
    * Get authentication headers with Bearer token
+   * Uses tenant-specific credentials if available, otherwise falls back to default
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
-    const token = await this.getToken();
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
+    const token = await this.getToken(tenantContext);
     return {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${token}`,
@@ -33,31 +34,57 @@ export class DelhiveryAuthService implements AuthProvider {
 
   /**
    * Get authentication token (cached or generate new)
+   * Uses tenant-specific credentials if available in tenantContext
    */
-  async getToken(): Promise<string> {
-    // Return cached token if valid
-    if (this.cachedToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
+  async getToken(tenantContext?: TenantContext): Promise<string> {
+    // Return cached token if valid (only for default credentials, not tenant-specific)
+    if (!tenantContext?.partnerCredentials && this.cachedToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
       this.logger.debug("Using cached Delhivery token");
       return this.cachedToken;
     }
 
-    // Generate new token
-    this.logger.debug("Generating new Delhivery token");
-    return await this.generateToken();
+    // Generate new token (with tenant credentials if available)
+    this.logger.debug(tenantContext?.partnerCredentials ? "Generating new Delhivery token with tenant credentials" : "Generating new Delhivery token");
+    return await this.generateToken(tenantContext);
   }
 
   /**
    * Generate authentication token via Delhivery login API
+   * Uses tenant-specific credentials if available in tenantContext
    */
-  async generateToken(): Promise<string> {
+  async generateToken(tenantContext?: TenantContext): Promise<string> {
     try {
       const loginUrl = this.configService.get<string>(
         "DELHIVERY_LOGIN_URL",
         "https://ltl-clients-api-dev.delhivery.com/ums/login"
       );
       
-      const username = this.configService.get<string>("DELHIVERY_USERNAME");
-      const password = this.configService.get<string>("DELHIVERY_PASSWORD");
+      // Use tenant-specific credentials if available, otherwise use default
+      let username: string | undefined;
+      let password: string | undefined;
+
+      if (tenantContext?.partnerCredentials && tenantContext.partnerCredentials.length > 0) {
+        // Extract credentials from tenant context
+        const usernameCred = tenantContext.partnerCredentials.find(c => 
+          c.key.toLowerCase() === 'username' || c.key.toLowerCase() === 'delhivery_username'
+        );
+        const passwordCred = tenantContext.partnerCredentials.find(c => 
+          c.key.toLowerCase() === 'password' || c.key.toLowerCase() === 'delhivery_password'
+        );
+        
+        username = usernameCred?.value;
+        password = passwordCred?.value;
+        
+        if (username && password) {
+          this.logger.debug(`Using tenant-specific credentials for tenant: ${tenantContext.tenantId}`);
+        }
+      }
+
+      // Fallback to default credentials if tenant credentials not found
+      if (!username || !password) {
+        username = this.configService.get<string>("DELHIVERY_USERNAME");
+        password = this.configService.get<string>("DELHIVERY_PASSWORD");
+      }
 
       if (!username || !password) {
         throw new CustomHttpException(

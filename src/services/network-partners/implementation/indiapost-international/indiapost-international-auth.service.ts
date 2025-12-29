@@ -2,7 +2,7 @@ import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import {
   IndiaPostInternationalAuthRequestDto,
@@ -26,7 +26,7 @@ export class IndiaPostInternationalAuthService implements AuthProvider {
     private readonly configService: ConfigService,
   ) {}
 
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     this.logger.log('[IndiaPost International Auth] Getting authentication headers');
     const token = await this.getToken();
     const tokenPreview = token ? `${token.substring(0, 20)}...` : 'MISSING';
