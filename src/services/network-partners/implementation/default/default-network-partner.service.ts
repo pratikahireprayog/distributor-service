@@ -498,10 +498,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
-      );
+      const endpoint = {
+        url:process.env.PRS_PUSH
+      }
 
       this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
 
