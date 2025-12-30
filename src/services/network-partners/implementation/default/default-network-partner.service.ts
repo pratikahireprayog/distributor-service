@@ -678,10 +678,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        PARTNER_CODE_ENUM.SMILE,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
-      );
+      const endpoint = {
+        url:process.env.HUB_OPS_PUSH_DATA
+      }
 
       this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
 
