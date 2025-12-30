@@ -107,10 +107,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Set the partner code from the request data
    
 
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       const body = this.buildCancelTrackingBody(data);
 
@@ -372,10 +371,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_URL
+      }
 
       this.logger.log(`Sending order to tracking API: ${endpoint.url}`);
 
@@ -404,10 +402,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       this.logger.log(
         `Sending manifest order to tracking API: ${endpoint.url}`
@@ -567,10 +564,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS
-      );
+      const endpoint = {
+        url:process.env.DRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to DRS API: ${endpoint.url}`);
 
