@@ -499,7 +499,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
     try {
       const endpoint = {
-        url:process.env.PRS_PUSH
+        url:process.env.PRS_PUSH_API
       }
 
       this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
