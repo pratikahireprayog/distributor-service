@@ -17,7 +17,7 @@ export const databaseProviders = [
         serverSelectionTimeoutMS: 5000, // Timeout for server selection
         socketTimeoutMS: 45000, // Socket timeout
         bufferCommands: false, // Disable buffering to fail fast
-    
+        maxIdleTimeMS: 30000, // Close connections idle for 30 seconds
       });
       await connection.asPromise(); // 🔴 THIS IS THE FIX
       return connection;
