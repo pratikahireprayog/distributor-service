@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuthProvider } from 'src/services/network-partners/interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from 'src/services/network-partners/interfaces/auth-provider.interface';
 
 @Injectable()
 export class TsawAuthService implements AuthProvider {
     constructor(private readonly logger: Logger) { }
 
-    async getAuthHeaders(): Promise<Record<string, string>> {
+    async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
         const accessToken = process.env.TSAW_ACCESS_TOKEN;
 
         if (!accessToken) {

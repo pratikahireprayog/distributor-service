@@ -5,7 +5,7 @@ import {
   SchemaMapperService,
   SchemaMappingConfig,
 } from "src/infrastructure/schema-mapper";
-import { AuthProvider } from "../interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "../interfaces/auth-provider.interface";
 import { INetworkPartner } from "../interfaces/network-partner.interface";
 import { EndpointConfigModel } from "src/common/repositories/endpoint-configs/endpoint-configs.schema";
 import { EndpointConfigRepository } from "src/common/repositories/endpoint-configs/endpoint-configs.repository";
@@ -149,9 +149,10 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderData: T,
     partnerCode: string,
-    eligiblePartners: EligiblePartnersData
+    eligiblePartners?: EligiblePartnersData,
+    tenantContext?: any
   ): Promise<R> {
-    this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
+    this.logger.debug(`Creating Order with partner ${this.partnerCode}${tenantContext?.tenantId ? ` (tenant: ${tenantContext.tenantId})` : ''}`);
     let existingPartners: any;
     let attemptNumber = 1;
     let partnerType = partnerCode;
@@ -200,7 +201,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         ENDPOINT_ID_ENUM.CREATE_ORDER,
         orderData,
         partnerCode,
-        endpointConfig
+        endpointConfig,
+        tenantContext
       );
 
       const result = this.transformResponseForOperation(
@@ -994,15 +996,16 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     operation: string,
     data: any,
     partnerCode: string,
-    endpointConfig: EndpointConfigModel
+    endpointConfig: EndpointConfigModel,
+    tenantContext?: any
   ): Promise<any> {
     // Transform request body if needed
     let transformedData = data;
-
+    console.log("executeOperation", operation, data, partnerCode, endpointConfig, tenantContext);
     try {
-      // Get authentication headers
+      // Get authentication headers (with tenant context if provided)
       const authHeaders = endpointConfig.requiresAuth
-        ? await this.authProvider.getAuthHeaders()
+        ? await this.authProvider.getAuthHeaders(tenantContext)
         : {};
 
       // Process custom headers from configuration
