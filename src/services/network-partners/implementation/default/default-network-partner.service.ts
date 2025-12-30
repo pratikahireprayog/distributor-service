@@ -217,6 +217,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Include request body in success response
       if (response.data) {
         response.data = {
+          version:"v2 new activity",
           originalResponse: response.data,
           requestUrl: url,
           requestBody: body,
