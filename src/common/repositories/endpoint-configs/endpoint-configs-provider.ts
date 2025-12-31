@@ -9,6 +9,8 @@ export const endpointConfigProviders: Provider[] = [
         provide: REPOSITORY_MODEL_PROVIDER_CONST.ENDPOINT_CONFIG_MODEL,
         useFactory: async (connection: Connection) => {
             await connection.asPromise();
+            // Disable buffering to fail fast instead of timing out
+            EndpointConfigSchema.set('bufferCommands', false);
             return connection.model(
                 REPOSITORY_MODEL_CONST.ENDPOINT_CONFIG_MODEL,
                 EndpointConfigSchema,
