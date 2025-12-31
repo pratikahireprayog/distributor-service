@@ -7,11 +7,13 @@ import { Provider } from "@nestjs/common";
 export const endpointConfigProviders: Provider[] = [
     {
         provide: REPOSITORY_MODEL_PROVIDER_CONST.ENDPOINT_CONFIG_MODEL,
-        useFactory: (connection: Connection) =>
-            connection.model(
+        useFactory: async (connection: Connection) => {
+            await connection.asPromise();
+            return connection.model(
                 REPOSITORY_MODEL_CONST.ENDPOINT_CONFIG_MODEL,
                 EndpointConfigSchema,
-            ),
+            );
+        },
         inject: [DATABASE_NAME_CONST.DISTRIBUTOR_DB],
     },
 ]; 
