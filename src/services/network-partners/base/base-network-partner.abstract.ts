@@ -914,6 +914,62 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   }
 
   /**
+   * Push order data to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Pushing order to HubOps V2 with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        (data as any).partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for push order to HubOps V2 operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        data,
+        (data as any).partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order pushed to HubOps V2 successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  /**
    * Update order in HubOps system
    * @param data Order data for HubOps update
    * @returns Response from HubOps API

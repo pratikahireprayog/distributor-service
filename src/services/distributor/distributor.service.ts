@@ -874,6 +874,72 @@ export class DistributorService {
   }
 
   /**
+   * Push order to HubOps system V2 - Accepts the new standardized format
+   * @param requestDto Request data containing order details
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOpsV2<R extends BaseResDto>(
+    requestDto: StandardRequestDto
+  ): Promise<R> {
+    this.logger.log(
+      `Pushing order to HubOps V2 for ${requestDto.order.awbNumber || "unknown"}`
+    );
+
+    try {
+      const partnerActivity = this.networkPartnerFactory.getPartner(
+        requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
+      );
+
+      const result: R = await partnerActivity.pushOrderToHubOpsV2<StandardRequestDto, R>(
+        requestDto
+      );
+
+      if (
+        result &&
+        (result as any).statusCode &&
+        (result as any).statusCode >= 400
+      ) {
+        this.logger.error(
+          `🚨 PUSH ORDER TO HUBOPS V2 RETURNED ERROR RESPONSE: ${JSON.stringify(result)}`
+        );
+
+        const errorForAlert = {
+          message: (result as any).message || "Push order to HubOps V2 failed",
+          status: (result as any).statusCode,
+          statusText: "API Error Response",
+          stack: "No stack trace - API response error",
+          response: result,
+        };
+
+        await this.discordAlertService.sendPushOrderErrorAlert(
+          errorForAlert,
+          "PushOrderToHubOpsV2",
+          requestDto.order.awbNumber,
+          requestDto.partnerCode as string
+        );
+      }
+
+      this.logger.log(
+        `✅ Push order to HubOps V2 completed successfully for ${requestDto.order.awbNumber}`
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error(`🚨 PUSH ORDER TO HUBOPS V2 ERROR CAUGHT: ${error.message}`);
+      this.logger.error(`Error type: ${error.constructor.name}`);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
+
+      await this.discordAlertService.sendPushOrderErrorAlert(
+        error,
+        "PushOrderToHubOpsV2",
+        requestDto.order.awbNumber,
+        requestDto.partnerCode as string
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Update order in HubOps system - Accepts the new standardized format
    * @param requestDto Request data containing order details for update
    * @returns Response from HubOps API

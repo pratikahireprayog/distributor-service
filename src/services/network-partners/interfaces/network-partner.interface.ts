@@ -137,6 +137,15 @@ export interface INetworkPartner {
   ): Promise<R>;
 
   /**
+   * Push order to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
+  /**
    * Update order in HubOps system
    * @param data Order data for HubOps update
    * @returns Response from HubOps API

@@ -107,10 +107,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Set the partner code from the request data
    
 
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       const body = this.buildCancelTrackingBody(data);
 
@@ -218,6 +217,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Include request body in success response
       if (response.data) {
         response.data = {
+          version:"v2 new activity",
           originalResponse: response.data,
           requestUrl: url,
           requestBody: body,
@@ -372,10 +372,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_URL
+      }
 
       this.logger.log(`Sending order to tracking API: ${endpoint.url}`);
 
@@ -404,10 +403,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       this.logger.log(
         `Sending manifest order to tracking API: ${endpoint.url}`
@@ -500,10 +498,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
-      );
+      const endpoint = {
+        url:process.env.PRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
 
@@ -567,10 +564,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS
-      );
+      const endpoint = {
+        url:process.env.DRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to DRS API: ${endpoint.url}`);
 
@@ -678,10 +674,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        PARTNER_CODE_ENUM.SMILE,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
-      );
+      const endpoint = {
+        url:process.env.HUB_OPS_PUSH_DATA
+      }
 
       this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
 
@@ -1202,6 +1197,62 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     
 
     return 0;
+  }
+
+  /**
+   * Push order to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode} (V2)`
+    );
+
+    try {
+      const endpoint = {
+        url: process.env.HUB_OPS_PUSH_DATA
+      }
+
+      this.logger.log(`Sending order to HubOps API V2: ${endpoint.url}`);
+
+      const body = this.buildHubOpsPayload(
+        data.order as BaseOrderReqDto,
+        data.partnerCode
+      );
+      this.logger.log("HubOps V2 payload body sent to API", body);
+
+      const response = await this.makeApiCall(endpoint.url, body, "HubOps V2");
+
+      // TODO: PATCHWORK FIX - Remove this and properly handle HubOps API errors
+      // Currently returning success even for API failures to prevent workflow interruption
+      // Original error handling should be restored once HubOps API issues are resolved
+
+      // Check if the API response indicates failure
+      const originalResponse = response.data?.originalResponse;
+      if (originalResponse && originalResponse.statusCode !== 200) {
+        // Log the error but don't throw - temporary patchwork solution
+        this.logger.error(
+          `HubOps V2 API returned error but continuing as success (PATCHWORK): ${JSON.stringify(originalResponse)}`
+        );
+
+        // Return success response with the original error data intact
+        return this.createSuccessResponse<R>(
+          response.data, // Keep original response structure with error details
+          "Order processed for HubOps V2 (with API errors - patchwork fix)"
+        );
+      }
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully pushed to HubOps V2"
+      );
+    } catch (error) {
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
+    }
   }
 
   /**
