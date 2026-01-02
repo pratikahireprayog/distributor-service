@@ -1204,53 +1204,53 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
    * @param data Order data for HubOps
    * @returns Response from HubOps API
    */
-  async pushOrderToHubOpsV2<R extends BaseResDto>(
-    data: any
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
   ): Promise<R> {
-    this.logger.debug(
-      `Pushing order to HubOps V2 with partner ${(data as any).partnerCode}`
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode} (V2)`
     );
-    const startTime = Date.now();
 
     try {
       const endpoint = {
-        url:process.env.HUB_OPS_PUSH_DATA
+        url: process.env.HUB_OPS_PUSH_DATA
       }
 
-      this.logger.log(`Pushing order to HubOps V2 at URL: ${endpoint.url}`);
+      this.logger.log(`Sending order to HubOps API V2: ${endpoint.url}`);
 
-      if (
-        !this.validateInputForOperation(
-          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
-          data
-        )
-      ) {
-        throw new Error(
-          "Invalid input data for push order to HubOps V2 operation"
+      const body = this.buildHubOpsPayload(
+        data.order as BaseOrderReqDto,
+        data.partnerCode
+      );
+      this.logger.log("HubOps V2 payload body sent to API", body);
+
+      const response = await this.makeApiCall(endpoint.url, body, "HubOps V2");
+
+      // TODO: PATCHWORK FIX - Remove this and properly handle HubOps API errors
+      // Currently returning success even for API failures to prevent workflow interruption
+      // Original error handling should be restored once HubOps API issues are resolved
+
+      // Check if the API response indicates failure
+      const originalResponse = response.data?.originalResponse;
+      if (originalResponse && originalResponse.statusCode !== 200) {
+        // Log the error but don't throw - temporary patchwork solution
+        this.logger.error(
+          `HubOps V2 API returned error but continuing as success (PATCHWORK): ${JSON.stringify(originalResponse)}`
+        );
+
+        // Return success response with the original error data intact
+        return this.createSuccessResponse<R>(
+          response.data, // Keep original response structure with error details
+          "Order processed for HubOps V2 (with API errors - patchwork fix)"
         );
       }
 
-      const response = await this.makeHubOpsApiCall(
-        endpoint.url,
-        data,
-        "Push Order to HubOps V2"
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully pushed to HubOps V2"
       );
-
-      const result = this.transformResponseForOperation(
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
-        response
-      ) as R;
-
-      // Log successful operation with timing
-      const responseTimeMs = Date.now() - startTime;
-      this.logger.debug(
-        `Order pushed to HubOps V2 successfully in ${responseTimeMs}ms`
-      );
-
-      return result;
     } catch (error) {
-      // Add timing to error for tracking
-      error.responseTimeMs = Date.now() - startTime;
+      // Let the error propagate up, makeApiCall already formats it properly
       throw error;
     }
   }

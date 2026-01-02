@@ -918,8 +918,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
    * @param data Order data for HubOps
    * @returns Response from HubOps API
    */
-  async pushOrderToHubOpsV2<R extends BaseResDto>(
-    data: any
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
   ): Promise<R> {
     this.logger.debug(
       `Pushing order to HubOps V2 with partner ${this.partnerCode}`

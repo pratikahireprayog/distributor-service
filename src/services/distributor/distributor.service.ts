@@ -880,11 +880,8 @@ export class DistributorService {
   async pushOrderToHubOpsV2<R extends BaseResDto>(
     requestDto: StandardRequestDto
   ): Promise<R> {
-    // Get the order to process
-    const orderToProcess = requestDto.order;
-
     this.logger.log(
-      `Pushing order to HubOps V2 for ${orderToProcess.awbNumber || "unknown"}`
+      `Pushing order to HubOps V2 for ${requestDto.order.awbNumber || "unknown"}`
     );
 
     try {
@@ -892,7 +889,7 @@ export class DistributorService {
         requestDto.partnerCode || PARTNER_CODE_ENUM.DEFAULT
       );
 
-      const result = await partnerActivity.pushOrderToHubOpsV2<R>(
+      const result: R = await partnerActivity.pushOrderToHubOpsV2<StandardRequestDto, R>(
         requestDto
       );
 
@@ -916,14 +913,15 @@ export class DistributorService {
         await this.discordAlertService.sendPushOrderErrorAlert(
           errorForAlert,
           "PushOrderToHubOpsV2",
-          orderToProcess.awbNumber,
+          requestDto.order.awbNumber,
           requestDto.partnerCode as string
         );
       }
 
       this.logger.log(
-        `✅ Push order to HubOps V2 completed successfully for ${orderToProcess.awbNumber}`
+        `✅ Push order to HubOps V2 completed successfully for ${requestDto.order.awbNumber}`
       );
+
       return result;
     } catch (error) {
       this.logger.error(`🚨 PUSH ORDER TO HUBOPS V2 ERROR CAUGHT: ${error.message}`);
@@ -933,7 +931,7 @@ export class DistributorService {
       await this.discordAlertService.sendPushOrderErrorAlert(
         error,
         "PushOrderToHubOpsV2",
-        orderToProcess.awbNumber,
+        requestDto.order.awbNumber,
         requestDto.partnerCode as string
       );
       throw error;

@@ -141,8 +141,8 @@ export interface INetworkPartner {
    * @param data Order data for HubOps
    * @returns Response from HubOps API
    */
-  pushOrderToHubOpsV2<R extends BaseResDto>(
-    data: any
+  pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
   ): Promise<R>;
 
   /**

@@ -7,6 +7,7 @@ import { BaseOrderResDto, BaseResDto, ManifestReqDto } from 'src/common/dtos/bas
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2 } from 'src/common/dtos/base2.dto';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
+import { StandardRequestDto } from 'src/services/distributor/distributor.service';
 import { XpressbeesB2bAuthService } from './xpressbees_b2b-auth.service';
 import {
   XpressbeesB2bCreateOrderRequestDto,
@@ -690,7 +691,7 @@ export class XpressbeesB2bService implements INetworkPartner {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2B');
   }
 
-  async pushOrderToHubOpsV2<T, R>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
 
   async updateOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2B');
