@@ -53,6 +53,7 @@ export enum PARTNER_CODE_ENUM {
   NAQEL = "NAQEL",
   EKART = "pratik",
   MOVER = "mover",
+  GATI = "udayabhanu_mishra",
 }
 
 export enum ENDPOINT_ID_ENUM {

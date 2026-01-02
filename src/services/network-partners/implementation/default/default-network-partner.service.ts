@@ -107,10 +107,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Set the partner code from the request data
    
 
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       const body = this.buildCancelTrackingBody(data);
 
@@ -218,6 +217,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Include request body in success response
       if (response.data) {
         response.data = {
+          version:"v2 new activity",
           originalResponse: response.data,
           requestUrl: url,
           requestBody: body,
@@ -372,10 +372,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_URL
+      }
 
       this.logger.log(`Sending order to tracking API: ${endpoint.url}`);
 
@@ -404,10 +403,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       this.logger.log(
         `Sending manifest order to tracking API: ${endpoint.url}`
@@ -500,10 +498,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
-      );
+      const endpoint = {
+        url:process.env.PRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
 
@@ -567,10 +564,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS
-      );
+      const endpoint = {
+        url:process.env.DRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to DRS API: ${endpoint.url}`);
 
@@ -678,10 +674,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        PARTNER_CODE_ENUM.SMILE,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
-      );
+      const endpoint = {
+        url:process.env.HUB_OPS_PUSH_DATA
+      }
 
       this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
 
