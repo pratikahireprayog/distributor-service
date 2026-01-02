@@ -601,6 +601,8 @@ export class XpressbeesB2cService implements INetworkPartner {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2C');
   }
 
+  async pushOrderToHubOpsV2<T, R>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
+
   async updateOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2C');
   }

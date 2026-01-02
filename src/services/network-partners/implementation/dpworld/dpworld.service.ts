@@ -371,6 +371,8 @@ export class DpworldService implements INetworkPartner {
     throw new Error('Method not implemented for DPWORLD');
   }
 
+  async pushOrderToHubOpsV2<T extends any, R extends BaseResDto>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
+
   async updateOrderToHubOps<T extends any, R extends BaseResDto>(
     data: T
   ): Promise<R> {

@@ -1200,6 +1200,62 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
   }
 
   /**
+   * Push order to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOpsV2<R extends BaseResDto>(
+    data: any
+  ): Promise<R> {
+    this.logger.debug(
+      `Pushing order to HubOps V2 with partner ${(data as any).partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = {
+        url:process.env.HUB_OPS_PUSH_DATA
+      }
+
+      this.logger.log(`Pushing order to HubOps V2 at URL: ${endpoint.url}`);
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for push order to HubOps V2 operation"
+        );
+      }
+
+      const response = await this.makeHubOpsApiCall(
+        endpoint.url,
+        data,
+        "Push Order to HubOps V2"
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order pushed to HubOps V2 successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  /**
    * Update partner information to HubOps for multiple shipments
    * Makes PUT requests for each shipment in the shipmentDetails array
    */

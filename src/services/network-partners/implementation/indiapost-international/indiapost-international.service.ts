@@ -1142,6 +1142,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for IndiaPost International');
   }
 
+  async pushOrderToHubOpsV2<T, R>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
+
   async updateOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for IndiaPost International');
   }
