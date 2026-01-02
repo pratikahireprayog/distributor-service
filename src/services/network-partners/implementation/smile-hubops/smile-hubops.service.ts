@@ -64,10 +64,9 @@ export class SmileHubopsService extends BaseNetworkPartner {
     try {
       // Get endpoint configuration for HubOps
       // TODO: Update the partner code to the latest one when endpoint configs are updated
-      const endpoint = await this.getEndpoint(
-        PARTNER_CODE_ENUM.SMILE,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
-      );
+      const endpoint = {
+        url:process.env.HUB_OPS_PUSH_DATA
+      }
 
       this.logger.log(`Sending V2 order to HubOps API: ${endpoint.url}`);
 

@@ -25,6 +25,7 @@ import { NAQELService } from "./implementation/naqel/naqel.service";
 import { EkartService } from "./implementation/ekart/ekart.service";
 import { DelhiveryService } from "./implementation/delhivery/delhivery.service";
 import { MoverService } from "./implementation/mover/mover.service";
+import { GatiService } from "./implementation/gati/gati.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -124,6 +125,10 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.MOVER,
     useClass: MoverService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.GATI,
+    useClass: GatiService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -152,6 +157,7 @@ export const networkPartnersProviders: Provider[] = [
       ekartService: EkartService,
       delhiveryService: DelhiveryService,
       moverService: MoverService,
+      gatiService: GatiService,
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -191,6 +197,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.EKART, ekartService);
       factory.registerPartner(PARTNER_CODE_ENUM.DELHIVERY, delhiveryService);
       factory.registerPartner(PARTNER_CODE_ENUM.MOVER, moverService);
+      factory.registerPartner(PARTNER_CODE_ENUM.GATI, gatiService);
 
       return factory;
     },
@@ -219,6 +226,7 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.EKART,
       NETWORK_PARTNER_PROVIDER_CONST.DELHIVERY,
       NETWORK_PARTNER_PROVIDER_CONST.MOVER,
+      NETWORK_PARTNER_PROVIDER_CONST.GATI,
     ],
   },
 ];
