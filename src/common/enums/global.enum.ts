@@ -14,11 +14,6 @@ export enum SHIPPING_TYPE_ENUM {
   EXPRESS = "EXPRESS",
 }
 
-// export enum DELIVERY_MODE_ENUM {
-//   DOOR_TO_DOOR = "DOOR_TO_DOOR",
-//   DOOR_TO_VENDOR = "DOOR_TO_VENDOR"
-// }
-
 export enum SERVICE_TYPE_ENUM {
   STANDARD = "STANDARD",
 }
@@ -41,6 +36,7 @@ export enum PARTNER_CODE_ENUM {
   UNIUNI = "UNIUNI",
   PORTER = "porter_2w",
   DELHIVERY = "tarun_gupta",
+  DELHIVERY_GENERIC = "delhivery",
   SMILE_HUBOPS = "smile_hubops",
   ARAMEX = "ARAMEX",
   FEDEX = "FEDEX",
@@ -49,6 +45,7 @@ export enum PARTNER_CODE_ENUM {
   SHIPCUBE = "SHIPCUBE",
   XPRESSBEES_B2C = "ebb2c",
   XPRESSBEES_B2B = "dharmendra",
+  XPRESSBEES = "xpressbees",
   DPWORLD = "DPWORLD",
   NAQEL = "NAQEL",
   EKART = "pratik",

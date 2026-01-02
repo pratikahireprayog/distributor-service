@@ -17,7 +17,7 @@ export const INDIAPOST_INTERNATIONAL_DEFAULTS = {
   BOOKING_REFERENCE_PATH: '/beextcustomer/v1/crm/booking-reference',
   USERNAME: '9999999999',
   PASSWORD: 'Dop@1234',
-  OFFICE_ID: '90000001', // Updated to correct office ID
+  OFFICE_ID: '28350001', // Updated to match working payload
 };
 
 

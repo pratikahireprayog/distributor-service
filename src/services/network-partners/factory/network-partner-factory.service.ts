@@ -49,14 +49,26 @@ export class NetworkPartnerFactoryService {
      * @returns The partner activity implementation
      */
     getPartner(type: string, payload?: any): INetworkPartner {
+        // Normalize generic names for case-insensitive lookup
+        const lowerType = type?.toLowerCase();
+        let lookupType = type;
+
+        if (lowerType === 'xpressbees') {
+            lookupType = 'xpressbees';
+        } else if (lowerType === 'delhivery') {
+            lookupType = 'delhivery';
+        } else if (lowerType === 'smile') {
+            lookupType = 'smile';
+        }
+
         // Special handling for UniUni with country-based routing
-        if (type === 'UNIUNI' && this.uniuniFactory && this.uniuniFactory.isConfigured()) {
+        if (lookupType === 'UNIUNI' && this.uniuniFactory && this.uniuniFactory.isConfigured()) {
             this.logger.debug('Using UniUni factory for country-based routing');
             return this.uniuniFactory.getUniuniService(payload);
         }
 
         // Standard partner lookup
-        const partner = this.partnersMap.get(type);
+        const partner = this.partnersMap.get(lookupType);
         if (!partner) {
             if (this.defaultPartner) {
                 this.logger.warn(`Using default partner for type: ${type}`);

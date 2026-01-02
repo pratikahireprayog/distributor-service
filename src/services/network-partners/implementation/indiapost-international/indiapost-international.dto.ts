@@ -136,6 +136,8 @@ export class IndiaPostInternationalCreateOrderRequestDto {
   iec_code: string;
   bkg_office_gst_no: string;
   pod_ack_charge?: number;
+  origin?: string;
+  pbe_bank_ref?: string;
   sub_pieces: IndiaPostInternationalSubPieceDto[];
 }
 
