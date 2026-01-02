@@ -1259,8 +1259,20 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     endpointId: string,
     partnerCode: string
   ): Promise<EndpointConfigModel> {
+    // Normalize generic names to canonical codes as they share the same configuration
+    let effectivePartnerCode = partnerCode;
+    const lowerPartnerCode = partnerCode?.toLowerCase();
+
+    if (lowerPartnerCode === "xpressbees") {
+      effectivePartnerCode = PARTNER_CODE_ENUM.XPRESSBEES_B2B;
+    } else if (lowerPartnerCode === "delhivery") {
+      effectivePartnerCode = PARTNER_CODE_ENUM.DELHIVERY;
+    } else if (lowerPartnerCode === "smile") {
+      effectivePartnerCode = PARTNER_CODE_ENUM.SMILE_HUBOPS;
+    }
+
     const endpoint = await this.endpointConfigRepository.getOne({
-      partnerCode: partnerCode,
+      partnerCode: effectivePartnerCode,
       endpointId: endpointId,
     });
     if (!endpoint) {

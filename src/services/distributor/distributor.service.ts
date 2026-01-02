@@ -188,17 +188,17 @@ export class DistributorService {
       this.logger.debug(`Creating order V2 with tenant context: tenantId=${tenantId}, userId=${userId}`);
       
       // Fetch tenant-specific partner credentials if tenant ID is provided
-      const partnerCode = requestDto.partnerCode as string;
-      if (partnerCode && this.partnerServiceClient) {
+      // Extract partnerId from order data (partner.id)
+      const partnerId = orderToProcess?.partner?.id;
+      if (partnerId && this.partnerServiceClient) {
         try {
           const credentials = await this.partnerServiceClient.getTenantPartnerCredentials(
             tenantId,
-            partnerCode
+            partnerId
           );
-          
           if (credentials.length > 0) {
             this.logger.log(
-              `Using tenant-specific credentials for tenant: ${tenantId}, partner: ${partnerCode}`
+              `Using tenant-specific credentials for tenant: ${tenantId}, partnerId: ${partnerId}`
             );
             tenantContext = {
               tenantId,
@@ -207,7 +207,7 @@ export class DistributorService {
             };
           } else {
             this.logger.debug(
-              `No tenant-specific credentials found for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials.`
+              `No tenant-specific credentials found for tenant: ${tenantId}, partnerId: ${partnerId}. Will use default credentials.`
             );
             tenantContext = {
               tenantId,
@@ -216,7 +216,7 @@ export class DistributorService {
           }
         } catch (error) {
           this.logger.debug(
-            `Failed to fetch tenant credentials for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials. Error: ${error.message}`
+            `Failed to fetch tenant credentials for tenant: ${tenantId}, partnerId: ${partnerId}. Will use default credentials. Error: ${error.message}`
           );
           tenantContext = {
             tenantId,
@@ -331,17 +331,18 @@ export class DistributorService {
       this.logger.debug(`Creating order V3 with tenant context: tenantId=${tenantId}, userId=${userId}`);
       
       // Fetch tenant-specific partner credentials if tenant ID is provided
-      const partnerCode = requestDto.partnerCode as string;
-      if (partnerCode && this.partnerServiceClient) {
+      // Extract partnerId from order data (partner.id)
+      const partnerId = orderToProcess?.partner?.id;
+      if (partnerId && this.partnerServiceClient) {
         try {
           const credentials = await this.partnerServiceClient.getTenantPartnerCredentials(
             tenantId,
-            partnerCode
+            partnerId
           );
           
           if (credentials.length > 0) {
             this.logger.log(
-              `Using tenant-specific credentials for tenant: ${tenantId}, partner: ${partnerCode}`
+              `Using tenant-specific credentials for tenant: ${tenantId}, partnerId: ${partnerId}`
             );
             tenantContext = {
               tenantId,
@@ -350,7 +351,7 @@ export class DistributorService {
             };
           } else {
             this.logger.debug(
-              `No tenant-specific credentials found for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials.`
+              `No tenant-specific credentials found for tenant: ${tenantId}, partnerId: ${partnerId}. Will use default credentials.`
             );
             tenantContext = {
               tenantId,
@@ -359,7 +360,7 @@ export class DistributorService {
           }
         } catch (error) {
           this.logger.debug(
-            `Failed to fetch tenant credentials for tenant: ${tenantId}, partner: ${partnerCode}. Will use default credentials. Error: ${error.message}`
+            `Failed to fetch tenant credentials for tenant: ${tenantId}, partnerId: ${partnerId}. Will use default credentials. Error: ${error.message}`
           );
           tenantContext = {
             tenantId,

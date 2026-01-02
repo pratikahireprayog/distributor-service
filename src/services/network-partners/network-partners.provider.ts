@@ -163,15 +163,14 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.URBANBOLT, urbanBoltService);
       factory.registerPartner(PARTNER_CODE_ENUM.FEDEX, fedexService);
 
-      factory.registerPartner(
-        PARTNER_CODE_ENUM.SMILE_HUBOPS,
-        smileHubopsService
-      );
+      factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HUBOPS, smileHubopsService);
+      factory.registerPartner(PARTNER_CODE_ENUM.SMILE, smileHubopsService);
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
       factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPCUBE, shipcubeService);
       factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES_B2C, xpressbeesB2cService);
       factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES_B2B, xpressbeesB2bService);
+      factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES, xpressbeesB2bService);
       factory.registerPartner(
         PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         indiaPostDomesticService
@@ -186,6 +185,7 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.NAQEL, naqelService);
       factory.registerPartner(PARTNER_CODE_ENUM.EKART, ekartService);
       factory.registerPartner(PARTNER_CODE_ENUM.DELHIVERY, delhiveryService);
+      factory.registerPartner(PARTNER_CODE_ENUM.DELHIVERY_GENERIC, delhiveryService);
       factory.registerPartner(PARTNER_CODE_ENUM.MOVER, moverService);
 
       return factory;

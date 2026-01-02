@@ -74,65 +74,40 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
       // Transform payload first to get mail type
       this.logger.log(`[IndiaPost International] Transforming order payload for OrderId: ${orderId}`);
-      const mailTypeCd = this.getMailTypeCd(orderDetails, delivery.countryCode);
-      
-      this.logger.log(`[IndiaPost International] Using mail type: ${mailTypeCd} for destination: ${delivery.countryCode}`);
-      
-      // Get booking reference ID first (required by API)
-      this.logger.log(`[IndiaPost International] Fetching booking reference for destination: ${delivery.countryCode}, mailType: ${mailTypeCd}`);
-      const bookingRefResult = await this.getBookingReferenceId(mailTypeCd, delivery.countryCode, baseUrl);
-      const bookingRefId = bookingRefResult.bookingRefId;
-      const productCodeUsed = bookingRefResult.productCode;
-      this.logger.log(`[IndiaPost International] Booking reference ID obtained: ${bookingRefId}, Product Code: ${productCodeUsed}`);
+      let primaryMailType = this.getMailTypeCd(orderDetails, delivery.countryCode);
+      const alternativeMailTypes = this.getAlternativeMailTypes(primaryMailType, delivery.countryCode);
+      const mailTypesToTry = [primaryMailType, ...alternativeMailTypes];
 
-      // Transform payload with booking reference ID and mail type
-      const payload = this.transformToIndiaPostInternationalPayload(orderDetails, bookingRefId, mailTypeCd);
-      const payloadJson = JSON.stringify(payload);
-      this.logger.log(`[IndiaPost International] Payload transformed : ${payloadJson}`);
-      this.logger.log(`[IndiaPost International] Payload summary - BookingType: ${payload.booking_type_cd}, Weight: ${payload.physical_weight}g, DeclaredValue: ${payload.declared_value}`);
+      let lastError: any = null;
 
-      // Get authentication headers
-      this.logger.log(`[IndiaPost International] Retrieving authentication headers for OrderId: ${orderId}`);
-      let authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
-      const hasAuth = !!authHeaders.Authorization;
-      const authTokenPreview = hasAuth ? `${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING';
-      this.logger.log(`[IndiaPost International] Auth headers retrieved - HasToken: ${hasAuth}, Preview: ${authTokenPreview}`);
-
-      this.logger.log(`[IndiaPost International] Making API request - OrderId: ${orderId}, URL: ${url}`);
-      this.logger.log(`[IndiaPost International] Request payload (full): ${JSON.stringify(payload, null, 2)}`);
-
-      let response = await firstValueFrom(
-        this.httpService.post<IndiaPostInternationalCreateOrderResponseDto>(url, payload, {
-          headers: authHeaders,
-          timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
-          validateStatus: () => true,
-          maxContentLength: Infinity as unknown as number,
-          maxBodyLength: Infinity as unknown as number,
-        })
-      );
-
-      const requestDuration = Date.now() - startTime;
-      this.logger.log(`[IndiaPost International] API response received - OrderId: ${orderId}, Status: ${response.status}, Duration: ${requestDuration}ms`);
-
-      // Handle 403 Forbidden - might be expired token, try refreshing once
-      if (response.status === 403) {
-        this.logger.warn(`[IndiaPost International] Received 403 Forbidden for OrderId: ${orderId} - Attempting token refresh`);
-        this.logger.warn(`[IndiaPost International] Response data: ${JSON.stringify(response.data, null, 2)}`);
-        
+      for (const mailTypeCd of mailTypesToTry) {
         try {
-          // Force token refresh
-          this.logger.log(`[IndiaPost International] Forcing token refresh for OrderId: ${orderId}`);
-          await this.indiaPostInternationalAuthService.refreshToken();
+          this.logger.log(`[IndiaPost International] Attempting with mail type: ${mailTypeCd} for destination: ${delivery.countryCode}`);
           
-          // Get fresh auth headers
-          authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
-          const newAuthTokenPreview = authHeaders.Authorization ? `${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING';
-          this.logger.log(`[IndiaPost International] New token obtained - Preview: ${newAuthTokenPreview}`);
-          
-          // Retry the request
-          const retryStartTime = Date.now();
-          this.logger.log(`[IndiaPost International] Retrying API request - OrderId: ${orderId}, URL: ${url}`);
-          response = await firstValueFrom(
+          // Get booking reference ID first (required by API)
+          this.logger.log(`[IndiaPost International] Fetching booking reference for destination: ${delivery.countryCode}, mailType: ${mailTypeCd}`);
+          const bookingRefResult = await this.getBookingReferenceId(mailTypeCd, delivery.countryCode, baseUrl);
+          const bookingRefId = bookingRefResult.bookingRefId;
+          const productCodeUsed = bookingRefResult.productCode;
+          this.logger.log(`[IndiaPost International] Booking reference ID obtained: ${bookingRefId}, Product Code: ${productCodeUsed}`);
+
+          // Transform payload with booking reference ID and mail type
+          const payload = this.transformToIndiaPostInternationalPayload(orderDetails, bookingRefId, mailTypeCd);
+          const payloadJson = JSON.stringify(payload);
+          this.logger.log(`[IndiaPost International] Payload transformed : ${payloadJson}`);
+          this.logger.log(`[IndiaPost International] Payload summary - BookingType: ${payload.booking_type_cd}, Weight: ${payload.physical_weight}g, DeclaredValue: ${payload.declared_value}`);
+
+          // Get authentication headers
+          this.logger.log(`[IndiaPost International] Retrieving authentication headers for OrderId: ${orderId}`);
+          let authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+          const hasAuth = !!authHeaders.Authorization;
+          const authTokenPreview = hasAuth ? `${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING';
+          this.logger.log(`[IndiaPost International] Auth headers retrieved - HasToken: ${hasAuth}, Preview: ${authTokenPreview}`);
+
+          this.logger.log(`[IndiaPost International] Making API request - OrderId: ${orderId}, URL: ${url}`);
+          this.logger.log(`[IndiaPost International] Request payload (full): ${JSON.stringify(payload, null, 2)}`);
+
+          let response = await firstValueFrom(
             this.httpService.post<IndiaPostInternationalCreateOrderResponseDto>(url, payload, {
               headers: authHeaders,
               timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
@@ -141,28 +116,67 @@ export class IndiaPostInternationalService implements INetworkPartner {
               maxBodyLength: Infinity as unknown as number,
             })
           );
-          const retryDuration = Date.now() - retryStartTime;
-          this.logger.log(`[IndiaPost International] Retry response - OrderId: ${orderId}, Status: ${response.status}, Duration: ${retryDuration}ms`);
-        } catch (refreshError) {
-          this.logger.error(`[IndiaPost International] Token refresh failed for OrderId: ${orderId} - Error: ${refreshError.message}`);
-          this.logger.error(`[IndiaPost International] Token refresh error stack: ${refreshError.stack}`);
-          // Continue to return the original 403 error
-        }
-      }
+
+          const requestDuration = Date.now() - startTime;
+          this.logger.log(`[IndiaPost International] API response received - OrderId: ${orderId}, Status: ${response.status}, Duration: ${requestDuration}ms`);
+
+          // Handle 403 Forbidden - might be expired token, try refreshing once
+          if (response.status === 403) {
+            this.logger.warn(`[IndiaPost International] Received 403 Forbidden for OrderId: ${orderId} - Attempting token refresh`);
+            this.logger.warn(`[IndiaPost International] Response data: ${JSON.stringify(response.data, null, 2)}`);
+            
+            try {
+              // Force token refresh
+              this.logger.log(`[IndiaPost International] Forcing token refresh for OrderId: ${orderId}`);
+              await this.indiaPostInternationalAuthService.refreshToken();
+              
+              // Get fresh auth headers
+              authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+              const newAuthTokenPreview = authHeaders.Authorization ? `${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING';
+              this.logger.log(`[IndiaPost International] New token obtained - Preview: ${newAuthTokenPreview}`);
+              
+              // Retry the request
+              const retryStartTime = Date.now();
+              this.logger.log(`[IndiaPost International] Retrying API request - OrderId: ${orderId}, URL: ${url}`);
+              response = await firstValueFrom(
+                this.httpService.post<IndiaPostInternationalCreateOrderResponseDto>(url, payload, {
+                  headers: authHeaders,
+                  timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
+                  validateStatus: () => true,
+                  maxContentLength: Infinity as unknown as number,
+                  maxBodyLength: Infinity as unknown as number,
+                })
+              );
+              const retryDuration = Date.now() - retryStartTime;
+              this.logger.log(`[IndiaPost International] Retry response - OrderId: ${orderId}, Status: ${response.status}, Duration: ${retryDuration}ms`);
+            } catch (refreshError) {
+              this.logger.error(`[IndiaPost International] Token refresh failed for OrderId: ${orderId} - Error: ${refreshError.message}`);
+              this.logger.error(`[IndiaPost International] Token refresh error stack: ${refreshError.stack}`);
+              // Continue to check the response (which is still 403)
+            }
+          }
 
           // Check response status
           if (response.status !== 200 && response.status !== 201) {
             const errorResponse = response.data as any;
-            // Extract error message from various possible structures
             const errorMessage = errorResponse?.error?.message 
               || errorResponse?.message 
               || errorResponse?.error 
               || (typeof errorResponse === 'string' ? errorResponse : JSON.stringify(errorResponse));
             
-            // Log full error response for debugging
             this.logger.debug(`[IndiaPost International] Error response structure: ${JSON.stringify(errorResponse, null, 2)}`);
             
-            // Log and throw error
+            // Check if it's the specific "unavailable for country" error
+            const isUnavailable = errorMessage?.toLowerCase().includes('unavailable for the country') || 
+                                 JSON.stringify(errorResponse)?.toLowerCase().includes('unavailable for the country');
+            
+            if (isUnavailable && mailTypeCd !== mailTypesToTry[mailTypesToTry.length - 1]) {
+              this.logger.warn(`[IndiaPost International] Mail type ${mailTypeCd} is unavailable for this country. Trying alternative...`);
+              lastError = { status: response.status, data: response.data, message: errorMessage };
+              continue; // Try next mail type
+            }
+
+            // If not unavailable or last attempt, fail
             this.logger.error(`[IndiaPost International] API error response - OrderId: ${orderId}, Status: ${response.status}, MailType: ${mailTypeCd}`);
             this.logger.error(`[IndiaPost International] Error response data: ${JSON.stringify(response.data, null, 2)}`);
             
@@ -266,6 +280,28 @@ export class IndiaPostInternationalService implements INetworkPartner {
               },
             },
           } as unknown as R;
+        } catch (innerError) {
+          this.logger.error(`[IndiaPost International] Attempt with mail type ${mailTypeCd} failed: ${innerError.message}`);
+          lastError = innerError;
+          // Continue to next mail type
+        }
+      }
+
+      // If we're here, all mail types failed
+      this.logger.error(`[IndiaPost International] All mail type attempts failed for OrderId: ${orderId}`);
+      if (lastError && lastError.status) {
+        return {
+          statusCode: lastError.status,
+          message: `IndiaPost International API returned error: ${lastError.message}`,
+          partnerCode: PARTNER_CODE_ENUM.INDIA_POST_INTERNATIONAL,
+          data: {
+            originalResponse: lastError.data,
+            shipmentDetails: { trackingDetails: [], documents: [] },
+            error: true,
+          }
+        } as unknown as R;
+      }
+      throw lastError || new Error('Order creation failed with all available mail types');
     } catch (error) {
       const totalDuration = Date.now() - startTime;
       this.logger.error(`[IndiaPost International] createOrderV2 failed - OrderId: ${orderId}, Duration: ${totalDuration}ms`);
@@ -866,7 +902,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
       order.parcelCategory?.toUpperCase() === 'COMMERCIAL' ||
       order.orderType?.toUpperCase() === 'COMMERCIAL';
 
-    return isCommercial ? 'RCB' : 'NRCB';
+    return isCommercial ? 'RBC' : 'NRCB';
   }
 
   private transformToIndiaPostInternationalPayload(
@@ -892,16 +928,14 @@ export class IndiaPostInternationalService implements INetworkPartner {
     };
 
     // Get weights - weights are received in grams
-    // According to API documentation: "The unit of weight is GRAMS and it should be used without decimals"
+    // According to working payload, both physical_weight and charged_weight are in GRAMS as integers
     const physicalWeightRaw = getEffectiveWeight(order.parentShipment || order.childShipments?.[0]);
-    const volumetricWeightRaw = parseFloat(String(order.parentShipment?.volumetricWeight || order.childShipments?.[0]?.volumetricWeight || 600));
+    const volumetricWeightRaw = parseFloat(String(order.parentShipment?.volumetricWeight || order.childShipments?.[0]?.volumetricWeight || 0));
     
-    // physical_weight: Numeric(10,3) - in kg with 3 decimal places (convert from grams to kg)
-    // Note: API docs say grams without decimals, but physical_weight field accepts kg with decimals
-    const physicalWeight = Math.round(physicalWeightRaw * 1000) / 1000; // Convert to kg and round to 3 decimals
-    // volumetric_weight and charged_weight: Integer - in grams (must be integers, no decimals)
-    const volumetricWeight = Math.round(volumetricWeightRaw); // Ensure integer (no decimals)
-    const chargedWeight = Math.round(Math.max(physicalWeightRaw, volumetricWeight)); // Ensure integer (no decimals)
+    // physical_weight, volumetric_weight and charged_weight: Integer - in grams
+    const physicalWeight = Math.round(physicalWeightRaw);
+    const volumetricWeight = Math.round(volumetricWeightRaw);
+    const chargedWeight = Math.round(Math.max(physicalWeightRaw, volumetricWeight));
 
     const dimensions = order.parentShipment?.dimensions || order.childShipments?.[0]?.dimensions || { length: 20, width: 30, height: 10 };
     const length = parseFloat(String((dimensions as any).length || 20));
@@ -909,7 +943,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
     const height = parseFloat(String((dimensions as any).height || 10));
 
     const items = order.parentShipment?.items || order.childShipments?.[0]?.items || [];
-    const articleNumber = String(order.parentShipment?.awbNumber || order.awbNumber || order.orderId);
+    const articleNumber = String(order.orderId ||order.parentShipment?.awbNumber || order.awbNumber);
     const bookingTypeCd = this.getBookingTypeCd(order);
     
     // Get office ID from config (should match the one used for booking reference)
@@ -928,58 +962,56 @@ export class IndiaPostInternationalService implements INetworkPartner {
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
       const invoiceDate = `${day}-${month}-${year}`;
-      const invoiceValueUSD = parseFloat(String(item.unitPrice));
-      const exchangeRate = 75; // Default exchange rate USD to INR
-      const invoiceValueINR = Math.round(invoiceValueUSD * exchangeRate);
-      const fobValueINR = invoiceValueINR; // FOB value in INR (same as invoice value)
-      const hsnCode = String(item.hsnCode);
       
-      // Ensure invoice value >= FOB value (API requirement)
-      // Invoice value should be in INR to match FOB value comparison
-      const finalInvoiceValue = Math.max(invoiceValueINR, fobValueINR);
+      const invoiceValueINR = parseFloat(String(item.unitPrice || 0));
+      const exchangeRate = 1; // Already in INR
+      const FOBExchangeRate = 62.25; // Matching example CAD -> INR
+      const fobValueCAD = Math.round((invoiceValueINR / FOBExchangeRate) * 100) / 100;
+      
+      const hsnCode = String(item.hsnCode || '34011190').replace(/\D/g, '');
       
       return {
         hs_cd: hsnCode,
         cth_cd: hsnCode,
-        hs_description: this.sanitizeAddressField(String(item.description || item.name)),
+        hs_description: this.sanitizeAddressField(String(item.description || item.name || 'Goods')),
         sp_unit_cd: 'PIECES',
         article_number: articleNumber,
         sp_origin_country_cd: 'IN',
-        sp_weight_total: itemWeight, // Integer in grams (no decimals)
-        sp_weight_nett: itemWeight, // Integer in grams (no decimals)
-        sp_invoice_lsn: 123,
-        sp_invoice_value: finalInvoiceValue, // Invoice value in INR to match FOB value
-        sp_asbl_fob_value: Math.round(invoiceValueUSD), // FOB value in USD
-        sp_asbl_currency_cd: 'US',
-        sp_asbl_currency_exchrate: exchangeRate,
-        sp_asbl_value_inr: fobValueINR, // FOB value in INR
+        sp_weight_total: itemWeight || physicalWeight, // Integer in grams
+        sp_weight_nett: itemWeight || (physicalWeight > 50 ? physicalWeight - 50 : physicalWeight), 
+        sp_invoice_lsn: index + 1,
+        sp_invoice_value: invoiceValueINR,
+        sp_asbl_fob_value: fobValueCAD, 
+        sp_asbl_currency_cd: 'CAD',
+        sp_asbl_currency_exchrate: FOBExchangeRate,
+        sp_asbl_value_inr: invoiceValueINR,
         sp_origin_currency_cd: 'INR',
-        sp_comm_invoice_no: String(index + 1),
-        sp_inv_currency_exchrate: exchangeRate,
-        sp_count: parseInt(String(item.quantity)),
+        sp_comm_invoice_no: order.referenceId || String(index + 1),
+        sp_inv_currency_exchrate: 1,
+        sp_count: parseInt(String(item.quantity || 1)),
         sp_comm_invoice_date: invoiceDate,
-        sp_tax_invoice_no: `INV-${index + 1}`,
+        sp_tax_invoice_no: order.referenceId || `INV-${index + 1}`,
         sp_tax_invoice_date: invoiceDate,
-        sp_inv_currency_cd: 'USD',
-        sp_invoice_value_total: finalInvoiceValue, // Total invoice value in INR
-        channel_type_cd: 'I',
+        sp_inv_currency_cd: 'CAD',
+        sp_invoice_value_total: invoiceValueINR,
+        channel_type_cd: 'K',
         tax_payment_channel_source: 'other',
-        tax_payment_mode_cd: 'TC',
+        tax_payment_mode_cd: 'oth-c',
         compensation_cess_rate: 0,
         compensation_cess_amount: 0,
-        ecommerce_url: 'https://ecommerce.example.com',
-        ecommerce_paytranid: 'PayTrans123',
-        ecommerce_sku: String(item.sku),
+        ecommerce_url: 'AMAZON.CA',
+        ecommerce_paytranid: order.orderId || 'PayTrans123',
+        ecommerce_sku: String(item.sku || 'SKU-001'),
         export_duty_rate: 0,
         export_duty_amount: 0,
         cess_rate: 0,
         cess_amount: 0,
         igst_rate: 0,
         igst_amount: 0,
-        created_by: '10256468',
-        office_id_bkg: officeIdBkg, // Use same office ID as booking reference
-        ip_address_bkg: '192.168.1.1',
-        usertype_cd: 'I',
+        created_by: '1352103376',
+        office_id_bkg: officeIdBkg,
+        ip_address_bkg: '157.245.96.66',
+        usertype_cd: 'R',
       };
     });
 
@@ -994,7 +1026,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
     const receiverZipcode = String(delivery.zip).replace(/\D/g, '');
 
     return {
-      iec_code: '23232',
+      origin: String(pickup.zip),
+      iec_code: (order as any).metadata?.iecCode || 'BQHPG9541C',
       sender_pincode: parseInt(pickup.zip),
       destination_ccode: String(delivery.countryCode),
       destination_cname: String(delivery.country),
@@ -1002,8 +1035,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
       mail_class_cd: this.getMailClassCd(mailTypeCd || this.getMailTypeCd(order)),
       mail_nature_type_cd: '11',
       booking_type_cd: bookingTypeCd,
-      bulk_customer_id: 1000000001,
-      child_customer_id: 1000000002,
+      bulk_customer_id: 1525065599,
+      child_customer_id: 1352103376,
       physical_weight: physicalWeight,
       mail_shape_cd: 'NROL',
       dimension_length: Math.round(length),
@@ -1011,58 +1044,59 @@ export class IndiaPostInternationalService implements INetworkPartner {
       dimension_height: Math.round(height),
       volumetric_weight: volumetricWeight,
       charged_weight: chargedWeight,
-      declared_value: Math.round(parseFloat(String(order.payment?.finalAmount))),
-      priority_flag: true,
-      non_dely_instns_cd: 'A',
-      upload_doc_inv_count: 0,
+      declared_value: parseFloat(String(order.payment?.finalAmount || 0)),
+      priority_flag: false,
+      non_dely_instns_cd: 'P',
+      pbe_bank_ref: '',
+      upload_doc_inv_count: subPieces.length,
       upload_doc_cert_count: 0,
       upload_doc_lic_count: 0,
       sender_name: this.sanitizeAddressField(String(pickup.name || '')),
-      sender_company_name: this.sanitizeAddressField(String(pickup.name || '')),
+      sender_company_name: this.sanitizeAddressField(String((pickup as any).businessName || pickup.name || '')),
       sender_addrline1: this.sanitizeAddressField(String(pickup.street || '')),
       sender_addrline2: this.sanitizeAddressField(String(pickup.landmark || '')),
-      sender_addrline3: this.sanitizeAddressField(String(pickup.state || '')),
+      sender_addrline3: '',
       sender_city: this.sanitizeAddressField(String(pickup.city || '')),
       sender_state: this.sanitizeAddressField(String(pickup.state || '')),
       sender_country_name: 'India',
       sender_country_code: 'IN',
-      sender_email_id: String(pickup.email),
+      sender_email_id: String(pickup.email || ''),
       sender_alt_contact_no: senderAltContactNo,
-      sender_kyc_reference: 'CFUPR34343E',
-      sender_tax_reference: '034349347343242',
+      sender_kyc_reference: '',
+      sender_tax_reference: '0',
       receiver_name: this.sanitizeAddressField(String(delivery.name || '')),
-      receiver_company_name: this.sanitizeAddressField(String(delivery.name || '')),
+      receiver_company_name: this.sanitizeAddressField(String((delivery as any).businessName || delivery.name || '')),
       receiver_addrline1: this.sanitizeAddressField(String(delivery.street || '')),
       receiver_addrline2: this.sanitizeAddressField(String(delivery.landmark || '')),
-      receiver_addrline3: this.sanitizeAddressField(String(delivery.state || '')),
+      receiver_addrline3: '',
       receiver_city: this.sanitizeAddressField(String(delivery.city || '')),
       receiver_state: this.sanitizeAddressField(String(delivery.state || '')),
       receiver_country: String(delivery.country),
       receiver_country_code: String(delivery.countryCode),
       receiver_zipcode: receiverZipcode,
-      receiver_email_id: String(delivery.email),
+      receiver_email_id: String(delivery.email || ''),
       receiver_alt_contact_no: receiverAltContactNo,
-      receiver_tax_reference: 'TaxRef321',
+      receiver_tax_reference: '',
       pbe_type_cd: 'PBE-III',
-      declaration1: true,
+      declaration1: false,
       declaration2: true,
-      declaration3: true,
+      declaration3: false,
       declaration4: true,
       selffiling_cusbroker: false,
       article_number: articleNumber,
-      bkg_ref_id: bookingRefId, // Use booking reference ID from API
-      created_by: '10256468',
-      office_id_bkg: officeIdBkg, // Use same office ID as booking reference
-      origin_office_name: 'Vrindavan SO',
-      ip_address_bkg: '192.168.0.1',
+      bkg_ref_id: bookingRefId,
+      created_by: '1352103376',
+      office_id_bkg: officeIdBkg,
+      origin_office_name: 'Jaipur IBC',
+      ip_address_bkg: '157.245.96.66',
       subpiece_count: subPieces.length,
-      status_cd: 'IC',
+      status_cd: 'BK',
       user_type_cd: 'R',
       channel_type_cd: 'K',
-      contract_id: 10000001,
+      contract_id: 41819164,
       sender_mobile_no: senderMobileNo,
       receiver_mobile_no: receiverMobileNo,
-      sender_gst_no: '',
+      sender_gst_no: (order as any).metadata?.senderGstNo || '08BQHPG9541C1ZW',
       bkg_office_gst_no: '',
       sub_pieces: subPieces,
     };
