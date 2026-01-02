@@ -521,7 +521,7 @@ private transformToGatiPayload<T extends BaseOrderReqDtoV2>(
       {
         type: "label",
         format: "url",
-        content: `${baseUrl}/GATICOM_CUSTPKG.jsp?p1=3&p2=${docketNo}&p3=3`,
+        content: `${baseUrl}/GATICOM_CUSTPKG.jsp?p1=3&p=${docketNo}&p3=3`,
       },
       {
         type: "docket",
