@@ -14,6 +14,8 @@ import {
   IndiaPostInternationalCreateOrderResponseDto,
   IndiaPostInternationalSubPieceDto,
   IndiaPostInternationalBookingReferenceResponseDto,
+  IndiaPostInternationalCreateLabelRequestDto,
+  IndiaPostInternationalCreateLabelResponseDto,
 } from './indiapost-international.dto';
 import {
   INDIAPOST_INTERNATIONAL_ENV_KEYS,
@@ -41,9 +43,6 @@ export class IndiaPostInternationalService implements INetworkPartner {
     const awbNumber = orderDetails.parentShipment?.awbNumber || orderDetails.awbNumber || orderId;
     
     try {
-      this.logger.log(`[IndiaPost International] Starting order creation - OrderId: ${orderId}, AWB: ${awbNumber}`);
-      this.logger.log(`[IndiaPost International] Order details - PartnerCode: ${partnerCode}, DocumentType: ${orderDetails.documentType}`);
-
       // Validate required fields
       if (!orderDetails || !orderDetails.addresses) {
         this.logger.error(`[IndiaPost International] Validation failed - Missing order details or addresses for OrderId: ${orderId}`);
@@ -55,7 +54,6 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
       const pickup = orderDetails.addresses.find((a) => a.type === 'PICKUP');
       const delivery = orderDetails.addresses.find((a) => a.type === 'DELIVERY');
-      this.logger.log(`[IndiaPost International] Addresses found - Pickup: ${pickup?.city || 'N/A'}, Delivery: ${delivery?.city || 'N/A'} (${delivery?.countryCode || 'N/A'})`);
 
       const baseUrl = this.configService.get<string>(
         INDIAPOST_INTERNATIONAL_ENV_KEYS.BASE_URL,
@@ -67,23 +65,19 @@ export class IndiaPostInternationalService implements INetworkPartner {
       );
       const url = `${baseUrl}${createOrderPath}`;
 
-      this.logger.log(`[IndiaPost International] API Configuration - BaseURL: ${baseUrl}, Path: ${createOrderPath}`);
-      this.logger.log(`[IndiaPost International] Full API URL: ${url}`);
-
-      // Get destination country code
-      const destinationCountryCode = this.getDestinationCountryCode(delivery, orderDetails);
+      // Get destination country code (now async, fetches from geo-location API if needed)
+      const destinationCountryCodeResult = await this.getDestinationCountryCode(delivery, orderDetails);
+      const destinationCountryCode = destinationCountryCodeResult.countryCode;
       
       // Get mail type and booking reference
       const mailTypeCd = this.getMailTypeCd(orderDetails, destinationCountryCode);
-      this.logger.log(`[IndiaPost International] Using mail type: ${mailTypeCd} for destination: ${destinationCountryCode}`);
       
       // Get booking reference ID first (required by API)
       const bookingRefResult = await this.getBookingReferenceId(mailTypeCd, destinationCountryCode, baseUrl);
       const bookingRefId = bookingRefResult.bookingRefId;
-      this.logger.log(`[IndiaPost International] Booking reference ID obtained: ${bookingRefId}`);
 
-      // Transform payload with booking reference ID and mail type
-      const payload = this.transformToIndiaPostInternationalPayload(orderDetails, bookingRefId, mailTypeCd);
+      // Transform payload with booking reference ID, mail type, and destination country code
+      const payload = this.transformToIndiaPostInternationalPayload(orderDetails, bookingRefId, mailTypeCd, destinationCountryCode);
 
       // Get authentication headers
       let authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
@@ -151,19 +145,78 @@ export class IndiaPostInternationalService implements INetworkPartner {
       const partnerAwbNumber = responseData?.data?.Article?.pbe_no 
         ? String(responseData.data.Article.pbe_no) 
         : '';
+      const articleNumber = responseData?.data?.Article?.article_number || '';
+      const responseBookingRefId = responseData?.data?.Article?.bkg_ref_id || '';
 
-      // Use label URL from order creation response if available
-      const labelUrl = responseData?.data?.label_url || '';
-      const documents = [];
-      if (labelUrl) {
-        documents.push({
-          content: labelUrl,
-          type: 'label',
-          format: 'url',
-        });
+      // Generate label after successful order creation
+      const documents: any[] = [];
+      try {
+        // First, check if label URL is already in the response
+        const labelUrl = responseData?.data?.label_url || '';
+        if (labelUrl) {
+          documents.push({
+            content: labelUrl,
+            type: 'label',
+            format: 'url',
+          });
+        } else {
+          // If no label URL in response, try to generate label using label creation API
+          const childCustomerId = this.configService.get<string>(
+            INDIAPOST_INTERNATIONAL_ENV_KEYS.CHILD_CUSTOMER_ID,
+            INDIAPOST_INTERNATIONAL_DEFAULTS.CHILD_CUSTOMER_ID
+          );
+          const bulkCustomerId = this.configService.get<string>(
+            INDIAPOST_INTERNATIONAL_ENV_KEYS.BULK_CUSTOMER_ID,
+            INDIAPOST_INTERNATIONAL_DEFAULTS.BULK_CUSTOMER_ID
+          );
+          
+          // Use booking reference ID for label generation (required by API)
+          if (responseBookingRefId) {
+            // Try child_customer_id first, then bulk_customer_id if it fails
+            let labelData = await this.generateLabel(
+              responseBookingRefId,
+              childCustomerId
+            );
+            
+            if (!labelData) {
+              labelData = await this.generateLabel(
+                responseBookingRefId,
+                bulkCustomerId
+              );
+            }
+            
+            // If still no label, try with article number instead of booking ref
+            if (!labelData && articleNumber) {
+              labelData = await this.generateLabel(
+                articleNumber,
+                childCustomerId
+              );
+            }
+            
+            if (labelData) {
+              // Prefer base64 image if available (from label API response)
+              if (labelData.label_base64) {
+                documents.push({
+                  content: labelData.label_base64,
+                  type: 'label',
+                  format: 'base64',
+                  barcode: labelData.label_barcode,
+                });
+              } else if (labelData.label_url) {
+                documents.push({
+                  content: labelData.label_url,
+                  type: 'label',
+                  format: 'url',
+                  barcode: labelData.label_barcode,
+                });
+              }
+            }
+          }
+        }
+      } catch (labelError) {
+        this.logger.error(`[IndiaPost International] Label generation failed: ${labelError.message}`);
+        // Continue without label - don't fail the order creation
       }
-
-      this.logger.log(`[IndiaPost International] Order created successfully - OrderId: ${orderId}, PartnerAWB: ${partnerAwbNumber}`);
 
       return {
         statusCode: 200,
@@ -323,14 +376,113 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
   /**
    * Gets country code from delivery address
-   * Falls back to metadata or default values
+   * First tries to fetch from delivery address fields or metadata
+   * Falls back to geo-location API using postal code, or default values
+   * Returns both the country code and its source for validation purposes
    */
-  private getDestinationCountryCode(delivery: any, order: any): string {
-    return delivery?.countryCode 
-      || delivery?.country 
-      || order?.metadata?.destinationCountryCode 
-      || (order as any)?.metadata?.receiverCountryCode
-      || 'CA'; // Default to CA as per sample payload
+  private async getDestinationCountryCode(delivery: any, order: any): Promise<{ countryCode: string; source: 'explicit' | 'metadata' | 'geoLocation' | 'default' }> {
+    // First, try to get from delivery address fields (explicit)
+    if (delivery?.countryCode) {
+      return { countryCode: delivery.countryCode, source: 'explicit' };
+    }
+    if (delivery?.country) {
+      // Try to normalize country name to code
+      const countryCode = this.getCountryCodeFromName(delivery.country);
+      if (countryCode) {
+        return { countryCode, source: 'explicit' };
+      }
+      return { countryCode: delivery.country, source: 'explicit' };
+    }
+    
+    // Try metadata fields
+    if ((order as any)?.metadata?.destinationCountryCode) {
+      return { countryCode: (order as any).metadata.destinationCountryCode, source: 'metadata' };
+    }
+    if ((order as any)?.metadata?.receiverCountryCode) {
+      return { countryCode: (order as any).metadata.receiverCountryCode, source: 'metadata' };
+    }
+    
+    // If we have a postal code, try to fetch from geo-location API
+    if (delivery?.zip) {
+      try {
+        const countryCode = await this.fetchAndValidateCountryCode(delivery.zip);
+        if (countryCode) {
+          return { countryCode, source: 'geoLocation' };
+        }
+      } catch (error) {
+        // Silently fall back to other methods
+      }
+    }
+    
+    // Default fallback
+    return { countryCode: 'CA', source: 'default' };
+  }
+  
+  /**
+   * Maps country name to country code (basic mapping)
+   */
+  private getCountryCodeFromName(countryName: string): string | null {
+    if (!countryName) return null;
+    
+    const nameToCode: { [key: string]: string } = {
+      'india': 'IN',
+      'united states': 'US',
+      'usa': 'US',
+      'united kingdom': 'GB',
+      'uk': 'GB',
+      'canada': 'CA',
+      'australia': 'AU',
+      'germany': 'DE',
+      'france': 'FR',
+      'italy': 'IT',
+      'spain': 'ES',
+      'japan': 'JP',
+      'china': 'CN',
+      'south korea': 'KR',
+      'brazil': 'BR',
+      'mexico': 'MX',
+      'russia': 'RU',
+    };
+    
+    const normalized = countryName.toLowerCase().trim();
+    return nameToCode[normalized] || null;
+  }
+
+  /**
+   * Fetches and validates country code from geo-location API using postal code
+   * Similar to ARAMEX service implementation
+   */
+  private async fetchAndValidateCountryCode(
+    postalCode: string
+  ): Promise<string> {
+    const geo_url = this.configService.get<string>("GEO_LOCATION_URL");
+    if (!geo_url) {
+      return null;
+    }
+    
+    const url = `${geo_url}?&postal_codes=${postalCode}&offset=0&limit=1`;
+    try {
+      const resp = await firstValueFrom(this.httpService.get(url));
+      const data = resp?.data?.data?.[0];
+      const countryCode = data?.country_code?.trim();
+      
+      if (countryCode) {
+        return countryCode;
+      }
+      
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        `Failed to fetch geo-location for postal code ${postalCode}: No country code in response`
+      );
+    } catch (err) {
+      if (err instanceof CustomHttpException) {
+        throw err;
+      }
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        `Failed to fetch geo-location for postal code ${postalCode}: ${err.message}`
+      );
+    }
   }
 
   /**
@@ -470,7 +622,8 @@ export class IndiaPostInternationalService implements INetworkPartner {
   private transformToIndiaPostInternationalPayload(
     order: BaseOrderReqDtoV2,
     bookingRefId: string,
-    mailTypeCd?: string
+    mailTypeCd?: string,
+    destinationCountryCode?: string
   ): IndiaPostInternationalCreateOrderRequestDto {
     const pickup = order.addresses.find((a) => a.type === 'PICKUP');
     const delivery = order.addresses.find((a) => a.type === 'DELIVERY');
@@ -506,7 +659,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
     const items = order.parentShipment?.items || order.childShipments?.[0]?.items || [];
     const articleNumber = String(order.orderId ||order.parentShipment?.awbNumber || order.awbNumber);
-    const bookingTypeCd = this.getBookingTypeCd(order);
+    const bookingTypeCd = "RCB"//this.getBookingTypeCd(order);
     
     // Get office ID from config (should match the one used for booking reference)
     const officeIdBkg = parseInt(this.configService.get<string>(
@@ -515,18 +668,23 @@ export class IndiaPostInternationalService implements INetworkPartner {
     ));
 
     // Transform sub_pieces from items
-    const now = new Date();
+      const now = new Date();
     const invoiceDate = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
     
-    // Get destination country code
-    const destinationCountryCode = this.getDestinationCountryCode(delivery, order);
-    const destinationCountryName = this.getCountryName(destinationCountryCode);
+    // Use provided destination country code or fallback to synchronous lookup
+    const finalDestinationCountryCode = destinationCountryCode 
+      || delivery?.countryCode 
+      || delivery?.country 
+      || (order as any)?.metadata?.destinationCountryCode 
+      || (order as any)?.metadata?.receiverCountryCode
+      || 'CA';
+    const destinationCountryName = this.getCountryName(finalDestinationCountryCode);
     
     const subPieces: IndiaPostInternationalSubPieceDto[] = items.map((item, index) => {
       const itemWeight = Math.round(parseFloat(String(item.weight || 0)) || physicalWeight);
       const invoiceValue = parseFloat(String(item.unitPrice || 0));
-      const destinationCurrency = destinationCountryCode === 'CA' ? 'CAD' : destinationCountryCode === 'US' ? 'USD' : 'USD';
-      const exchangeRate = destinationCountryCode === 'CA' ? 62.25 : 75; // CAD->INR or USD->INR
+      const destinationCurrency = finalDestinationCountryCode === 'CA' ? 'CAD' : finalDestinationCountryCode === 'US' ? 'USD' : 'USD';
+      const exchangeRate = finalDestinationCountryCode === 'CA' ? 62.25 : 75; // CAD->INR or USD->INR
       const fobValue = Math.round((invoiceValue / exchangeRate) * 100) / 100;
       const hsnCode = String(item.hsnCode || '34011190').replace(/\D/g, '');
       
@@ -535,7 +693,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
         cth_cd: hsnCode,
         hs_description: this.sanitizeAddressField(String(item.description || item.name || 'Goods')),
         sp_unit_cd: 'PIECES',
-        article_number: articleNumber,
+        // article_number: articleNumber,
         sp_origin_country_cd: 'IN',
         sp_weight_total: itemWeight,
         sp_weight_nett: itemWeight > 50 ? itemWeight - 50 : itemWeight,
@@ -578,9 +736,9 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
     // Format phone numbers - alt_contact_no should be 10 digits string, mobile_no should be 10-digit integer
     const senderAltContactNo = this.formatPhoneTo10Digits(pickup.phone, pickup.countryCode || 'IN');
-    const receiverAltContactNo = this.formatPhoneTo10Digits(delivery.phone, destinationCountryCode);
+    const receiverAltContactNo = this.formatPhoneTo10Digits(delivery.phone, finalDestinationCountryCode);
     const senderMobileNo = this.formatPhoneToInteger(pickup.phone, pickup.countryCode || 'IN');
-    const receiverMobileNo = this.formatPhoneToInteger(delivery.phone, destinationCountryCode);
+    const receiverMobileNo = this.formatPhoneToInteger(delivery.phone, finalDestinationCountryCode);
 
     // Format receiver zipcode
     const receiverZipcode = String(delivery.zip).replace(/\D/g, '');
@@ -589,14 +747,20 @@ export class IndiaPostInternationalService implements INetworkPartner {
       origin: String(pickup.zip),
       iec_code: (order as any).metadata?.iecCode || 'BQHPG9541C',
       sender_pincode: parseInt(pickup.zip),
-      destination_ccode: destinationCountryCode,
+      destination_ccode: finalDestinationCountryCode,
       destination_cname: destinationCountryName,
       mail_type_cd: mailTypeCd || this.getMailTypeCd(order),
       mail_class_cd: this.getMailClassCd(mailTypeCd || this.getMailTypeCd(order)),
       mail_nature_type_cd: '11',
       booking_type_cd: bookingTypeCd,
-      bulk_customer_id: 1525065599,
-      child_customer_id: 1352103376,
+      bulk_customer_id: parseInt(this.configService.get<string>(
+        INDIAPOST_INTERNATIONAL_ENV_KEYS.BULK_CUSTOMER_ID,
+        INDIAPOST_INTERNATIONAL_DEFAULTS.BULK_CUSTOMER_ID
+      )),
+      child_customer_id: parseInt(this.configService.get<string>(
+        INDIAPOST_INTERNATIONAL_ENV_KEYS.CHILD_CUSTOMER_ID,
+        INDIAPOST_INTERNATIONAL_DEFAULTS.CHILD_CUSTOMER_ID
+      )),
       physical_weight: physicalWeight,
       mail_shape_cd: 'NROL',
       dimension_length: Math.round(length),
@@ -632,7 +796,7 @@ export class IndiaPostInternationalService implements INetworkPartner {
       receiver_city: this.sanitizeAddressField(String(delivery.city || '')),
       receiver_state: this.sanitizeAddressField(String(delivery.state || '')),
       receiver_country: destinationCountryName,
-      receiver_country_code: destinationCountryCode,
+      receiver_country_code: finalDestinationCountryCode,
       receiver_zipcode: receiverZipcode,
       receiver_email_id: String(delivery.email || ''),
       receiver_alt_contact_no: receiverAltContactNo,
@@ -707,6 +871,75 @@ export class IndiaPostInternationalService implements INetworkPartner {
 
   async cancelPickupV2<T, R>(data: T, partnerCode: string, eligiblePartners?: any): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for IndiaPost International');
+  }
+
+  /**
+   * Generate label for India Post International order
+   * Makes API call to label creation endpoint
+   * @param articleNumberOrBookingRef - Article number or booking reference ID
+   * @param officeCustomer - Office customer ID (not used, but kept for compatibility)
+   * @returns Label data (base64 image and barcode)
+   */
+  private async generateLabel(
+    articleNumberOrBookingRef: string,
+    officeCustomer: string
+  ): Promise<{ label_url?: string; label_base64?: string; label_barcode?: string } | null> {
+    try {
+      const baseUrl = this.configService.get<string>(
+        INDIAPOST_INTERNATIONAL_ENV_KEYS.BASE_URL,
+        INDIAPOST_INTERNATIONAL_DEFAULTS.BASE_URL
+      );
+      const createLabelPath = this.configService.get<string>(
+        INDIAPOST_INTERNATIONAL_ENV_KEYS.CREATE_LABEL_PATH,
+        INDIAPOST_INTERNATIONAL_DEFAULTS.CREATE_LABEL_PATH
+      );
+      const url = `${baseUrl}${createLabelPath}`;
+
+      // Build label request payload
+      const labelPayload: IndiaPostInternationalCreateLabelRequestDto = {
+        office_customer: "CUSTOMER",
+        article_type: "INTL_APP_EPACKET",
+      };
+
+      // Get authentication headers
+      const authHeaders = await this.indiaPostInternationalAuthService.getAuthHeaders();
+      const response = await firstValueFrom(
+        this.httpService.post<IndiaPostInternationalCreateLabelResponseDto>(
+          url,
+          labelPayload,
+          {
+            headers: authHeaders,
+            timeout: INDIAPOST_INTERNATIONAL_CONSTANTS.DEFAULT_TIMEOUT,
+            validateStatus: () => true,
+          }
+        )
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        const responseData = response.data as any;
+        const labelData = responseData?.data;
+        if (labelData?.base64Image) {
+          return {
+            label_url: labelData.label_url,
+            label_base64: labelData.base64Image,
+            label_barcode: labelData.barcode,
+          };
+        }
+      }
+
+      // Log error information for debugging
+      const errorData = response.data as any;
+      const errorMessage = errorData?.error?.message || errorData?.message || 'Unknown error';
+      this.logger.warn(`[IndiaPost International] Label creation failed - Status: ${response.status}, Error: ${errorMessage}`);
+      
+      return null;
+    } catch (error) {
+      this.logger.error(`[IndiaPost International] Label generation failed: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`[IndiaPost International] Label API error response: ${JSON.stringify(error.response.data)}`);
+      }
+      return null;
+    }
   }
 
   async reattemptDeliveryV2<T, R>(data: T, partnerCode: string, eligiblePartners?: any): Promise<R> {

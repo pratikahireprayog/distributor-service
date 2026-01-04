@@ -23,7 +23,7 @@ export class IndiaPostInternationalSubPieceDto {
   created_by: string;
   office_id_bkg: number;
   ip_address_bkg: string;
-  article_number: string;
+  article_number?: string;
   igst_rate?: number;
   igst_amount?: number;
   export_duty_rate?: number;
