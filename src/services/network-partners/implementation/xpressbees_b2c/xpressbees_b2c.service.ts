@@ -7,6 +7,7 @@ import { BaseOrderResDto, BaseResDto, ManifestReqDto } from 'src/common/dtos/bas
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2 } from 'src/common/dtos/base2.dto';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
+import { StandardRequestDto } from 'src/services/distributor/distributor.service';
 import { XpressbeesB2cAuthService } from './xpressbees_b2c-auth.service';
 import {
   XpressbeesB2cCreateOrderRequestDto,
@@ -118,10 +119,12 @@ export class XpressbeesB2cService implements INetworkPartner {
         statusCode: 200,
         message: 'Order created successfully with XpressBees B2C',
         partnerCode: PARTNER_CODE_ENUM.XPRESSBEES_B2C,
+        partnerOrderId: partnerAwbNumber || undefined, // Partner's internal order ID
         data: {
           originalResponse: response.data,
           requestUrl: url,
           requestBody: payload,
+          partnerOrderId: partnerAwbNumber || undefined, // Also include in data for consistency
           shipmentDetails: {
             trackingDetails: [
               {
@@ -129,6 +132,7 @@ export class XpressbeesB2cService implements INetworkPartner {
                 partnerAwbNumber: partnerAwbNumber,
                 partnerName: PARTNER_CODE_ENUM.XPRESSBEES_B2C,
                 transporterId: 'XPRESSBEES_B2C',
+                partnerOrderId: partnerAwbNumber || undefined,
               },
             ],
             documents: [
@@ -597,6 +601,8 @@ export class XpressbeesB2cService implements INetworkPartner {
   async pushOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2C');
   }
+
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
 
   async updateOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2C');

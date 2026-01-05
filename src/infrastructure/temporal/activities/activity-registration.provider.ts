@@ -43,15 +43,44 @@ export class ActivityRegistrationProvider implements OnModuleInit {
           return this.distributorService.createOrder(payload);
         },
         createOrderV2: async(
-          payload:StandardRequestDtoV2
+          payload: StandardRequestDtoV2 | { order?: any; orders?: any; partnerCode?: string; eligiblePartners?: any; headers?: Record<string, string> }
         ): Promise<BaseOrderResDto> => {
-          return this.distributorService.createOrderV2(payload)
+          // Extract headers if they exist in the payload
+          let tenantId: string | undefined;
+          let userId: string | undefined;
+          let requestDto: StandardRequestDtoV2;
+
+          // Check if payload has headers property (from workflow)
+          if (payload && typeof payload === 'object' && 'headers' in payload) {
+            const payloadWithHeaders = payload as any;
+            const headers = payloadWithHeaders.headers || {};
+            
+            // Extract tenant and user IDs from headers (case-insensitive)
+            tenantId = headers['x-tenant-id'] || headers['X-Tenant-Id'] || headers['X-TENANT-ID'];
+            userId = headers['x-user-id'] || headers['X-User-Id'] || headers['X-USER-ID'];
+            
+            // Create clean request DTO without headers
+            requestDto = {
+              order: payloadWithHeaders.order,
+              orders: payloadWithHeaders.orders,
+              partnerCode: payloadWithHeaders.partnerCode,
+              eligiblePartners: payloadWithHeaders.eligiblePartners,
+            } as StandardRequestDtoV2;
+          } else {
+            // Standard payload without headers
+            requestDto = payload as StandardRequestDtoV2;
+          }
+
+          return this.distributorService.createOrderV2(requestDto, tenantId, userId);
         },
         retryCreateOrder: this.distributorService.retryCreateOrder.bind(
           this.distributorService
         ),
         // distributorTrackOrder: this.distributorService.trackOrder.bind(this.distributorService),
         cancelOrder: this.distributorService.cancelOrder.bind(
+          this.distributorService
+        ),
+        cancelOrderV2: this.distributorService.cancelOrderV2.bind(
           this.distributorService
         ),
         pushOrderToDRS: this.distributorService.pushOrderToDRS.bind(
@@ -72,6 +101,9 @@ export class ActivityRegistrationProvider implements OnModuleInit {
             this.distributorService
           ),
         pushOrderToHubOps: this.distributorService.pushOrderToHubOps.bind(
+          this.distributorService
+        ),
+        pushOrderToHubOpsV2: this.distributorService.pushOrderToHubOpsV2.bind(
           this.distributorService
         ),
         updateOrderToHubOps: this.distributorService.updateOrderToHubOps.bind(

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -17,7 +17,7 @@ export class UniuniAuthService implements AuthProvider {
     private readonly httpService: HttpService,
   ) {}
 
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     const token = await this.getToken();
     return {
       'Authorization': `Bearer ${token}`,

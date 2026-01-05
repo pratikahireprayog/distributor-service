@@ -97,12 +97,10 @@ export class FEDEXService extends BaseNetworkPartner {
         const shipperAddress = order.addresses.find((a) => a.type === "PICKUP");
         const recipientAddress = order.addresses.find((a) => a.type === "DELIVERY");
 
-        const shipperCountryCode = "IN"
-            await this.fetchAndValidateCountryCode(
+        const shipperCountryCode = await this.fetchAndValidateCountryCode(
             shipperAddress.zip || shipperAddress.postalCode || ""
         );
-        const receiverCountryCode = "DE"
-            await this.fetchAndValidateCountryCode(
+        const receiverCountryCode = await this.fetchAndValidateCountryCode(
             recipientAddress.zip || recipientAddress.postalCode || ""
         );
 
@@ -117,14 +115,17 @@ export class FEDEXService extends BaseNetworkPartner {
 
         // 🧾 Upload ETD docs - with error handling
         let uploadedDocs = [];
-        if (order.documents && order.documents.length > 0) {
+        // Filter documents to only commercial_invoice type
+        const invoiceDocs = order.documents?.filter((doc: any) => 
+            doc.type && (doc.type.toUpperCase() === 'COMMERCIAL_INVOICE' || doc.type.toLowerCase() === 'commercial_invoice')
+        ) || [];
+        if (invoiceDocs.length > 0) {
             try {
                 // Uncomment this
                 uploadedDocs = await this.uploadFedexDocuments(
-                    order.documents,
+                    invoiceDocs,
                     documentInfo
                 );
-                console.log("uploadedDocs", uploadedDocs)
                 // uploadedDocs = [{ documentType: 'COMMERCIAL_INVOICE', docId: 'ado31PTIESQlhuWA' }]
             } catch (uploadError) {
                 this.logger.warn(`Document upload failed, proceeding without documents: ${uploadError.message}`);
@@ -154,7 +155,7 @@ export class FEDEXService extends BaseNetworkPartner {
             },
             labelResponseOptions: "URL_ONLY",
             requestedShipment: {
-                serviceType: order.services[0].service_name,
+                serviceType: order.services[0].service_code,
                 shipTimestamp: new Date().toISOString(),
                 packagingType: "YOUR_PACKAGING",
                 shipper: {
@@ -317,7 +318,8 @@ export class FEDEXService extends BaseNetworkPartner {
             const masterTrackingNumber = shipment.masterTrackingNumber || shipment.trackingNumber || '';
             
             // Extract AWB number from order details
-            const awbNumber = orderDetails?.parentShipment?.awbNumber || 
+            const awbNumber = orderDetails?.
+                parentShipment?.awbNumber || 
                             orderDetails?.awbNumber || 
                             orderDetails?.orderId || 
                             '';
@@ -328,6 +330,7 @@ export class FEDEXService extends BaseNetworkPartner {
                     partnerAwbNumber: masterTrackingNumber,
                     partnerName: PARTNER_CODE_ENUM.FEDEX,
                     transporterId: 'FEDEX',
+                    partnerOrderId: masterTrackingNumber || undefined,
                 });
             }
 
@@ -365,18 +368,27 @@ export class FEDEXService extends BaseNetworkPartner {
                     partnerAwbNumber: partnerAwbNumber,
                     partnerName: PARTNER_CODE_ENUM.FEDEX,
                     transporterId: 'FEDEX',
+                    partnerOrderId: partnerAwbNumber || undefined,
                 });
             }
         }
+
+        // Extract partner order ID (first master tracking number)
+        const partnerOrderId = output.masterTrackingNumber || 
+                              transactionShipments[0]?.masterTrackingNumber || 
+                              transactionShipments[0]?.trackingNumber || 
+                              undefined;
 
         return {
             statusCode: 200,
             message: 'Order created successfully with FEDEX',
             partnerCode: PARTNER_CODE_ENUM.FEDEX,
+            partnerOrderId: partnerOrderId, // Partner's internal order ID
             data: {
                 originalResponse: responseData,
                 requestUrl: requestUrl || (response as any).config?.url || FEDEX_URLS.CREATE_SHIPMENT,
                 requestBody: requestBody || (response as any).config?.data || null,
+                partnerOrderId: partnerOrderId, // Also include in data for consistency
                 shipmentDetails: {
                     trackingDetails: trackingDetails,
                     documents: documents,
@@ -396,7 +408,17 @@ export class FEDEXService extends BaseNetworkPartner {
     ): Promise<R> {
         try {
             const endpoint = FEDEX_URLS.CANCEL_SHIPMENT;
-            const awbNumber = data.cAwbNumbers?.[0] || '';
+          const trackingNumber =
+            data.partnerOrderId ||
+            data.cAwbNumbers?.[0] ||
+            data.orderId ||
+            '';
+          if (!trackingNumber) {
+            throw new CustomHttpException(
+              HttpStatus.BAD_REQUEST,
+              'trackingNumber (partnerOrderId/cAwbNumber/orderId) is required for cancellation'
+            );
+          }
             //   const endpoint = {
             //     url: `${this.configService.get<string>('FEDEX_BASE_URL')}/cancel/${awbNumber}`
             //   };
@@ -408,7 +430,7 @@ export class FEDEXService extends BaseNetworkPartner {
                 //  emailShipment: 'false',
                 //  senderCountryCode: this.configService.get<string>('FEDEX_SENDER_COUNTRY') || 'US',
                 //  deletionControl: 'DELETE_ALL_PACKAGES',
-                trackingNumber: awbNumber,
+              trackingNumber: trackingNumber,
                 //  version: {
                 //      major: '1',
                 //      minor: '1',
@@ -539,17 +561,18 @@ export class FEDEXService extends BaseNetworkPartner {
         const uploadedDocs: { documentType: string; documentId: string }[] = [];
         for (const doc of documents) {
             try {
-                const { filename, contentType } = await this.getFileInfoFromUrl(doc.documentUrl);
+                const documentUrl = doc.url || doc.documentUrl; // Support both url and documentUrl for backward compatibility
+                const { filename, contentType } = await this.getFileInfoFromUrl(documentUrl);
                 let fileBuffer: Buffer;
-                if (doc.documentUrl) {
-                    this.logger.log(`Downloading document from URL: ${doc.documentUrl}`);
-                    const response = await axios.get(doc.documentUrl, {
+                if (documentUrl) {
+                    this.logger.log(`Downloading document from URL: ${documentUrl}`);
+                    const response = await axios.get(documentUrl, {
                         responseType: "arraybuffer",
                         timeout: 30000,
                     });
                     fileBuffer = Buffer.from(response.data);
                 } else {
-                    throw new Error(`No file source (URL or path) found for ${doc.documentType}`);
+                    throw new Error(`No file source (URL or path) found for ${doc.type || 'document'}`);
                 }
 
                 // 🧩 2️⃣ Prepare FedEx Document JSON
@@ -586,7 +609,7 @@ export class FEDEXService extends BaseNetworkPartner {
                 });
 
                 const url = FEDEX_URLS.UPLOAD_DOCUMENTS;
-                this.logger.log(`📤 Uploading document '${doc.documentType}' to FedEx: ${url}`);
+                this.logger.log(`📤 Uploading document '${doc.type || 'document'}' to FedEx: ${url}`);
 
                 const response = await firstValueFrom(
                     this.httpService.post(url, formData, {
@@ -602,7 +625,6 @@ export class FEDEXService extends BaseNetworkPartner {
                 );
 
                 const meta = response.data?.output?.meta;
-                console.log("response response response ", meta);
 
                 if (meta?.docId) {
                     uploadedDocs.push({
@@ -610,17 +632,17 @@ export class FEDEXService extends BaseNetworkPartner {
                         documentId: meta.docId,
                     });
                     this.logger.log(
-                        `✅ Successfully uploaded FedEx document: ${doc.documentType}, ID: ${meta.docId}`
+                        `✅ Successfully uploaded FedEx document: ${doc.type || 'document'}, ID: ${meta.docId}`
                     );
                 } else {
                     this.logger.error(
-                        `❌ FedEx upload succeeded but no document ID returned for ${doc.documentType}`
+                        `❌ FedEx upload succeeded but no document ID returned for ${doc.type || 'document'}`
                     );
                     this.logger.debug(`FedEx raw response: ${JSON.stringify(response.data)}`);
                     throw new Error("No document ID returned from FedEx");
                 }
             } catch (error) {
-                this.logger.error(`❌ Failed to upload FedEx document ${doc.documentType}: ${error.message}`);
+                this.logger.error(`❌ Failed to upload FedEx document ${doc.type || 'document'}: ${error.message}`);
                 if (error.response?.data) {
                     this.logger.error(`FedEx API response: ${JSON.stringify(error.response.data)}`);
                 }

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { HttpService } from "@nestjs/axios";
-import { AuthProvider } from "../../interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "../../interfaces/auth-provider.interface";
 import {
   PARTNER_CODE_ENUM,
   ENDPOINT_ID_ENUM,
@@ -62,7 +62,7 @@ export class ShipyaariAuthService implements AuthProvider {
    * Implements the AuthProvider interface
    * @returns Headers for API requests
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     const tokenData = await this.getValidToken();
     return {
       Authorization: `Bearer ${tokenData.token}`,

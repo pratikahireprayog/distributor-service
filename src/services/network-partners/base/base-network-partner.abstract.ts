@@ -5,7 +5,7 @@ import {
   SchemaMapperService,
   SchemaMappingConfig,
 } from "src/infrastructure/schema-mapper";
-import { AuthProvider } from "../interfaces/auth-provider.interface";
+import { AuthProvider, TenantContext } from "../interfaces/auth-provider.interface";
 import { INetworkPartner } from "../interfaces/network-partner.interface";
 import { EndpointConfigModel } from "src/common/repositories/endpoint-configs/endpoint-configs.schema";
 import { EndpointConfigRepository } from "src/common/repositories/endpoint-configs/endpoint-configs.repository";
@@ -149,9 +149,10 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   async createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderData: T,
     partnerCode: string,
-    eligiblePartners: EligiblePartnersData
+    eligiblePartners?: EligiblePartnersData,
+    tenantContext?: any
   ): Promise<R> {
-    this.logger.debug(`Creating Order with partner ${this.partnerCode}`);
+    this.logger.debug(`Creating Order with partner ${this.partnerCode}${tenantContext?.tenantId ? ` (tenant: ${tenantContext.tenantId})` : ''}`);
     let existingPartners: any;
     let attemptNumber = 1;
     let partnerType = partnerCode;
@@ -200,7 +201,8 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
         ENDPOINT_ID_ENUM.CREATE_ORDER,
         orderData,
         partnerCode,
-        endpointConfig
+        endpointConfig,
+        tenantContext
       );
 
       const result = this.transformResponseForOperation(
@@ -912,6 +914,62 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
   }
 
   /**
+   * Push order data to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.debug(
+      `Pushing order to HubOps V2 with partner ${this.partnerCode}`
+    );
+    const startTime = Date.now();
+
+    try {
+      const endpoint = await this.getEndpointConfig(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        (data as any).partnerCode
+      );
+
+      if (
+        !this.validateInputForOperation(
+          ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+          data
+        )
+      ) {
+        throw new Error(
+          "Invalid input data for push order to HubOps V2 operation"
+        );
+      }
+
+      const response = await this.executeOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        data,
+        (data as any).partnerCode,
+        endpoint
+      );
+
+      const result = this.transformResponseForOperation(
+        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS,
+        response
+      ) as R;
+
+      // Log successful operation with timing
+      const responseTimeMs = Date.now() - startTime;
+      this.logger.debug(
+        `Order pushed to HubOps V2 successfully in ${responseTimeMs}ms`
+      );
+
+      return result;
+    } catch (error) {
+      // Add timing to error for tracking
+      error.responseTimeMs = Date.now() - startTime;
+      throw error;
+    }
+  }
+
+  /**
    * Update order in HubOps system
    * @param data Order data for HubOps update
    * @returns Response from HubOps API
@@ -994,15 +1052,16 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     operation: string,
     data: any,
     partnerCode: string,
-    endpointConfig: EndpointConfigModel
+    endpointConfig: EndpointConfigModel,
+    tenantContext?: any
   ): Promise<any> {
     // Transform request body if needed
     let transformedData = data;
-
+    console.log("executeOperation", operation, data, partnerCode, endpointConfig, tenantContext);
     try {
-      // Get authentication headers
+      // Get authentication headers (with tenant context if provided)
       const authHeaders = endpointConfig.requiresAuth
-        ? await this.authProvider.getAuthHeaders()
+        ? await this.authProvider.getAuthHeaders(tenantContext)
         : {};
 
       // Process custom headers from configuration
@@ -1200,8 +1259,20 @@ export abstract class BaseNetworkPartner implements INetworkPartner {
     endpointId: string,
     partnerCode: string
   ): Promise<EndpointConfigModel> {
+    // Normalize generic names to canonical codes as they share the same configuration
+    let effectivePartnerCode = partnerCode;
+    const lowerPartnerCode = partnerCode?.toLowerCase();
+
+    if (lowerPartnerCode === "xpressbees") {
+      effectivePartnerCode = PARTNER_CODE_ENUM.XPRESSBEES_B2B;
+    } else if (lowerPartnerCode === "delhivery") {
+      effectivePartnerCode = PARTNER_CODE_ENUM.DELHIVERY;
+    } else if (lowerPartnerCode === "smile") {
+      effectivePartnerCode = PARTNER_CODE_ENUM.SMILE_HUBOPS;
+    }
+
     const endpoint = await this.endpointConfigRepository.getOne({
-      partnerCode: partnerCode,
+      partnerCode: effectivePartnerCode,
       endpointId: endpointId,
     });
     if (!endpoint) {

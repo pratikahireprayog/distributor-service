@@ -7,6 +7,7 @@ import { BaseOrderResDto, BaseResDto, ManifestReqDto } from 'src/common/dtos/bas
 import { BaseOrderReqDtoV2, BaseCancelOrderDtoV2 } from 'src/common/dtos/base2.dto';
 import { CustomHttpException } from 'src/infrastructure/exception-handlers';
 import { PARTNER_CODE_ENUM } from 'src/common/enums/global.enum';
+import { StandardRequestDto } from 'src/services/distributor/distributor.service';
 import { XpressbeesB2bAuthService } from './xpressbees_b2b-auth.service';
 import {
   XpressbeesB2bCreateOrderRequestDto,
@@ -174,247 +175,300 @@ export class XpressbeesB2bService implements INetworkPartner {
     }
   }
 
-private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2bCreateOrderRequestDto {
+  private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2bCreateOrderRequestDto {
     this.logger.debug(`Transforming payload for XpressBees B2B, orderId: ${order?.orderId}`);
     
-    // --- Input Validation (Retained) ---
+    // --- Input Validation ---
     if (!order) {
-        throw new CustomHttpException(
-            HttpStatus.BAD_REQUEST,
-            'Order data is missing'
-        );
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'Order data is missing'
+      );
     }
     if (!order.addresses || !Array.isArray(order.addresses)) {
-        throw new CustomHttpException(
-            HttpStatus.BAD_REQUEST,
-            'Addresses array is missing or invalid'
-        );
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'Addresses array is missing or invalid'
+      );
     }
-
+  
     // Find pickup and delivery addresses
     const pickup = order.addresses.find((a) => a.type === 'PICKUP');
     const delivery = order.addresses.find((a) => a.type === 'DELIVERY');
-
+  
     if (!pickup || !delivery) {
-        throw new CustomHttpException(
-            HttpStatus.BAD_REQUEST,
-            'Both PICKUP and DELIVERY addresses are required for XpressBees B2B'
-        );
+      throw new CustomHttpException(
+        HttpStatus.BAD_REQUEST,
+        'Both PICKUP and DELIVERY addresses are required for XpressBees B2B'
+      );
     }
-
-    // --- Utility Functions (Retained) ---
+  
+    // --- Utility Functions ---
     const parseAmount = (value: any): number => {
-        const parsed = parseFloat(String(value || 0));
-        return isNaN(parsed) ? 0 : parsed;
+      const parsed = parseFloat(String(value ?? 0));
+      return isNaN(parsed) ? 0 : parsed;
     };
-
+  
     const getEffectiveWeight = (shipment: any): number => {
-        const physicalWeight = parseAmount(shipment?.physicalWeight);
-        const volumetricWeight = parseAmount(shipment?.volumetricWeight);
-        return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 0);
+      const physicalWeight = parseAmount(shipment?.physicalWeight);
+      const volumetricWeight = parseAmount(shipment?.volumetricWeight);
+      return physicalWeight > 0 ? physicalWeight : (volumetricWeight || 0);
     };
-
+  
     const sanitizeHsnCode = (hsn: any): string => {
-        if (!hsn && hsn !== 0) return '5678';
-        const hsnString = String(hsn);
-        const numericOnly = hsnString.replace(/\D/g, '');
-        return numericOnly || '5678';
+      if (!hsn && hsn !== 0) return '5678';
+      const hsnString = String(hsn);
+      const numericOnly = hsnString.replace(/\D/g, '');
+      return numericOnly || '5678';
     };
-
+  
+    // index-based dimensions:
+    // product[0] -> parentShipment.dimensions
+    // product[1] -> childShipments[0].dimensions
+    // product[2] -> childShipments[1].dimensions
+    // ...
+    const getDimensionsByIndex = (index: number, ord: BaseOrderReqDtoV2) => {
+      let dims: any = {};
+  
+      if (index === 0) {
+        // First product → parent shipment if present
+        dims = (ord.parentShipment as any)?.dimensions || {};
+        // Fallback: if parent has no dimensions, use first child (if any)
+        if ((!dims || (!dims.length && !dims.width && !dims.height)) &&
+            ord.childShipments && ord.childShipments.length > 0) {
+          dims = (ord.childShipments[0] as any)?.dimensions || {};
+        }
+      } else {
+        const childIndex = index - 1;
+        if (ord.childShipments && ord.childShipments[childIndex]) {
+          dims = (ord.childShipments[childIndex] as any)?.dimensions || {};
+        }
+      }
+  
+      return {
+        length: parseAmount(dims?.length) || 10,   // default 10 if nothing found
+        width:  parseAmount(dims?.width)  || 10,
+        height: parseAmount(dims?.height) || 10,
+      };
+    };
+  
     const parentShipmentAny = order.parentShipment as any;
     const paymentAny = order.payment as any;
     const pickupAny = pickup as any;
     const deliveryAny = delivery as any;
     const metadataAny = order.metadata as any;
-
+  
     // --- Aggregate order-level taxes for fallback ---
     const orderTaxesSum = (order.taxes || []).reduce((sum: number, tax: any) => {
-        return sum + parseAmount(tax.value); 
+      return sum + parseAmount(tax.value);
     }, 0);
-    
+  
     // --- Collect Items from Both Parent and Child Shipments ---
     const allItems: any[] = [];
-    
-    // Add items from parentShipment
+  
+    // Add items from parentShipment (these will become the first product(s))
     if (order.parentShipment?.items && Array.isArray(order.parentShipment.items)) {
-        allItems.push(...order.parentShipment.items);
+      allItems.push(...order.parentShipment.items);
     }
-    
-    // Add items from all childShipments
+  
+    // Add items from all childShipments (these follow parent items)
     if (order.childShipments && Array.isArray(order.childShipments)) {
-        order.childShipments.forEach((childShipment: any) => {
-            if (childShipment?.items && Array.isArray(childShipment.items)) {
-                allItems.push(...childShipment.items);
-            }
-        });
-    }
-    
-    this.logger.debug(`Collected ${allItems.length} items total (${order.parentShipment?.items?.length || 0} from parent, ${order.childShipments?.length || 0} child shipments)`);
-    
-    // --- Transform Products from Items ---
-    const products: XpressbeesB2bProductDto[] = allItems.map((item: any) => {
-        let taxPercentage = 0;
-        
-        if (item.taxes && item.taxes.length > 0) {
-            const totalTax = item.taxes.reduce((sum: number, tax: any) => {
-                return sum + parseAmount(tax.value);
-            }, 0);
-            taxPercentage = totalTax;
-        } else if (orderTaxesSum > 0) {
-            taxPercentage = orderTaxesSum;
+      order.childShipments.forEach((childShipment: any) => {
+        if (childShipment?.items && Array.isArray(childShipment.items)) {
+          allItems.push(...childShipment.items);
         }
-
-        const itemDimensions = item.dimensions || {};
-        const hsnCode = sanitizeHsnCode(item.hsnCode);
-        const productPrice = parseAmount(item.unitPrice) || 1;
-        const productLength = parseAmount(itemDimensions.length) || 10;
-        const productBreadth = parseAmount(itemDimensions.width) || 10;
-        const productHeight = parseAmount(itemDimensions.height) || 10;
-        
-        return {
-            product_name: item.name || '',
-            product_qty: String(item.quantity || 1),
-            product_price: String(productPrice),
-            product_tax_per: String(taxPercentage),
-            product_sku: item.sku || '',
-            product_hsn_code: hsnCode,
-            product_lbh_unit: 'cm',
-            product_length: productLength,
-            product_breadth: productBreadth,
-            product_height: productHeight,
-        };
-    });
-
+      });
+    }
+  
+    this.logger.debug(
+      `Collected ${allItems.length} items total (${order.parentShipment?.items?.length || 0} from parent, ${order.childShipments?.length || 0} child shipments)`
+    );
+  
     // --- Calculate Amounts and Get E-Waybill Data ---
-    const paymentMethod = paymentAny?.paymentMethod?.toLowerCase() || paymentAny?.type?.toLowerCase() || 'prepaid';
+    const paymentMethod =
+      paymentAny?.paymentMethod?.toLowerCase() ||
+      paymentAny?.type?.toLowerCase() ||
+      'prepaid';
+  
     const isPrepaid = paymentMethod === 'prepaid' || paymentMethod === 'online';
-    
+  
     const subTotal = parseAmount(paymentAny?.breakdown?.subTotal) || 0;
-    
+  
     let discount = 0;
     if (paymentAny?.breakdown?.discounts && Array.isArray(paymentAny.breakdown.discounts)) {
-        discount = paymentAny.breakdown.discounts.reduce((sum: number, d: any) => {
-            return sum + parseAmount(d.chargedAmount);
-        }, 0);
+      discount = paymentAny.breakdown.discounts.reduce((sum: number, d: any) => {
+        return sum + parseAmount(d.chargedAmount);
+      }, 0);
     }
-    
+  
     const orderAmount = subTotal || parseAmount(paymentAny?.finalAmount) || 0;
-
-    // E-Waybill data - from order.eWaybills (array of strings)
-    // Format: ["491641801714", "491641801712"]
+  
+    // E-Waybill data - from order.eWaybills (array of strings or objects)
     const eWaybills = order.eWaybills || [];
-    const primaryEbillNumber = Array.isArray(eWaybills) && eWaybills.length > 0 
-      ? (typeof eWaybills[0] === 'string' ? eWaybills[0] : (eWaybills[0] as any)?.waybillNumber || null)
-      : null;
-    
-    // Expiry date: 10 days after orderDate (no validUntil from string format)
+    const primaryEbillNumber =
+      Array.isArray(eWaybills) && eWaybills.length > 0
+        ? (typeof eWaybills[0] === 'string'
+            ? eWaybills[0]
+            : (eWaybills[0] as any)?.waybillNumber || null)
+        : null;
+  
+    // Expiry date: 10 days after orderDate
     const orderDate = order.orderDate ? new Date(order.orderDate) : new Date();
     const expiryDate = new Date(orderDate);
     expiryDate.setDate(orderDate.getDate() + 10);
     const EbillExpiryDateCalculated = expiryDate.toISOString().split('T')[0];
-    const formattedOrderDate = order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
-    
-    // --- Transform Invoices from Documents (DOCUMENTS USED ONLY FOR invoice_number/date/value) ---
-    const invoiceDocs = order.documents?.filter((doc: any) => 
-        doc.type && doc.type.toUpperCase() === 'INVOICE'
-    ) || [];
-    
+    const formattedOrderDate =
+      order.orderDate?.split('T')[0] || new Date().toISOString().split('T')[0];
+  
+    // --- Transform Invoices from Documents ---
+    const invoiceDocs =
+      order.documents?.filter((doc: any) => doc.type && doc.type.toUpperCase() === 'INVOICE') || [];
+  
     const numberOfInvoices = invoiceDocs.length || 1;
-    const invoiceValuePerDoc = numberOfInvoices > 0 ? (orderAmount / numberOfInvoices) : orderAmount;
-    
+    const invoiceValuePerDoc =
+      numberOfInvoices > 0 ? orderAmount / numberOfInvoices : orderAmount;
+  
     const invoice: XpressbeesB2bInvoiceDto[] = invoiceDocs.map((doc: any) => {
-        const invoiceDate = formattedOrderDate;
-        
-        const invoiceObj: any = {
-            invoice_number: doc.number || '',
-            invoice_date: invoiceDate,
-            invoice_value: invoiceValuePerDoc,
-        };
-        
-        // ✅ E-Waybill assignment: ONLY from order.eWaybills when invoice value >= 50000
-        if (invoiceValuePerDoc >= 50000 && primaryEbillNumber) {
-            invoiceObj.ebill_number = primaryEbillNumber;
-            invoiceObj.ebill_expiry_date = EbillExpiryDateCalculated; // Always use calculated expiry (10 days from order date)
-        }
-        
-        return invoiceObj;
+      const invoiceDate = formattedOrderDate;
+  
+      const invoiceObj: any = {
+        invoice_number: doc.number || '',
+        invoice_date: invoiceDate,
+        invoice_value: invoiceValuePerDoc,
+      };
+  
+      // E-Waybill assignment: ONLY from order.eWaybills when invoice value >= 50000
+      if (invoiceValuePerDoc >= 50000 && primaryEbillNumber) {
+        invoiceObj.ebill_number = primaryEbillNumber;
+        invoiceObj.ebill_expiry_date = EbillExpiryDateCalculated;
+      }
+  
+      return invoiceObj;
     });
-
+  
     // Default invoice when no documents exist
     if (invoice.length === 0) {
-        const defaultInvoiceObj: any = {
-            invoice_number: order.referenceId || order.orderId || '',
-            invoice_date: formattedOrderDate,
-            invoice_value: orderAmount,
-        };
-        
-        if (orderAmount >= 50000 && primaryEbillNumber) {
-            defaultInvoiceObj.ebill_number = primaryEbillNumber;
-            defaultInvoiceObj.ebill_expiry_date = EbillExpiryDateCalculated; // Always use calculated expiry (10 days from order date)
-        }
-
-        invoice.push(defaultInvoiceObj);
+      const defaultInvoiceObj: any = {
+        invoice_number: order.referenceId || order.orderId || '',
+        invoice_date: formattedOrderDate,
+        invoice_value: orderAmount,
+      };
+  
+      if (orderAmount >= 50000 && primaryEbillNumber) {
+        defaultInvoiceObj.ebill_number = primaryEbillNumber;
+        defaultInvoiceObj.ebill_expiry_date = EbillExpiryDateCalculated;
+      }
+  
+      invoice.push(defaultInvoiceObj);
     }
-    
-    // --- Get Dimensions and Weight (Sum from all shipments) ---
+  
+    // --- Get Total Weight (Sum from parent + all children) ---
     let effectiveWeight = 0;
-    
-    // Add weight from parentShipment
+  
     if (order.parentShipment) {
-        effectiveWeight += getEffectiveWeight(order.parentShipment);
+      effectiveWeight += getEffectiveWeight(order.parentShipment);
     }
-    
-    // Add weights from all childShipments
+  
     if (order.childShipments && Array.isArray(order.childShipments)) {
-        order.childShipments.forEach((childShipment: any) => {
-            effectiveWeight += getEffectiveWeight(childShipment);
-        });
+      order.childShipments.forEach((childShipment: any) => {
+        effectiveWeight += getEffectiveWeight(childShipment);
+      });
     }
-    
+  
     // Default to 10 kg if no weight found
     if (effectiveWeight === 0) {
-        effectiveWeight = 10;
+      effectiveWeight = 10;
     }
-
-    const totalItemQuantity = allItems.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
-    const ourAwbNumber = order.awbNumber || order.parentShipment?.awbNumber || order.orderId;
-    
+  
+    // --- Transform Products from Items (dimensions based on index -> parent/children) ---
+    const products: XpressbeesB2bProductDto[] = allItems.map((item: any, index: number) => {
+      let taxPercentage = 0;
+  
+      if (item.taxes && item.taxes.length > 0) {
+        const totalTax = item.taxes.reduce((sum: number, tax: any) => {
+          return sum + parseAmount(tax.value);
+        }, 0);
+        taxPercentage = totalTax;
+      } else if (orderTaxesSum > 0) {
+        taxPercentage = orderTaxesSum;
+      }
+  
+      const hsnCode = sanitizeHsnCode(item.hsnCode);
+      const productPrice = parseAmount(item.unitPrice) || 1;
+  
+      const dims = getDimensionsByIndex(index, order);
+      const productLength = dims.length;
+      const productBreadth = dims.width;
+      const productHeight = dims.height;
+  
+      return {
+        product_name: item.name || '',
+        product_qty: String(item.quantity || 1),
+        product_price: String(productPrice),
+        product_tax_per: String(taxPercentage),
+        product_sku: item.sku || '',
+        product_hsn_code: hsnCode,
+        product_lbh_unit: 'cm',
+        product_length: productLength,
+        product_breadth: productBreadth,
+        product_height: productHeight,
+      };
+    });
+  
+    const totalItemQuantity = allItems.reduce(
+      (sum: number, item: any) => sum + (item.quantity || 1),
+      0
+    );
+  
+    const ourAwbNumber =
+      order.awbNumber || order.parentShipment?.awbNumber || order.orderId;
+  
     this.logger.log(`AWB Number used for XpressBees B2B label: ${ourAwbNumber}`);
-    this.logger.debug(`Transformed - Weight: ${effectiveWeight}kg, Order amount: ${orderAmount}, Products: ${products.length}, Invoices: ${invoice.length}`);
-
+    this.logger.debug(
+      `Transformed - Weight: ${effectiveWeight}kg, Order amount: ${orderAmount}, Products: ${products.length}, Invoices: ${invoice.length}`
+    );
+  
     // --- Final Payload Construction ---
     return {
-        id: String(ourAwbNumber),
-        payment_method: isPrepaid ? 'prepaid' : 'cod',
-        consigner_name: pickup.name || '',
-        consigner_phone: pickup.phone || '',
-        consigner_pincode: pickup.zip || '',
-        consigner_city: pickup.city || '',
-        consigner_state: pickup.state || '',
-        consigner_address: `${pickup.street || ''} ${pickup.landmark || ''}`.trim(),
-        consigner_gst_number: metadataAny?.pickupGST || pickupAny?.gstNumber || parentShipmentAny?.sellerGstNumber || undefined,
-        consignee_name: delivery.name || '',
-        consignee_phone: delivery.phone || '',
-        consignee_pincode: delivery.zip || '',
-        consignee_city: delivery.city || '',
-        consignee_state: delivery.state || '',
-        consignee_address: `${delivery.street || ''} ${delivery.landmark || ''}`.trim(),
-        consignee_gst_number: metadataAny?.deliveryGST || deliveryAny?.gstNumber || undefined,
-        
-        products: products,
-        invoice: invoice,
-        
-        weight: effectiveWeight,
-        courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID,
-        pickup_location: 'customer',
-        
-        discount: discount || 0,
-        order_amount: orderAmount || 0,
-        no_of_invoices: invoice.length,
-        no_of_boxes: totalItemQuantity || 1,
-        global_weight_unit: 'kg',
+      id: String(ourAwbNumber),
+      payment_method: isPrepaid ? 'prepaid' : 'cod',
+  
+      consigner_name: pickup.name || '',
+      consigner_phone: pickup.phone || '',
+      consigner_pincode: pickup.zip || '',
+      consigner_city: pickup.city || '',
+      consigner_state: pickup.state || '',
+      consigner_address: `${pickup.street || ''} ${pickup.landmark || ''}`.trim(),
+      consigner_gst_number:
+        metadataAny?.pickupGST ||
+        pickupAny?.gstNumber ||
+        parentShipmentAny?.sellerGstNumber ||
+        undefined,
+  
+      consignee_name: delivery.name || '',
+      consignee_phone: delivery.phone || '',
+      consignee_pincode: delivery.zip || '',
+      consignee_city: delivery.city || '',
+      consignee_state: delivery.state || '',
+      consignee_address: `${delivery.street || ''} ${delivery.landmark || ''}`.trim(),
+      consignee_gst_number:
+        metadataAny?.deliveryGST || deliveryAny?.gstNumber || undefined,
+  
+      products,
+      invoice,
+  
+      weight: effectiveWeight,
+      courier_id: XPRESSBEES_B2B_CONSTANTS.COURIER_ID,
+      pickup_location: 'customer',
+  
+      discount: discount || 0,
+      order_amount: orderAmount || 0,
+      no_of_invoices: invoice.length,
+      no_of_boxes: totalItemQuantity || 1,
+      global_weight_unit: 'kg',
     };
-}
+  }
+  
 
 
   async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
@@ -636,6 +690,8 @@ private transformToXpressbeesB2bPayload(order: BaseOrderReqDtoV2): XpressbeesB2b
   async pushOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2B');
   }
+
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(data: T): Promise<R> { return this.pushOrderToHubOps(data); }
 
   async updateOrderToHubOps<T, R>(data: T): Promise<R> {
     throw new CustomHttpException(HttpStatus.NOT_IMPLEMENTED, 'Method not implemented for XpressBees B2B');

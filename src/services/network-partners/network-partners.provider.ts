@@ -22,6 +22,10 @@ import { IndiaPostDomesticService } from "./implementation/india-post-domestic/i
 import { IndiaPostInternationalService } from "./implementation/indiapost-international/indiapost-international.service";
 import { DpworldService } from "./implementation/dpworld/dpworld.service";
 import { NAQELService } from "./implementation/naqel/naqel.service";
+import { EkartService } from "./implementation/ekart/ekart.service";
+import { DelhiveryService } from "./implementation/delhivery/delhivery.service";
+import { MoverService } from "./implementation/mover/mover.service";
+import { GatiService } from "./implementation/gati/gati.service";
 
 export const networkPartnersProviders: Provider[] = [
   // Individual partner providers
@@ -105,6 +109,22 @@ export const networkPartnersProviders: Provider[] = [
     provide: NETWORK_PARTNER_PROVIDER_CONST.NAQEL,
     useClass: NAQELService,
   },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.EKART,
+    useClass: EkartService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.DELHIVERY,
+    useClass: DelhiveryService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.MOVER,
+    useClass: MoverService,
+  },
+  {
+    provide: NETWORK_PARTNER_PROVIDER_CONST.GATI,
+    useClass: GatiService,
+  },
   // Factory initialization provider
   {
     provide: NETWORK_PARTNER_PROVIDER_CONST.FACTORY_INIT,
@@ -130,6 +150,10 @@ export const networkPartnersProviders: Provider[] = [
       indiaPostInternationalService: IndiaPostInternationalService,
       dpworldService: DpworldService,
       naqelService: NAQELService,
+      ekartService: EkartService,
+      delhiveryService: DelhiveryService,
+      moverService: MoverService,
+      gatiService: GatiService,
     ) => {
       // Register individual partners
       factory.registerPartner(PARTNER_CODE_ENUM.BIGSHIP, bigshipService);
@@ -145,15 +169,14 @@ export const networkPartnersProviders: Provider[] = [
       factory.registerPartner(PARTNER_CODE_ENUM.URBANBOLT, urbanBoltService);
       factory.registerPartner(PARTNER_CODE_ENUM.FEDEX, fedexService);
 
-      factory.registerPartner(
-        PARTNER_CODE_ENUM.SMILE_HUBOPS,
-        smileHubopsService
-      );
+      factory.registerPartner(PARTNER_CODE_ENUM.SMILE_HUBOPS, smileHubopsService);
+      factory.registerPartner(PARTNER_CODE_ENUM.SMILE, smileHubopsService);
       factory.registerPartner(PARTNER_CODE_ENUM.UNIUNI, uniuniService);
       factory.registerPartner(PARTNER_CODE_ENUM.BARAL, baralService);
       factory.registerPartner(PARTNER_CODE_ENUM.SHIPCUBE, shipcubeService);
       factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES_B2C, xpressbeesB2cService);
       factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES_B2B, xpressbeesB2bService);
+      factory.registerPartner(PARTNER_CODE_ENUM.XPRESSBEES, xpressbeesB2bService);
       factory.registerPartner(
         PARTNER_CODE_ENUM.INDIA_POST_DOMESTIC,
         indiaPostDomesticService
@@ -166,6 +189,11 @@ export const networkPartnersProviders: Provider[] = [
       // Register the default partner
       factory.registerDefaultPartner(defaultNetworkPartner);
       factory.registerPartner(PARTNER_CODE_ENUM.NAQEL, naqelService);
+      factory.registerPartner(PARTNER_CODE_ENUM.EKART, ekartService);
+      factory.registerPartner(PARTNER_CODE_ENUM.DELHIVERY, delhiveryService);
+      factory.registerPartner(PARTNER_CODE_ENUM.DELHIVERY_GENERIC, delhiveryService);
+      factory.registerPartner(PARTNER_CODE_ENUM.MOVER, moverService);
+      factory.registerPartner(PARTNER_CODE_ENUM.GATI, gatiService);
 
       return factory;
     },
@@ -191,6 +219,10 @@ export const networkPartnersProviders: Provider[] = [
       NETWORK_PARTNER_PROVIDER_CONST.INDIAPOST_INTERNATIONAL,
       NETWORK_PARTNER_PROVIDER_CONST.DPWORLD,
       NETWORK_PARTNER_PROVIDER_CONST.NAQEL,
+      NETWORK_PARTNER_PROVIDER_CONST.EKART,
+      NETWORK_PARTNER_PROVIDER_CONST.DELHIVERY,
+      NETWORK_PARTNER_PROVIDER_CONST.MOVER,
+      NETWORK_PARTNER_PROVIDER_CONST.GATI,
     ],
   },
 ];

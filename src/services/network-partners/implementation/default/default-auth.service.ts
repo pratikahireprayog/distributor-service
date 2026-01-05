@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuthProvider } from '../../interfaces/auth-provider.interface';
+import { AuthProvider, TenantContext } from '../../interfaces/auth-provider.interface';
 
 /**
  * Default authentication provider for the default network partner
@@ -13,8 +13,9 @@ export class DefaultAuthService implements AuthProvider {
   /**
    * Gets authentication headers for the default network partner
    * This implementation just returns an empty object since it's a default provider
+   * @param tenantContext Optional tenant context (not used in default provider)
    */
-  async getAuthHeaders(): Promise<Record<string, string>> {
+  async getAuthHeaders(tenantContext?: TenantContext): Promise<Record<string, string>> {
     this.logger.debug('Using default authentication provider');
     return {};
   }

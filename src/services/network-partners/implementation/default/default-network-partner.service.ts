@@ -17,6 +17,7 @@ import {
   BaseResDto,
   ManifestReqDto,
 } from "src/common/dtos/base.dto";
+import { BaseCancelOrderDtoV2 } from "src/common/dtos/base2.dto";
 import { BaseNetworkPartnerHelper } from "../../base/base-network-partner-helper.service";
 import { EligiblePartnersData } from "src/common/dtos/global.dto";
 import {
@@ -97,13 +98,78 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
   async cancelOrder<T extends BaseCancelOrderDto, R extends BaseResDto>(
     data: T
+  ): Promise<any> {
+
+    try {
+      this.logger.log(
+        `Using base implementation for partner code: ${data.partnerCode}`
+      );
+      // Set the partner code from the request data
+   
+
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
+
+      const body = this.buildCancelTrackingBody(data);
+
+      const response = await this.makeApiCall(
+        endpoint.url,
+        body,
+        "Cancel Tracking"
+      );
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully cancelled to tracking"
+      );
+    }
+    catch (err) {
+      throw err
+    }
+
+
+    
+
+  }
+
+  /**
+   * Cancel order V2 with handling for special partner codes like BULK_OPERATION
+   */
+  async cancelOrderV2<T extends BaseCancelOrderDtoV2, R extends BaseResDto>(
+    data: T,
+    partnerCode: string,
+    eligiblePartners?: EligiblePartnersData
   ): Promise<R> {
     this.logger.log(
-      `Using base implementation for partner code: ${data.partnerCode}`
+      `Cancelling Order V2 with partner ${partnerCode}`
     );
+
+    // Handle BULK_OPERATION as a special case - no external API call needed
+    if (partnerCode === 'BULK_OPERATION') {
+      this.logger.log(
+        `BULK_OPERATION detected - returning success without external API call`
+      );
+      return {
+        statusCode: 200,
+        message: 'Order cancellation processed successfully (BULK_OPERATION)',
+        partnerCode: partnerCode,
+        data: {
+          cAwbNumbers: data.cAwbNumbers,
+          cancelReason: data.cancelReason,
+          status: 'CANCELLED',
+        },
+        trace: {
+          timestamp: new Date().toISOString(),
+          partnerCode: partnerCode,
+          operation: 'CANCEL_ORDER_V2',
+        },
+      } as R;
+    }
+
     // Set the partner code from the request data
-    (this as any).partnerCode = data.partnerCode;
-    return await super.cancelOrder<T, R>(data);
+    (this as any).partnerCode = partnerCode;
+    return await super.cancelOrderV2<T, R>(data, partnerCode, eligiblePartners);
   }
 
   // async pushOrdersToPRS<T extends pushOrdersToPRSDto, R extends BaseResDto>(
@@ -151,6 +217,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       // Include request body in success response
       if (response.data) {
         response.data = {
+          version:"v2 new activity",
           originalResponse: response.data,
           requestUrl: url,
           requestBody: body,
@@ -233,6 +300,14 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         pincode: shippingAddress.zip,
         landmark: shippingAddress.address2 || "",
       },
+      senderDetails: {
+        sender_mobile: pickupAddress.mobile,
+        sender_name:pickupAddress.name
+      },
+      receiverDetails: {
+        receiver_mobile: shippingAddress.mobile,
+        receiver_name:shippingAddress.name
+      },
       orderMetaData: [],
     };
 
@@ -275,6 +350,19 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     };
   }
 
+
+  private buildCancelTrackingBody<T extends BaseCancelOrderDto>(data: T) {
+    return {
+      trackingId:data.cAwbNumbers[0],
+      status: "cancelled",
+      deliveryPartnerName: "innofulfill",
+      event:data.reason,
+      statusTimestamp: Math.floor(Date.now() / 1000).toString(),
+
+      
+    }
+  }
+
   async pushOrderToTracking<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R> {
@@ -284,10 +372,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_URL
+      }
 
       this.logger.log(`Sending order to tracking API: ${endpoint.url}`);
 
@@ -316,10 +403,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.MANIFEST_ORDER_TO_TRACKING
-      );
+      const endpoint = {
+        url:process.env.TRACKING_MANIFEST
+      }
 
       this.logger.log(
         `Sending manifest order to tracking API: ${endpoint.url}`
@@ -412,10 +498,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDERS_TO_PRS
-      );
+      const endpoint = {
+        url:process.env.PRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to PRS API: ${endpoint.url}`);
 
@@ -479,10 +564,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_DRS
-      );
+      const endpoint = {
+        url:process.env.DRS_PUSH_API
+      }
 
       this.logger.log(`Sending order to DRS API: ${endpoint.url}`);
 
@@ -590,10 +674,9 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     // (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        PARTNER_CODE_ENUM.SMILE,
-        ENDPOINT_ID_ENUM.PUSH_ORDER_TO_HUBOPS
-      );
+      const endpoint = {
+        url:process.env.HUB_OPS_PUSH_DATA
+      }
 
       this.logger.log(`Sending order to HubOps API: ${endpoint.url}`);
 
@@ -692,13 +775,13 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         description: order?.remarks || "",
         sourcePremiseId: order?.cpId || "",
         volumetricWeight: 0,
-        weight: order?.dimensions?.weight || 0,
+        weight: this.determineWeight(order),
         width: order?.dimensions?.breadth || 0,
       },
     ];
   }
 
-  async updateOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+  async updateOrderToHubOps<T extends StandardRequestDto, R extends BaseOrderResDto>(
     data: T
   ): Promise<R> {
     this.logger.log(
@@ -707,17 +790,29 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     (this as any).partnerCode = data.partnerCode;
 
     try {
-      const endpoint = await this.getEndpoint(
-        data.partnerCode,
-        ENDPOINT_ID_ENUM.UPDATE_ORDER_TO_HUBOPS
-      );
+      // Get base URL from environment variable
+      const baseUrl = process.env.HUBOPS_BASE_URL || process.env.INNOFULFILL_BASE_URL;
+      
+      if (!baseUrl) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "HUBOPS_BASE_URL or INNOFULFILL_BASE_URL environment variable is not configured"
+        );
+      }
 
       // Get AWB number for the URL path
       const orderData = data.order as BaseOrderReqDto;
       const awbNumber = orderData.awbNumber;
 
+      if (!awbNumber) {
+        throw new CustomHttpException(
+          HttpStatus.BAD_REQUEST,
+          "AWB number is required for updating order in HubOps"
+        );
+      }
+
       // Build the URL with the awbNumber path parameter
-      const url = endpoint.url.replace("{awbNumber}", awbNumber);
+      const url = `${baseUrl}/update-booking/${awbNumber}`;
 
       this.logger.log(`Updating order in HubOps API: ${url}`);
 
@@ -731,6 +826,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
         "HubOps Update"
       );
 
+      // Transform response to BaseOrderResDto format
       return this.createSuccessResponse<R>(
         response.data,
         "Order successfully updated in HubOps"
@@ -786,13 +882,32 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
 
   /**
    * Build payload for HubOps update operation
+   * Transforms BaseOrderReqDto to the format required by HubOps update-booking API
    */
   private buildHubOpsUpdatePayload(order: BaseOrderReqDto) {
+    // Transform ewayBillNos array to ewayBills format
+    const ewayBills = [];
+    if (order?.ewayBillNos && Array.isArray(order.ewayBillNos)) {
+      ewayBills.push(
+        ...order.ewayBillNos
+          .filter((ewayBillNo) => ewayBillNo && ewayBillNo.trim() !== "")
+          .map((ewayBillNo) => ({
+            ewaybillNo: ewayBillNo,
+          }))
+      );
+    }
+
     return {
       destinationPincode: parseInt(order?.shippingAddress?.zip) || 0,
       travelBy: order?.travelType || "",
       receiverAddressLine1: order?.shippingAddress?.address1 || "",
       receiverAddressLine2: order?.shippingAddress?.address2 || "",
+      ewayBills: ewayBills.length > 0 ? ewayBills : undefined,
+      senderAddressLine: order?.pickupAddress?.address1 || "",
+      senderCity: order?.pickupAddress?.city || "",
+      senderState: order?.pickupAddress?.state || "",
+      senderPincode: parseInt(order?.pickupAddress?.zip) || 0,
+      senderName: order?.pickupAddress?.name || "",
     };
   }
 
@@ -1070,6 +1185,76 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
     return isInternational || isShipyaari || isDelhivery;
   }
 
+
+  
+  private determineWeight(order: BaseOrderReqDto): number {
+    if (order && order.dimensions && order.dimensions.weight) {
+      if (order && order.unit && order.unit.weightUnit === "gm")
+        return order.dimensions.weight / 1000;
+      else 
+        return order.dimensions.weight;
+    }
+    
+
+    return 0;
+  }
+
+  /**
+   * Push order to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  async pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R> {
+    this.logger.log(
+      `Using base implementation for partner code: ${data.partnerCode} (V2)`
+    );
+
+    try {
+      const endpoint = {
+        url: process.env.HUB_OPS_PUSH_DATA
+      }
+
+      this.logger.log(`Sending order to HubOps API V2: ${endpoint.url}`);
+
+      const body = this.buildHubOpsPayload(
+        data.order as BaseOrderReqDto,
+        data.partnerCode
+      );
+      this.logger.log("HubOps V2 payload body sent to API", body);
+
+      const response = await this.makeApiCall(endpoint.url, body, "HubOps V2");
+
+      // TODO: PATCHWORK FIX - Remove this and properly handle HubOps API errors
+      // Currently returning success even for API failures to prevent workflow interruption
+      // Original error handling should be restored once HubOps API issues are resolved
+
+      // Check if the API response indicates failure
+      const originalResponse = response.data?.originalResponse;
+      if (originalResponse && originalResponse.statusCode !== 200) {
+        // Log the error but don't throw - temporary patchwork solution
+        this.logger.error(
+          `HubOps V2 API returned error but continuing as success (PATCHWORK): ${JSON.stringify(originalResponse)}`
+        );
+
+        // Return success response with the original error data intact
+        return this.createSuccessResponse<R>(
+          response.data, // Keep original response structure with error details
+          "Order processed for HubOps V2 (with API errors - patchwork fix)"
+        );
+      }
+
+      return this.createSuccessResponse<R>(
+        response.data,
+        "Order successfully pushed to HubOps V2"
+      );
+    } catch (error) {
+      // Let the error propagate up, makeApiCall already formats it properly
+      throw error;
+    }
+  }
+
   /**
    * Update partner information to HubOps for multiple shipments
    * Makes PUT requests for each shipment in the shipmentDetails array
@@ -1163,6 +1348,7 @@ export class DefaultNetworkPartner extends BaseNetworkPartner {
       partnerCode: shipment.partnerName,
       mcnAwbNumber: shipment.partnerAwbNumber,
       tplTransporterId: shipment.transporterId,
+      label:shipment.label
     };
 
     this.logger.log(

@@ -210,6 +210,20 @@ export class DimensionsDto {
   height?: number;
 }
 
+
+
+export class UnitsDto {
+  @IsString()
+  @IsOptional()
+  weightUnit?: string
+  
+
+
+  @IsString()
+  @IsOptional()
+  lbhUnit?:string
+}
+
 /**
  * Core Order data structure
  * This represents the fundamental Order entity used across the application
@@ -368,6 +382,15 @@ export class OrderDto {
   @IsOptional()
   dimensions?: DimensionsDto;
 
+
+  @Type(() => UnitsDto)
+  @ValidateNested()
+  @IsOptional()
+  unit?:UnitsDto  
+
+
+  
+
   /**
    * Whether the order is returnable
    */
@@ -494,6 +517,13 @@ export class BaseOrderReqDto extends BaseReqDto {
   @Type(() => PaymentDetailsDto)
   paymentDetails: PaymentDetailsDto;
 
+
+  @IsOptional()
+  @Type(() => UnitsDto)
+  @ValidateNested()
+  unit?:UnitsDto  
+
+
   @IsNotEmpty({ message: "Dimensions are required" })
   @ValidateNested()
   @Type(() => DimensionsDto)
@@ -581,12 +611,17 @@ export class ShipmentDetailsDto {
 
   @IsString()
   transporterId: string;
+
+  @IsString()
+  @IsOptional()
+  partnerOrderId?: string;
 }
 
 export class BaseOrderResDto extends BaseResDto {
   trackingId?: string;
   referenceNumber?: string;
   shipmentDetails?: ShipmentDetailsDto[];
+  partnerOrderId?: string;
 }
 
 export class UpdatePartnerToHubOpsRequestDto {
@@ -609,6 +644,10 @@ export class BaseCancelOrderDto {
   @IsOptional()
   @IsString()
   partnerCode?: string;
+
+  @IsOptional()
+  @IsString()
+  reason?:string
 }
 
 export class DeliveryDetailsDto {

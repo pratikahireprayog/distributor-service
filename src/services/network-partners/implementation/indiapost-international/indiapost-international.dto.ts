@@ -23,7 +23,7 @@ export class IndiaPostInternationalSubPieceDto {
   created_by: string;
   office_id_bkg: number;
   ip_address_bkg: string;
-  article_number: string;
+  article_number?: string;
   igst_rate?: number;
   igst_amount?: number;
   export_duty_rate?: number;
@@ -56,7 +56,7 @@ export class IndiaPostInternationalSubPieceDto {
   sp_invoice_value: number;
   sp_asbl_currency_cd: string;
   sp_asbl_currency_exchrate: number;
-  user_type_cd: string;
+  usertype_cd: string;
 }
 
 // Create Order Request DTO
@@ -108,7 +108,6 @@ export class IndiaPostInternationalCreateOrderRequestDto {
   receiver_kyc_reference?: string;
   receiver_tax_reference?: string;
   pbe_type_cd: string;
-  pbe_bank_ref: string;
   upload_doc_inv_count: number;
   upload_doc_cert_count: number;
   upload_doc_lic_count: number;
@@ -137,6 +136,8 @@ export class IndiaPostInternationalCreateOrderRequestDto {
   iec_code: string;
   bkg_office_gst_no: string;
   pod_ack_charge?: number;
+  origin?: string;
+  pbe_bank_ref?: string;
   sub_pieces: IndiaPostInternationalSubPieceDto[];
 }
 
@@ -156,6 +157,43 @@ export class IndiaPostInternationalCreateOrderResponseDto {
     article_number?: string;
     tracking_number?: string;
     label_url?: string;
+  };
+}
+
+// Create Label Request DTO
+export class IndiaPostInternationalCreateLabelRequestDto {
+  office_customer: string;
+  article_type: string;
+}
+
+// Create Label Response DTO
+export class IndiaPostInternationalCreateLabelResponseDto {
+  success?: boolean;
+  message?: string;
+  data?: {
+    label_url?: string;
+    label?: string;
+    label_base64?: string;
+    [key: string]: any;
+  };
+}
+
+// Booking Reference Request DTO
+export class IndiaPostInternationalBookingReferenceRequestDto {
+  'office-id': string;
+  'product-code': string;
+}
+
+// Booking Reference Response DTO
+export class IndiaPostInternationalBookingReferenceResponseDto {
+  status_code?: number;
+  success?: boolean;
+  message?: string;
+  data?: {
+    id?: string;
+    office_id?: number;
+    product_code?: string;
+    booking_ref_id?: string;
   };
 }
 

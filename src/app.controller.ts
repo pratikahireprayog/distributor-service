@@ -40,6 +40,41 @@ export class AppController {
     private readonly distributorService: DistributorService
   ) {}
 
+  /**
+   * Normalize partnerCode from request DTO to canonical enum value
+   */
+  private normalizePartnerCode(dto: any): void {
+    if (dto?.partnerCode) {
+      const input = String(dto.partnerCode).toLowerCase();
+      
+      // Special case: map generic names to canonical values
+      if (input === 'xpressbees' || input === 'dharmendra') {
+        dto.partnerCode = PARTNER_CODE_ENUM.XPRESSBEES_B2B;
+        return;
+      }
+
+      if (input === 'delhivery' || input === 'tarun_gupta') {
+        dto.partnerCode = PARTNER_CODE_ENUM.DELHIVERY;
+        return;
+      }
+
+      if (input === 'smile') {
+        dto.partnerCode = PARTNER_CODE_ENUM.SMILE_HUBOPS;
+        return;
+      }
+
+      const entries = Object.entries(PARTNER_CODE_ENUM);
+      const keyMatch = entries.find(([key]) => key.toUpperCase() === input.toUpperCase());
+      const valueMatch = entries.find(([, value]) => String(value).toUpperCase() === input.toUpperCase());
+      
+      if (keyMatch) {
+        dto.partnerCode = keyMatch[1] as PARTNER_CODE_ENUM;
+      } else if (valueMatch) {
+        dto.partnerCode = valueMatch[1] as PARTNER_CODE_ENUM;
+      }
+    }
+  }
+
   @Get()
   getStatus(): string {
     return this.appService.getStatus();
@@ -54,24 +89,50 @@ export class AppController {
   async createOrder(
     @Body() requestDto: StandardRequestDto
   ): Promise<BaseOrderResDto> {
+    this.normalizePartnerCode(requestDto);
     return this.distributorService.createOrder(requestDto);
   }
 
   @Post("create-order-v2")
-  async createOrderV2(@Body() requestDto: StandardRequestDtoV2): Promise<any> {
-    // Normalize partnerCode to canonical enum value, case-insensitive
-    if (requestDto?.partnerCode) {
-      const input = String(requestDto.partnerCode);
-      const entries = Object.entries(PARTNER_CODE_ENUM);
-      const keyMatch = entries.find(([key]) => key.toUpperCase() === input.toUpperCase());
-      const valueMatch = entries.find(([, value]) => String(value).toUpperCase() === input.toUpperCase());
-      if (keyMatch) {
-        requestDto.partnerCode = keyMatch[1] as PARTNER_CODE_ENUM;
-      } else if (valueMatch) {
-        requestDto.partnerCode = valueMatch[1] as PARTNER_CODE_ENUM;
-      }
-    }
-    return this.distributorService.createOrderV2(requestDto);
+  async createOrderV2(
+    @Body() requestDto: StandardRequestDtoV2,
+    @Headers() headers?: Record<string, string | string[]>
+  ): Promise<any> {
+    this.normalizePartnerCode(requestDto);
+    // Extract tenant and user IDs from headers (case-insensitive lookup)
+    const getHeaderValue = (key: string): string | undefined => {
+      if (!headers) return undefined;
+      // Try lowercase first (Express normalizes to lowercase)
+      const lowerKey = key.toLowerCase();
+      const value = headers[lowerKey] || headers[key];
+      return Array.isArray(value) ? value[0] : value;
+    };
+    
+    const tenantId = getHeaderValue('x-tenant-id');
+    const userId = getHeaderValue('x-user-id');
+    console.log("tenantId", tenantId);
+    console.log("userId", userId);
+    return this.distributorService.createOrderV2(requestDto, tenantId, userId);
+  }
+
+  @Post("create-order-v3")
+  async createOrderV3(
+    @Body() requestDto: StandardRequestDtoV2,
+    @Headers() headers?: Record<string, string | string[]>
+  ): Promise<any> {
+    this.normalizePartnerCode(requestDto);
+    // Extract tenant and user IDs from headers (case-insensitive lookup)
+    const getHeaderValue = (key: string): string | undefined => {
+      if (!headers) return undefined;
+      // Try lowercase first (Express normalizes to lowercase)
+      const lowerKey = key.toLowerCase();
+      const value = headers[lowerKey] || headers[key];
+      return Array.isArray(value) ? value[0] : value;
+    };
+    
+    const tenantId = getHeaderValue('x-tenant-id');
+    const userId = getHeaderValue('x-user-id');
+    return this.distributorService.createOrderV3(requestDto, tenantId, userId);
   }
 
   @Post("create-manifest")
@@ -85,6 +146,8 @@ export class AppController {
   async getOrderDetails(
     @Query() requestDto: StandardRequestDto
   ): Promise<BaseResDto> {
+    this.normalizePartnerCode(requestDto);
+
     // Convert order field to BaseReqDto
     const params = requestDto.order as BaseReqDto;
     // Ensure partnerCode is transferred from request to params
@@ -105,6 +168,7 @@ export class AppController {
   async cancelOrderV2(
     @Body() requestDto: StandardCancelRequestDtoV2
   ): Promise<BaseResDto> {
+    this.normalizePartnerCode(requestDto);
     return this.distributorService.cancelOrderV2(requestDto);
   }
 
@@ -112,6 +176,7 @@ export class AppController {
   async updateOrderV2(
     @Body() requestDto: StandardUpdateRequestDtoV2
   ): Promise<BaseResDto> {
+    this.normalizePartnerCode(requestDto);
     return this.distributorService.updateOrderV2(requestDto);
   }
 

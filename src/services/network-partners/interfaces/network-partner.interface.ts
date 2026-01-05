@@ -13,6 +13,7 @@ import {
   pushOrdersToPRSDto,
   StandardRequestDto,
 } from "src/services/distributor/distributor.service";
+import { TenantContext } from "src/common/interfaces/auth-provider.interface";
 
 /**
  * Interface defining the operations that can be performed by a network partner
@@ -31,7 +32,8 @@ export interface INetworkPartner {
   createOrderV2<T extends BaseOrderReqDtoV2, R extends BaseOrderResDto>(
     orderDetails: T,
     partnerCode: string,
-    eligiblePartners?: EligiblePartnersData
+    eligiblePartners?: EligiblePartnersData,
+    tenantContext?: TenantContext
   ): Promise<R>;
 
   getOrderDetails<T extends BaseReqDto, R extends BaseResDto>(
@@ -131,6 +133,15 @@ export interface INetworkPartner {
    * @returns Response from HubOps API
    */
   pushOrderToHubOps<T extends StandardRequestDto, R extends BaseResDto>(
+    data: T
+  ): Promise<R>;
+
+  /**
+   * Push order to HubOps system V2
+   * @param data Order data for HubOps
+   * @returns Response from HubOps API
+   */
+  pushOrderToHubOpsV2<T extends StandardRequestDto, R extends BaseResDto>(
     data: T
   ): Promise<R>;
 
