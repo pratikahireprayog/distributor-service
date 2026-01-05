@@ -58,7 +58,8 @@ export class NetworkPartnerFactoryService {
         } else if (lowerType === 'delhivery') {
             lookupType = 'delhivery';
         } else if (lowerType === 'smile') {
-            lookupType = 'smile';
+            // Map "smile" or "SMILE" to smile_hubops
+            lookupType = 'smile_hubops';
         }
 
         // Special handling for UniUni with country-based routing
@@ -90,6 +91,13 @@ export class NetworkPartnerFactoryService {
             return this.uniuniFactory.isConfigured();
         }
         
-        return this.partnersMap.has(type);
+        // Normalize "smile" or "SMILE" to "smile_hubops" for lookup
+        const lowerType = type?.toLowerCase();
+        let lookupType = type;
+        if (lowerType === 'smile') {
+            lookupType = 'smile_hubops';
+        }
+        
+        return this.partnersMap.has(lookupType);
     }
 } 

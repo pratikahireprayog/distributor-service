@@ -79,8 +79,13 @@ export class UrbanBoltService extends BaseNetworkPartner {
       // Map the order data to UrbanBolt format
       urbanBoltRequest = this.mapToUrbanBoltRequest(orderData);
       
-      this.logger.log(`Making UrbanBolt API call to: ${manifestUrl}`);
-      this.logger.log(`UrbanBolt request payload:`, JSON.stringify(urbanBoltRequest, null, 2));
+      // Log credentials being used (mask sensitive data)
+      const credentials = await this.authProvider.getCredentialsForLogging();
+      this.logger.log(`[UrbanBolt] Using credentials: ${JSON.stringify(credentials, null, 2)}`);
+      
+      this.logger.log(`[UrbanBolt] Making API call to: ${manifestUrl}`);
+      this.logger.log(`[UrbanBolt] Request headers: ${JSON.stringify(authHeaders, null, 2)}`);
+      this.logger.log(`[UrbanBolt] Full request body: ${JSON.stringify([urbanBoltRequest], null, 2)}`);
 
       const response = await firstValueFrom(
         this.httpService.post<UrbanBoltManifestResponseDto>(

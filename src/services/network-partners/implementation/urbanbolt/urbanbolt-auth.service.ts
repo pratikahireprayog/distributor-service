@@ -45,12 +45,19 @@ export class UrbanBoltAuthService implements AuthProvider {
       const authPath = this.configService.get<string>(URBANBOLT_ENV_KEYS.AUTH_TOKEN_PATH, URBANBOLT_DEFAULTS.AUTH_TOKEN_PATH);
       const authUrl = `${baseUrl}${authPath}`;
       
+      const username = this.configService.get<string>(URBANBOLT_ENV_KEYS.USERNAME, URBANBOLT_DEFAULTS.USERNAME);
+      const password = this.configService.get<string>(URBANBOLT_ENV_KEYS.PASSWORD, URBANBOLT_DEFAULTS.PASSWORD);
+      
       const authRequest: UrbanBoltAuthRequestDto = {
-        username: this.configService.get<string>(URBANBOLT_ENV_KEYS.USERNAME, URBANBOLT_DEFAULTS.USERNAME),
-        password: this.configService.get<string>(URBANBOLT_ENV_KEYS.PASSWORD, URBANBOLT_DEFAULTS.PASSWORD),
+        username: username,
+        password: password,
       };
 
-      this.logger.log(`Authenticating with UrbanBolt API: ${authUrl}`);
+      // Log credentials being used for authentication (mask password for security)
+      this.logger.log(`[UrbanBolt Auth] Authenticating with UrbanBolt API: ${authUrl}`);
+      this.logger.log(`[UrbanBolt Auth] Username: ${username}`);
+      this.logger.log(`[UrbanBolt Auth] Password: ${password ? '***' + password.slice(-4) : 'NOT_SET'}`);
+      this.logger.log(`[UrbanBolt Auth] Auth request body: ${JSON.stringify({ username, password: password ? '***' + password.slice(-4) : 'NOT_SET' }, null, 2)}`);
 
       const response = await firstValueFrom(
         this.httpService.post<UrbanBoltAuthResponseDto>(authUrl, authRequest, {
@@ -100,5 +107,22 @@ export class UrbanBoltAuthService implements AuthProvider {
     return this.accessToken !== null && 
            this.tokenExpiry !== null && 
            new Date() < this.tokenExpiry;
+  }
+
+  /**
+   * Get credentials for logging purposes (with masked password)
+   */
+  async getCredentialsForLogging(): Promise<{ username: string; password: string; baseUrl?: string; authPath?: string }> {
+    const username = this.configService.get<string>(URBANBOLT_ENV_KEYS.USERNAME, URBANBOLT_DEFAULTS.USERNAME);
+    const password = this.configService.get<string>(URBANBOLT_ENV_KEYS.PASSWORD, URBANBOLT_DEFAULTS.PASSWORD);
+    const baseUrl = this.configService.get<string>(URBANBOLT_ENV_KEYS.BASE_URL, URBANBOLT_DEFAULTS.BASE_URL);
+    const authPath = this.configService.get<string>(URBANBOLT_ENV_KEYS.AUTH_TOKEN_PATH, URBANBOLT_DEFAULTS.AUTH_TOKEN_PATH);
+    
+    return {
+      username: username || 'NOT_SET',
+      password: password ? '***' + password.slice(-4) : 'NOT_SET',
+      baseUrl: baseUrl,
+      authPath: authPath,
+    };
   }
 }

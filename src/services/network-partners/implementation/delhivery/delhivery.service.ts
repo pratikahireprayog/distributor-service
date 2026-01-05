@@ -596,6 +596,8 @@ export class DelhiveryService extends BaseNetworkPartner {
     // Transform billing address
     const billingAny = billing as any;
     const panNumber =  billingAny?.panNumber || '';
+    const gstNumber = metadataAny?.pickupGST || billingAny?.gstNumber || '';
+    
     const billingAddress: BillingAddressDto = {
       name: billing.name || pickup.name || '',
       company: metadataAny?.companyName || billing.name || '',
@@ -606,7 +608,7 @@ export class DelhiveryService extends BaseNetworkPartner {
       pin: billing.zip || pickup.zip || '',
       phone: billing.phone || pickup.phone || '',
       pan_number: panNumber || 'AAAAA1111A',
-      gst_number: metadataAny?.pickupGST || billingAny?.gstNumber || '',
+      ...(gstNumber && { gst_number: gstNumber }),
     };
 
     // Freight mode - only include if provided
